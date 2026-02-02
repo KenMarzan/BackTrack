@@ -11,7 +11,7 @@ function AnomaliesPage() {
         {/* Left side - Terminal (2/3) */}
         <div className="col-span-2 border border-[#5D5A5A] rounded-2xl p-6 bg-[#FFFFFF]/[0.02] min-h-0 h-full flex flex-col overflow-hidden">
           <h2 className="text-white font-bold text-lg mb-4">Terminal</h2>
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 p-4">
             <KubernetesTerminal />
           </div>
         </div>

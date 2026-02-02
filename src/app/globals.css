@@ -44,3 +44,11 @@ body::-webkit-scrollbar {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+.xterm-screen {
+  overflow-y: hidden !important;
+}
+
+.xterm {
+  overflow: hidden !important;
+}
