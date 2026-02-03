@@ -1,14 +1,214 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Chart from "chart.js/auto";
 import { GitCommitHorizontal } from "lucide-react";
-export default function LineChart() {
+
+interface MetricsData {
+  current: {
+    cpu: string;
+    memory: string;
+    network: string;
+    disk: string;
+  };
+  timeSeries: {
+    cpu: { timestamp: number; value: number }[];
+    memory: { timestamp: number; value: number }[];
+    network: { timestamp: number; value: number }[];
+    disk: { timestamp: number; value: number }[];
+    requestRate: { timestamp: number; value: number }[];
+  };
+  labels: string[];
+}
+
+interface LineChartProps {
+  data?: { time: string; value: number }[];
+  color?: string;
+  selectedMetric?:
+    | "overall"
+    | "cpu"
+    | "memory"
+    | "network"
+    | "disk"
+    | "latency";
+  metricsData?: MetricsData;
+}
+
+export default function LineChart({
+  data,
+  color,
+  selectedMetric,
+  metricsData: propMetricsData,
+}: LineChartProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<Chart | null>(null);
+  const [metricsData, setMetricsData] = useState<MetricsData | null>(null);
+
+  // Only fetch metrics if not receiving data as props (standalone mode)
+  const isStandalone = !data;
+
+  useEffect(() => {
+    if (isStandalone) {
+      const fetchMetrics = async () => {
+        try {
+          const response = await fetch("/api/metrics");
+          const data = await response.json();
+          setMetricsData(data);
+        } catch (error) {
+          console.error("Failed to fetch metrics:", error);
+        }
+      };
+
+      fetchMetrics();
+      const interval = setInterval(fetchMetrics, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [isStandalone]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
+
+    // If using props (ContainerHealth mode)
+    if (data && color) {
+      if (chartRef.current) {
+        chartRef.current.destroy();
+      }
+
+      // Check if this is "overall" mode with propMetricsData
+      if (selectedMetric === "overall" && propMetricsData) {
+        chartRef.current = new Chart(canvasRef.current, {
+          type: "line",
+          data: {
+            labels: propMetricsData.labels,
+            datasets: [
+              {
+                label: "CPU Usage (%)",
+                data: propMetricsData.timeSeries.cpu.map((d) => d.value),
+                borderColor: "#3B82F6",
+                tension: 0.4,
+                fill: false,
+              },
+              {
+                label: "Memory Usage (%)",
+                data: propMetricsData.timeSeries.memory.map((d) => d.value),
+                borderColor: "#10B981",
+                tension: 0.4,
+                fill: false,
+              },
+              {
+                label: "Network I/O",
+                data: propMetricsData.timeSeries.network.map((d) => d.value),
+                borderColor: "#F59E0B",
+                tension: 0.4,
+                fill: false,
+              },
+              {
+                label: "Disk I/O",
+                data: propMetricsData.timeSeries.disk.map((d) => d.value),
+                borderColor: "#EF4444",
+                tension: 0.4,
+                fill: false,
+              },
+              {
+                label: "Request Rate",
+                data: propMetricsData.timeSeries.requestRate.map(
+                  (d) => d.value,
+                ),
+                borderColor: "#8B5CF6",
+                tension: 0.4,
+                fill: false,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                position: "bottom",
+                labels: {
+                  color: "#fff",
+                  usePointStyle: true,
+                  padding: 15,
+                },
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  color: "#fff",
+                },
+                grid: {
+                  color: "rgba(255, 255, 255, 0.1)",
+                },
+              },
+              x: {
+                ticks: {
+                  color: "#fff",
+                },
+                grid: {
+                  color: "rgba(255, 255, 255, 0.1)",
+                },
+              },
+            },
+          },
+        });
+      } else {
+        // Single metric mode
+        chartRef.current = new Chart(canvasRef.current, {
+          type: "line",
+          data: {
+            labels: data.map((d) => d.time),
+            datasets: [
+              {
+                label: selectedMetric || "Metric",
+                data: data.map((d) => d.value),
+                borderColor: color,
+                tension: 0.4,
+                fill: false,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false,
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  color: "#fff",
+                },
+                grid: {
+                  color: "rgba(255, 255, 255, 0.1)",
+                },
+              },
+              x: {
+                ticks: {
+                  color: "#fff",
+                },
+                grid: {
+                  color: "rgba(255, 255, 255, 0.1)",
+                },
+              },
+            },
+          },
+        });
+      }
+
+      return () => {
+        chartRef.current?.destroy();
+      };
+    }
+
+    // Standalone mode with full metrics
+    if (!metricsData) return;
 
     if (chartRef.current) {
       chartRef.current.destroy();
@@ -17,65 +217,35 @@ export default function LineChart() {
     chartRef.current = new Chart(canvasRef.current, {
       type: "line",
       data: {
-        labels: ["10:00", "10:01", "10:02", "10:03", "10:04"],
+        labels: metricsData.labels,
         datasets: [
           {
             label: "CPU Usage (%)",
-            data: [
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-            ],
+            data: metricsData.timeSeries.cpu.map((d) => d.value),
             borderColor: "rgb(75, 192, 192)",
             tension: 0.4,
           },
           {
             label: "Memory Usage (%)",
-            data: [
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-            ],
+            data: metricsData.timeSeries.memory.map((d) => d.value),
             borderColor: "rgb(255, 99, 132)",
             tension: 0.4,
           },
           {
             label: "Network (%)",
-            data: [
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-            ],
+            data: metricsData.timeSeries.network.map((d) => d.value),
             borderColor: "rgb(255, 193, 7)",
             tension: 0.4,
           },
           {
             label: "Disk Usage (%)",
-            data: [
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-            ],
+            data: metricsData.timeSeries.disk.map((d) => d.value),
             borderColor: "rgb(76, 175, 80)",
             tension: 0.4,
           },
           {
             label: "Request Rate",
-            data: [
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-            ],
+            data: metricsData.timeSeries.requestRate.map((d) => d.value),
             borderColor: "rgb(156, 39, 176)",
             tension: 0.4,
           },
@@ -100,8 +270,14 @@ export default function LineChart() {
     return () => {
       chartRef.current?.destroy();
     };
-  }, []);
+  }, [data, color, metricsData, selectedMetric, propMetricsData]);
 
+  // ContainerHealth mode - no extra UI
+  if (data && color) {
+    return <canvas ref={canvasRef} />;
+  }
+
+  // Standalone mode - full UI with boxes
   return (
     <div className="bg-slate-900 p-4 rounded-lg min-h-48">
       <div className="flex items-center h-48">
@@ -154,7 +330,9 @@ export default function LineChart() {
           </svg>
           <div>
             <span className="text-white text-sm">CPU Usage (%)</span>
-            <h1 className="text-md text-green-500 font-bold">57.6%</h1>
+            <h1 className="text-md text-green-500 font-bold">
+              {metricsData?.current.cpu || "57.6"}%
+            </h1>
           </div>
         </div>
         <div className="w-60 flex items-center gap-4 border-2 border-[#9C9C9C] px-3 p-1 rounded bg-[#ffff]/4">
@@ -174,7 +352,9 @@ export default function LineChart() {
           </svg>
           <div>
             <span className="text-white text-sm">Memory Usage (%)</span>
-            <h1 className="text-md text-red-500 font-bold">45.2%</h1>
+            <h1 className="text-md text-red-500 font-bold">
+              {metricsData?.current.memory || "45.2"}%
+            </h1>
           </div>
         </div>
         <div className="w-60 flex items-center gap-4 border-2 border-[#9C9C9C] px-3 p-1 rounded bg-[#ffff]/4">
@@ -194,7 +374,9 @@ export default function LineChart() {
           </svg>
           <div>
             <span className="text-white text-sm">Network (%)</span>
-            <h1 className="text-md text-yellow-500 font-bold">32.8%</h1>
+            <h1 className="text-md text-yellow-500 font-bold">
+              {metricsData?.current.network || "32.8"}%
+            </h1>
           </div>
         </div>
         <div className="w-60 flex items-center gap-4 border-2 border-[#9C9C9C] px-3 p-1 rounded bg-[#ffff]/4">
@@ -214,7 +396,9 @@ export default function LineChart() {
           </svg>
           <div>
             <span className="text-white text-sm">Disk Usage (%)</span>
-            <h1 className="text-md text-green-500 font-bold">68.1%</h1>
+            <h1 className="text-md text-green-500 font-bold">
+              {metricsData?.current.disk || "68.1"}%
+            </h1>
           </div>
         </div>
       </div>

@@ -2,6 +2,8 @@ import React from "react";
 import Nav from "../components/Nav";
 import KubernetesTerminal from "./KubernetesTerminal";
 
+export const dynamic = "force-dynamic";
+
 function AnomaliesPage() {
   return (
     <div className="w-full h-screen flex flex-col bg-[#161C27] overflow-hidden">
