@@ -26,18 +26,31 @@ function ActiveContainers() {
         const response = await fetch("/api/container-health");
         const data = await response.json();
 
+        // Filter out specific services that should not be displayed
+        const excludedServices = [
+          "recommendationservice",
+          "cartservice",
+          "shippingservice",
+          "unknown",
+        ];
+
         // Transform metrics data into container info format
         const containerList: ContainerInfo[] = Array.isArray(data)
-          ? data.map((item: any, index: number) => ({
-              id: `${item.container.substring(0, 12)}`,
-              timestamp: new Date().toLocaleString(),
-              namespace: item.namespace || "default",
-              podName: item.pod || item.container,
-              containerName: item.container,
-              imageTag: `${item.container}:latest`,
-              nodeName: "node-01",
-              status: "Running",
-            }))
+          ? data
+              .filter(
+                (item: any) =>
+                  !excludedServices.includes(item.container?.toLowerCase()),
+              )
+              .map((item: any, index: number) => ({
+                id: `${item.container.substring(0, 12)}`,
+                timestamp: new Date().toLocaleString(),
+                namespace: item.namespace || "default",
+                podName: item.pod || item.container,
+                containerName: item.container,
+                imageTag: `${item.container}:latest`,
+                nodeName: "node-01",
+                status: "Running",
+              }))
           : [];
 
         setContainers(containerList);

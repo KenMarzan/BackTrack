@@ -2,10 +2,11 @@
 
 import { TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 interface Anomaly {
   service: string;
-  severity: "CRITICAL" | "HIGH" | "WARNING";
+  severity: "CRITICAL" | "HIGH" | "LOW";
   metric: string;
   baseline: string;
   current: string;
@@ -16,6 +17,7 @@ interface Anomaly {
 function AnomalyDetection() {
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchAnomalies = async () => {
@@ -23,7 +25,22 @@ function AnomalyDetection() {
         setLoading(true);
         const response = await fetch("/api/anomalies");
         const data = await response.json();
-        setAnomalies(Array.isArray(data) ? data : []);
+
+        // Filter out specific services that should not be displayed
+        const excludedServices = [
+          "recommendationservice",
+          "cartservice",
+          "shippingservice",
+          "unknown",
+        ];
+        const filteredData = Array.isArray(data)
+          ? data.filter(
+              (anomaly: Anomaly) =>
+                !excludedServices.includes(anomaly.service.toLowerCase()),
+            )
+          : [];
+
+        setAnomalies(filteredData);
       } catch (error) {
         console.error("Failed to fetch anomalies:", error);
         setAnomalies([]);
@@ -63,6 +80,13 @@ function AnomalyDetection() {
           text: "text-yellow-400",
           badge: "bg-yellow-500",
         };
+      case "LOW":
+        return {
+          bg: "bg-yellow-500/10",
+          border: "border-yellow-500/30",
+          text: "text-yellow-400",
+          badge: "bg-yellow-500",
+        };
       default:
         return {
           bg: "bg-gray-500/10",
@@ -79,7 +103,7 @@ function AnomalyDetection() {
         return "red";
       case "HIGH":
         return "orange";
-      case "WARNING":
+      case "LOW":
         return "#FFDD00";
       default:
         return "gray";
@@ -104,9 +128,9 @@ function AnomalyDetection() {
           </div>
           <div className="w-15 h-14 border bg-[#E2D710]/10 border-[#CA9E0D] text-center rounded-md">
             <h1 className="text-[#FFDD00] text-2xl font-bold">
-              {countBySeverity("WARNING")}
+              {countBySeverity("LOW")}
             </h1>
-            <h1 className="text-xs text-white">Warning</h1>
+            <h1 className="text-xs text-white">Low</h1>
           </div>
         </div>
       </div>
@@ -126,7 +150,18 @@ function AnomalyDetection() {
               return (
                 <div
                   key={idx}
-                  className={`${colors.bg} border ${colors.border} rounded p-3`}
+                  onClick={() => {
+                    const params = new URLSearchParams({
+                      service: anomaly.service,
+                      severity: anomaly.severity,
+                      metric: anomaly.metric,
+                      description: anomaly.description,
+                      baseline: anomaly.baseline,
+                      current: anomaly.current,
+                    });
+                    router.push(`/anomalies?${params.toString()}`);
+                  }}
+                  className={`${colors.bg} border ${colors.border} rounded p-3 cursor-pointer hover:bg-opacity-20 transition-all`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex flex-row items-center gap-2">

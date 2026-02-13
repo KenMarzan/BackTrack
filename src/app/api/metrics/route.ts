@@ -34,35 +34,35 @@ export async function GET() {
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
     const cpuTimeSeries = await queryPrometheusRange(
-      "sum(rate(process_cpu_seconds_total[1m])) * 100 or vector(50 + 10 * sin(time() / 60))",
+      "sum(rate(process_cpu_seconds_total[1m])) * 100",
       fiveMinutesAgo,
       now,
       "1m",
     );
 
     const memoryTimeSeries = await queryPrometheusRange(
-      "sum(process_resident_memory_bytes) / sum(node_memory_MemTotal_bytes) * 100 or vector(45 + 5 * sin(time() / 60))",
+      "sum(process_resident_memory_bytes) / sum(node_memory_MemTotal_bytes) * 100",
       fiveMinutesAgo,
       now,
       "1m",
     );
 
     const networkTimeSeries = await queryPrometheusRange(
-      "sum(rate(container_network_receive_bytes_total[1m])) / 1024 / 1024 or vector(30 + 5 * sin(time() / 60))",
+      "sum(rate(container_network_receive_bytes_total[1m])) / 1024 / 1024",
       fiveMinutesAgo,
       now,
       "1m",
     );
 
     const diskTimeSeries = await queryPrometheusRange(
-      "sum(container_fs_usage_bytes) / sum(container_fs_limit_bytes) * 100 or vector(65 + 5 * sin(time() / 60))",
+      "sum(container_fs_usage_bytes) / sum(container_fs_limit_bytes) * 100",
       fiveMinutesAgo,
       now,
       "1m",
     );
 
     const requestRateTimeSeries = await queryPrometheusRange(
-      "sum(rate(http_requests_total[1m])) or vector(40 + 10 * sin(time() / 60))",
+      "sum(rate(http_requests_total[1m]))",
       fiveMinutesAgo,
       now,
       "1m",

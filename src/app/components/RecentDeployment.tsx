@@ -6,7 +6,7 @@ import { useState } from "react";
 function RecentDeployment() {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
 
-  const deployments = [
+  const initialDeployments = [
     {
       name: "api-gateway",
       currentVersion: "v2.2.3",
@@ -99,12 +99,31 @@ function RecentDeployment() {
     },
   ];
 
+  const [deployments, setDeployments] = useState(initialDeployments);
+
   const toggleExpand = (index: number) => {
     setExpandedIndex(expandedIndex === index ? null : index);
   };
 
-  const handleRollback = (version: string) => {
-    console.log(`Rollback to ${version}`);
+  const handleRollback = (deploymentIndex: number, version: string) => {
+    setDeployments((prev) =>
+      prev.map((deployment, index) => {
+        if (index !== deploymentIndex) {
+          return deployment;
+        }
+
+        return {
+          ...deployment,
+          currentVersion: version,
+          deployedTime: "just now",
+          status: "Success",
+          statusColor: "text-green-500",
+          versions: deployment.versions.map((v) =>
+            v.version === version ? { ...v, status: "Success" } : v,
+          ),
+        };
+      }),
+    );
   };
 
   return (
@@ -186,7 +205,7 @@ function RecentDeployment() {
                     </div>
                     {v.version !== deployment.currentVersion && (
                       <button
-                        onClick={() => handleRollback(v.version)}
+                        onClick={() => handleRollback(index, v.version)}
                         className="flex items-center gap-1 px-3 py-1 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/50 text-orange-400 rounded text-xs transition"
                       >
                         <RotateCcw size={12} />
