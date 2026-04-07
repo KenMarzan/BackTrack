@@ -3,7 +3,16 @@
 import { useEffect, useRef } from "react";
 import Chart from "chart.js/auto";
 import { GitCommitHorizontal } from "lucide-react";
-export default function LineChart() {
+
+type DashboardService = {
+  id: string;
+  name: string;
+  cpuCores: number;
+  memoryMiB: number;
+  requestRate: number;
+};
+
+export default function LineChart({ services }: { services: DashboardService[] }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<Chart | null>(null);
 
@@ -17,66 +26,24 @@ export default function LineChart() {
     chartRef.current = new Chart(canvasRef.current, {
       type: "line",
       data: {
-        labels: ["10:00", "10:01", "10:02", "10:03", "10:04"],
+        labels: services.map((service) => service.name),
         datasets: [
           {
-            label: "CPU Usage (%)",
-            data: [
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-            ],
+            label: "CPU",
+            data: services.map((service) => Number(service.cpuCores.toFixed(3))),
             borderColor: "rgb(75, 192, 192)",
             tension: 0.4,
           },
           {
-            label: "Memory Usage (%)",
-            data: [
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-            ],
+            label: "Memory MiB",
+            data: services.map((service) => Number(service.memoryMiB.toFixed(2))),
             borderColor: "rgb(255, 99, 132)",
             tension: 0.4,
           },
           {
-            label: "Network (%)",
-            data: [
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-            ],
-            borderColor: "rgb(255, 193, 7)",
-            tension: 0.4,
-          },
-          {
-            label: "Disk Usage (%)",
-            data: [
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-            ],
-            borderColor: "rgb(76, 175, 80)",
-            tension: 0.4,
-          },
-          {
             label: "Request Rate",
-            data: [
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-              Math.floor(Math.random() * 100),
-            ],
-            borderColor: "rgb(156, 39, 176)",
+            data: services.map((service) => Number(service.requestRate.toFixed(2))),
+            borderColor: "rgb(255, 193, 7)",
             tension: 0.4,
           },
         ],
@@ -100,7 +67,7 @@ export default function LineChart() {
     return () => {
       chartRef.current?.destroy();
     };
-  }, []);
+  }, [services]);
 
   return (
     <div className="bg-slate-900 p-4 rounded-lg min-h-48">
@@ -113,26 +80,12 @@ export default function LineChart() {
 
       <div className="flex  flex-col items-center justify-center gap-1">
         <div className="flex flex-row gap-4">
-          <div className="flex flex-row ">
-            <GitCommitHorizontal color="blue" />
-            <p className="text-blue-400 text-s">api-gateway</p>
-          </div>
-          <div className="flex flex-row ">
-            <GitCommitHorizontal color="blue" />
-            <p className="text-blue-400 text-s">api-gateway</p>
-          </div>
-          <div className="flex flex-row ">
-            <GitCommitHorizontal color="blue" />
-            <p className="text-blue-400 text-s">api-gateway</p>
-          </div>
-          <div className="flex flex-row ">
-            <GitCommitHorizontal color="blue" />
-            <p className="text-blue-400 text-s">api-gateway</p>
-          </div>
-          <div className="flex flex-row ">
-            <GitCommitHorizontal color="blue" />
-            <p className="text-blue-400 text-s">api-gateway</p>
-          </div>
+          {services.slice(0, 5).map((service) => (
+            <div className="flex flex-row " key={service.id}>
+              <GitCommitHorizontal color="blue" />
+              <p className="text-blue-400 text-s">{service.name}</p>
+            </div>
+          ))}
         </div>
         <div className="w-[70%] h-0 border border-gray-500"></div>
       </div>
@@ -154,7 +107,9 @@ export default function LineChart() {
           </svg>
           <div>
             <span className="text-white text-sm">CPU Usage (%)</span>
-            <h1 className="text-md text-green-500 font-bold">57.6%</h1>
+            <h1 className="text-md text-green-500 font-bold">
+              {services.reduce((sum, service) => sum + service.cpuCores, 0).toFixed(3)}
+            </h1>
           </div>
         </div>
         <div className="w-60 flex items-center gap-4 border-2 border-[#9C9C9C] px-3 p-1 rounded bg-[#ffff]/4">
@@ -174,7 +129,9 @@ export default function LineChart() {
           </svg>
           <div>
             <span className="text-white text-sm">Memory Usage (%)</span>
-            <h1 className="text-md text-red-500 font-bold">45.2%</h1>
+            <h1 className="text-md text-red-500 font-bold">
+              {services.reduce((sum, service) => sum + service.memoryMiB, 0).toFixed(1)}
+            </h1>
           </div>
         </div>
         <div className="w-60 flex items-center gap-4 border-2 border-[#9C9C9C] px-3 p-1 rounded bg-[#ffff]/4">
@@ -194,7 +151,9 @@ export default function LineChart() {
           </svg>
           <div>
             <span className="text-white text-sm">Network (%)</span>
-            <h1 className="text-md text-yellow-500 font-bold">32.8%</h1>
+            <h1 className="text-md text-yellow-500 font-bold">
+              {services.reduce((sum, service) => sum + service.requestRate, 0).toFixed(2)}
+            </h1>
           </div>
         </div>
         <div className="w-60 flex items-center gap-4 border-2 border-[#9C9C9C] px-3 p-1 rounded bg-[#ffff]/4">
@@ -214,7 +173,7 @@ export default function LineChart() {
           </svg>
           <div>
             <span className="text-white text-sm">Disk Usage (%)</span>
-            <h1 className="text-md text-green-500 font-bold">68.1%</h1>
+            <h1 className="text-md text-green-500 font-bold">{services.length}</h1>
           </div>
         </div>
       </div>

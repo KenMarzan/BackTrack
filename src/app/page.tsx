@@ -1,10 +1,73 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Nav from "./components/Nav";
 import ContainerHealth from "./components/ContainerHealth";
 import RecentDeployment from "./components/RecentDeployment";
 import ActiveContainers from "./components/ActiveContainers";
 import AnomalyDetection from "./components/AnomalyDetection";
 import { RefreshCw } from "lucide-react";
+
+type DashboardService = {
+  id: string;
+  name: string;
+  namespace: string;
+  platform: "kubernetes" | "docker";
+  status: "running" | "down" | "unknown";
+  cpuCores: number;
+  memoryMiB: number;
+  requestRate: number;
+  ports: string[];
+};
+
+type DashboardAnomaly = {
+  id: string;
+  service: string;
+  severity: "critical" | "high" | "warning";
+  message: string;
+  metric: string;
+  current: string;
+  baseline: string;
+};
+
 export default function Home() {
+  const [services, setServices] = useState<DashboardService[]>([]);
+  const [anomalies, setAnomalies] = useState<DashboardAnomaly[]>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      try {
+        const response = await fetch("/api/dashboard/overview", { cache: "no-store" });
+        const data = await response.json();
+
+        if (!active) return;
+        setServices(data.services ?? []);
+        setAnomalies(data.anomalies ?? []);
+      } catch {
+        if (!active) return;
+        setServices([]);
+        setAnomalies([]);
+      }
+    };
+
+    load();
+    const timer = window.setInterval(load, 10000);
+
+    const refresh = () => {
+      load();
+    };
+
+    window.addEventListener("backtrack:connection-updated", refresh);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("backtrack:connection-updated", refresh);
+    };
+  }, []);
+
   return (
     <div className="w-full h-screen flex flex-col bg-[#161C27] overflow-hidden">
       <Nav />
@@ -30,7 +93,7 @@ export default function Home() {
         {/* Grid container below the navbar */}
         <div className="grid grid-cols-3 w-full gap-20 min-h-0 h-full">
           {/* 2/3 Column */}
-          <ContainerHealth />
+          <ContainerHealth services={services} />
 
           {/* 1/3 Column */}
 
@@ -39,8 +102,8 @@ export default function Home() {
 
         {/* Bottom row - Anomaly Detection and Active Containers */}
         <div className="grid grid-cols-2 w-full gap-20 min-h-0 h-full">
-          <AnomalyDetection />
-          <ActiveContainers />
+          <AnomalyDetection anomalies={anomalies} />
+          <ActiveContainers services={services} />
         </div>
       </div>
     </div>

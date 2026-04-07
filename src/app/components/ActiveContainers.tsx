@@ -1,6 +1,28 @@
 import { RefreshCw } from "lucide-react";
 import { Container } from "lucide-react";
-function ActiveContainers() {
+
+type DashboardService = {
+  id: string;
+  name: string;
+  namespace: string;
+  platform: "kubernetes" | "docker";
+  status: "running" | "down" | "unknown";
+  ports: string[];
+};
+
+function ActiveContainers({ services }: { services: DashboardService[] }) {
+  const statusClassName = (status: DashboardService["status"]) => {
+    if (status === "running") return "text-green-500 p-3";
+    if (status === "down") return "text-red-500 p-3";
+    return "text-yellow-400 p-3";
+  };
+
+  const statusLabel = (status: DashboardService["status"]) => {
+    if (status === "running") return "Running";
+    if (status === "down") return "Down";
+    return "Unknown";
+  };
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex flex-row gap-2 items-center mb-4"></div>
@@ -22,86 +44,28 @@ function ActiveContainers() {
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-[#9C9C9C]/50">
-                <td className="text-gray-300 p-3 font-mono text-sm">
-                  a1b2c3d4e5f6
-                </td>
-                <td className="text-white p-3">api-gateway</td>
-                <td className="text-gray-300 p-3">node:18-alpine</td>
-                <td className="text-green-500 p-3">Running</td>
-                <td className="text-gray-300 p-3">2 hours ago</td>
-                <td className="text-gray-300 p-3">3000:3000</td>
-              </tr>
-              <tr className="border-b border-[#9C9C9C]/50">
-                <td className="text-gray-300 p-3 font-mono text-sm">
-                  f6e5d4c3b2a1
-                </td>
-                <td className="text-white p-3">database</td>
-                <td className="text-gray-300 p-3">postgres:14</td>
-                <td className="text-green-500 p-3">Running</td>
-                <td className="text-gray-300 p-3">5 hours ago</td>
-                <td className="text-gray-300 p-3">5432:5432</td>
-              </tr>
-              <tr className="border-b border-[#9C9C9C]/50">
-                <td className="text-gray-300 p-3 font-mono text-sm">
-                  9g8h7i6j5k4l
-                </td>
-                <td className="text-white p-3">redis-cache</td>
-                <td className="text-gray-300 p-3">redis:7-alpine</td>
-                <td className="text-green-500 p-3">Running</td>
-                <td className="text-gray-300 p-3">1 day ago</td>
-                <td className="text-gray-300 p-3">6379:6379</td>
-              </tr>
-              <tr className="border-b border-[#9C9C9C]/50">
-                <td className="text-gray-300 p-3 font-mono text-sm">
-                  9g8h7i6j5k4l
-                </td>
-                <td className="text-white p-3">redis-cache</td>
-                <td className="text-gray-300 p-3">redis:7-alpine</td>
-                <td className="text-green-500 p-3">Running</td>
-                <td className="text-gray-300 p-3">1 day ago</td>
-                <td className="text-gray-300 p-3">6379:6379</td>
-              </tr>
-              <tr className="border-b border-[#9C9C9C]/50">
-                <td className="text-gray-300 p-3 font-mono text-sm">
-                  9g8h7i6j5k4l
-                </td>
-                <td className="text-white p-3">redis-cache</td>
-                <td className="text-gray-300 p-3">redis:7-alpine</td>
-                <td className="text-green-500 p-3">Running</td>
-                <td className="text-gray-300 p-3">1 day ago</td>
-                <td className="text-gray-300 p-3">6379:6379</td>
-              </tr>
-              <tr className="border-b border-[#9C9C9C]/50">
-                <td className="text-gray-300 p-3 font-mono text-sm">
-                  9g8h7i6j5k4l
-                </td>
-                <td className="text-white p-3">redis-cache</td>
-                <td className="text-gray-300 p-3">redis:7-alpine</td>
-                <td className="text-green-500 p-3">Running</td>
-                <td className="text-gray-300 p-3">1 day ago</td>
-                <td className="text-gray-300 p-3">6379:6379</td>
-              </tr>
-              <tr className="border-b border-[#9C9C9C]/50">
-                <td className="text-gray-300 p-3 font-mono text-sm">
-                  9g8h7i6j5k4l
-                </td>
-                <td className="text-white p-3">redis-cache</td>
-                <td className="text-gray-300 p-3">redis:7-alpine</td>
-                <td className="text-green-500 p-3">Running</td>
-                <td className="text-gray-300 p-3">1 day ago</td>
-                <td className="text-gray-300 p-3">6379:6379</td>
-              </tr>
-              <tr className="border-b border-[#9C9C9C]/50">
-                <td className="text-gray-300 p-3 font-mono text-sm">
-                  9g8h7i6j5k4l
-                </td>
-                <td className="text-white p-3">redis-cache</td>
-                <td className="text-gray-300 p-3">redis:7-alpine</td>
-                <td className="text-green-500 p-3">Running</td>
-                <td className="text-gray-300 p-3">1 day ago</td>
-                <td className="text-gray-300 p-3">6379:6379</td>
-              </tr>
+              {services.length === 0 ? (
+                <tr>
+                  <td className="text-gray-400 p-3" colSpan={6}>
+                    No discovered services yet. Connect an app from Configure Cluster.
+                  </td>
+                </tr>
+              ) : (
+                services.map((service) => (
+                  <tr className="border-b border-[#9C9C9C]/50" key={service.id}>
+                    <td className="text-gray-300 p-3 font-mono text-sm">
+                      {service.id.slice(0, 12)}
+                    </td>
+                    <td className="text-white p-3">{service.name}</td>
+                    <td className="text-gray-300 p-3">{service.platform}</td>
+                    <td className={statusClassName(service.status)}>
+                      {statusLabel(service.status)}
+                    </td>
+                    <td className="text-gray-300 p-3">{service.namespace}</td>
+                    <td className="text-gray-300 p-3">{service.ports.join(", ") || "-"}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

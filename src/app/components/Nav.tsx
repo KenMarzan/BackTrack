@@ -3,15 +3,76 @@ import { X } from "lucide-react";
 import { RefreshCw } from "lucide-react";
 import React from "react";
 import { useState } from "react";
+
+type ConnectionForm = {
+  appName: string;
+  platform: "kubernetes" | "docker";
+  architecture: "monolith" | "microservices";
+  clusterName: string;
+  apiServerEndpoint: string;
+  namespace: string;
+  prometheusUrl: string;
+  authToken: string;
+};
+
 function Nav() {
   const currentDate = new Date();
   const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [discoveredCount, setDiscoveredCount] = useState<number | null>(null);
+  const [form, setForm] = useState<ConnectionForm>({
+    appName: "",
+    platform: "kubernetes",
+    architecture: "microservices",
+    clusterName: "",
+    apiServerEndpoint: "",
+    namespace: "default",
+    prometheusUrl: "http://localhost:9090",
+    authToken: "",
+  });
+
   const formattedDate = currentDate.toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+
+  const updateField = (field: keyof ConnectionForm, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const submitConnection = async (action: "test" | "connect") => {
+    setIsSubmitting(true);
+    setStatusMessage(null);
+
+    try {
+      const response = await fetch("/api/connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...form }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Connection request failed.");
+      }
+
+      setDiscoveredCount(Array.isArray(payload.discoveredServices) ? payload.discoveredServices.length : 0);
+      setStatusMessage(payload.message || "Connection completed.");
+
+      if (action === "connect") {
+        window.dispatchEvent(new Event("backtrack:connection-updated"));
+      }
+    } catch (error: any) {
+      setStatusMessage(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <>
       <div className="w-full h-15 bg-[#FFFFFF]/[0.04] flex flex-row justify-between items-center p-10 rounded-bl-2xl rounded-br-2xl">
@@ -69,9 +130,47 @@ function Nav() {
 
             <div className="mt-6 space-y-4">
               <div>
+                <label className="text-xs text-gray-300">Application Name</label>
+                <input
+                  type="text"
+                  value={form.appName}
+                  onChange={(event) => updateField("appName", event.target.value)}
+                  className="mt-1 w-full rounded-md border border-[#38445E] bg-[#22314F] px-3 py-2 text-sm text-white focus:outline-none"
+                  placeholder="checkoutservice"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-gray-300">Platform</label>
+                  <select
+                    value={form.platform}
+                    onChange={(event) => updateField("platform", event.target.value)}
+                    className="mt-1 w-full rounded-md border border-[#38445E] bg-[#22314F] px-3 py-2 text-sm text-white focus:outline-none"
+                  >
+                    <option value="kubernetes">Kubernetes</option>
+                    <option value="docker">Docker</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-300">Architecture</label>
+                  <select
+                    value={form.architecture}
+                    onChange={(event) => updateField("architecture", event.target.value)}
+                    className="mt-1 w-full rounded-md border border-[#38445E] bg-[#22314F] px-3 py-2 text-sm text-white focus:outline-none"
+                  >
+                    <option value="microservices">Microservices (discover all services)</option>
+                    <option value="monolith">Monolith (focused discovery)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
                 <label className="text-xs text-gray-300">Cluster Name</label>
                 <input
                   type="text"
+                  value={form.clusterName}
+                  onChange={(event) => updateField("clusterName", event.target.value)}
                   className="mt-1 w-full rounded-md border border-[#38445E] bg-[#22314F] px-3 py-2 text-sm text-white focus:outline-none"
                   placeholder="A friendly name for your cluster"
                 />
@@ -83,8 +182,21 @@ function Nav() {
                 </label>
                 <input
                   type="text"
+                  value={form.apiServerEndpoint}
+                  onChange={(event) => updateField("apiServerEndpoint", event.target.value)}
                   className="mt-1 w-full rounded-md border border-[#38445E] bg-[#22314F] px-3 py-2 text-sm text-white focus:outline-none"
                   placeholder="The URL of your Kubernetes cluster"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-300">Prometheus URL</label>
+                <input
+                  type="text"
+                  value={form.prometheusUrl}
+                  onChange={(event) => updateField("prometheusUrl", event.target.value)}
+                  className="mt-1 w-full rounded-md border border-[#38445E] bg-[#22314F] px-3 py-2 text-sm text-white focus:outline-none"
+                  placeholder="http://localhost:9090"
                 />
               </div>
 
@@ -94,6 +206,8 @@ function Nav() {
                 </label>
                 <input
                   type="text"
+                  value={form.namespace}
+                  onChange={(event) => updateField("namespace", event.target.value)}
                   className="mt-1 w-full rounded-md border border-[#38445E] bg-[#22314F] px-3 py-2 text-sm text-white focus:outline-none"
                   placeholder="Kubernetes namespace to monitor"
                 />
@@ -105,10 +219,23 @@ function Nav() {
                 </label>
                 <input
                   type="text"
+                  value={form.authToken}
+                  onChange={(event) => updateField("authToken", event.target.value)}
                   className="mt-1 w-full rounded-md border border-[#38445E] bg-[#22314F] px-3 py-2 text-sm text-white focus:outline-none"
                   placeholder="Bearer token for authentication. Get this from your cluster service account."
                 />
               </div>
+
+              {statusMessage ? (
+                <div className="rounded-md border border-[#38445E] bg-[#22314F] p-3">
+                  <p className="text-xs text-gray-200">{statusMessage}</p>
+                  {discoveredCount !== null ? (
+                    <p className="text-xs text-green-400 mt-1">
+                      Discovered services: {discoveredCount}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="rounded-md border border-[#38445E] bg-[#22314F] p-4">
                 <h3 className="text-sm text-white font-semibold">
@@ -142,15 +269,19 @@ function Nav() {
               <div className="flex gap-2">
                 <button
                   type="button"
+                  disabled={isSubmitting}
+                  onClick={() => submitConnection("test")}
                   className="px-4 py-2 rounded-md bg-[#2B3A58] text-gray-200 hover:bg-[#334564]"
                 >
-                  Test Connection
+                  {isSubmitting ? "Testing..." : "Test Connection"}
                 </button>
                 <button
                   type="button"
+                  disabled={isSubmitting}
+                  onClick={() => submitConnection("connect")}
                   className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-500"
                 >
-                  Connect
+                  {isSubmitting ? "Connecting..." : "Connect"}
                 </button>
               </div>
             </div>

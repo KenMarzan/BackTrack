@@ -1,6 +1,20 @@
 import React from "react";
 import LineChart from "./LineChart";
-function ContainerHealth() {
+
+type DashboardService = {
+  id: string;
+  status: "running" | "down" | "unknown";
+  cpuCores: number;
+  memoryMiB: number;
+  requestRate: number;
+};
+
+function ContainerHealth({ services }: { services: DashboardService[] }) {
+  const totalCpu = services.reduce((sum, service) => sum + service.cpuCores, 0);
+  const totalMemory = services.reduce((sum, service) => sum + service.memoryMiB, 0);
+  const totalRate = services.reduce((sum, service) => sum + service.requestRate, 0);
+  const running = services.filter((service) => service.status === "running").length;
+
   return (
     <div className="col-span-2 p-6 border border-[#5D5A5A] rounded-2xl h-full flex flex-col overflow-hidden">
       <h1 className="font-bold text-2xl text-white flex-shrink-0">
@@ -78,7 +92,21 @@ function ContainerHealth() {
         </div>
       </div>
       <div className="mt-4 flex-1 min-h-0">
-        <LineChart />
+        <LineChart services={services} />
+      </div>
+      <div className="mt-3 grid grid-cols-4 gap-2 text-xs text-white">
+        <div className="border border-[#5D5A5A] rounded-md p-2 text-center">
+          CPU {totalCpu.toFixed(3)}
+        </div>
+        <div className="border border-[#5D5A5A] rounded-md p-2 text-center">
+          MEM {totalMemory.toFixed(1)} MiB
+        </div>
+        <div className="border border-[#5D5A5A] rounded-md p-2 text-center">
+          REQ {totalRate.toFixed(2)}
+        </div>
+        <div className="border border-[#5D5A5A] rounded-md p-2 text-center">
+          UP {running}/{services.length}
+        </div>
       </div>
     </div>
   );
