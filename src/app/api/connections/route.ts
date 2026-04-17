@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { spawn } from "node:child_process";
 import {
 	ArchitectureType,
 	DiscoveredService,
 	PlatformType,
 } from "@/lib/monitoring-types";
 import { listConnections, registerConnection } from "@/lib/monitoring-store";
+import { runCommand } from "@/lib/command";
 
 type ConnectionPayload = {
 	action?: "test" | "connect";
@@ -17,31 +17,9 @@ type ConnectionPayload = {
 	apiServerEndpoint?: string;
 	prometheusUrl?: string;
 	authToken?: string;
+	githubRepo?: string;
+	githubBranch?: string;
 };
-
-function runCommand(command: string, args: string[]) {
-	return new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
-		const child = spawn(command, args, { shell: false });
-		let stdout = "";
-		let stderr = "";
-
-		child.stdout.on("data", (chunk) => {
-			stdout += chunk.toString();
-		});
-
-		child.stderr.on("data", (chunk) => {
-			stderr += chunk.toString();
-		});
-
-		child.on("error", (error) => {
-			resolve({ code: 1, stdout: "", stderr: error.message });
-		});
-
-		child.on("close", (code) => {
-			resolve({ code: code ?? 1, stdout, stderr });
-		});
-	});
-}
 
 async function discoverKubernetesServices(
 	namespace: string,
@@ -72,10 +50,22 @@ async function discoverKubernetesServices(
 		"json",
 	]);
 
+	const endpointResult = await runCommand("kubectl", [
+		"get",
+		"endpoints",
+		"-n",
+		namespace,
+		"-o",
+		"json",
+	]);
+
 	const svcJson = JSON.parse(svcResult.stdout) as {
 		items: Array<{
 			metadata?: { name?: string; labels?: Record<string, string> };
-			spec?: { ports?: Array<{ port?: number; targetPort?: number | string }> };
+			spec?: {
+				ports?: Array<{ port?: number; targetPort?: number | string }>;
+				selector?: Record<string, string>;
+			};
 		}>;
 	};
 
@@ -84,6 +74,19 @@ async function discoverKubernetesServices(
 				items: Array<{
 					metadata?: { name?: string; labels?: Record<string, string> };
 					status?: { phase?: string };
+					spec?: { nodeName?: string };
+				}>;
+			})
+		: { items: [] };
+
+	const endpointJson = endpointResult.code === 0
+		? (JSON.parse(endpointResult.stdout) as {
+				items: Array<{
+					metadata?: { name?: string };
+					subsets?: Array<{
+						addresses?: Array<Record<string, unknown>>;
+						notReadyAddresses?: Array<Record<string, unknown>>;
+					}>;
 				}>;
 			})
 		: { items: [] };
@@ -106,14 +109,37 @@ async function discoverKubernetesServices(
 			const ports = (item.spec?.ports || []).map((port) =>
 				`${port.port ?? "?"}:${port.targetPort ?? "?"}`,
 			);
+			const selector = item.spec?.selector || {};
+			const endpointItem = (endpointJson.items || []).find(
+				(endpoint) => (endpoint.metadata?.name || "").toLowerCase() === name.toLowerCase(),
+			);
+			const readyEndpointCount = endpointItem?.subsets?.reduce(
+				(sum, subset) => sum + (subset.addresses?.length || 0),
+				0,
+			) ?? 0;
+
+			const serviceSelectorEntries = Object.entries(selector).map(([key, value]) => {
+				return `${key}=${String(value).toLowerCase()}`;
+			});
 
 			const relatedPods = (podJson.items || []).filter((pod) => {
 				const podName = (pod.metadata?.name || "").toLowerCase();
-				const podApp = (pod.metadata?.labels?.app || "").toLowerCase();
-				return podName.includes(name.toLowerCase()) || podApp === name.toLowerCase();
+				const podLabels = Object.entries(pod.metadata?.labels || {}).map(
+					([key, value]) => `${key}=${String(value).toLowerCase()}`,
+				);
+
+				const selectorMatch =
+					serviceSelectorEntries.length > 0 &&
+					serviceSelectorEntries.every((entry) => podLabels.includes(entry));
+
+				return (
+					podName.includes(name.toLowerCase()) ||
+					String(pod.metadata?.labels?.app || "").toLowerCase() === name.toLowerCase() ||
+					selectorMatch
+				);
 			});
 
-			const isRunning = relatedPods.some((pod) => pod.status?.phase === "Running");
+			const isRunning = readyEndpointCount > 0 || relatedPods.some((pod) => pod.status?.phase === "Running");
 
 			return {
 				name,
@@ -182,6 +208,8 @@ export async function POST(request: NextRequest) {
 		const apiServerEndpoint = (payload.apiServerEndpoint || "").trim();
 		const prometheusUrl = (payload.prometheusUrl || "").trim();
 		const authToken = (payload.authToken || "").trim();
+		const githubRepo = (payload.githubRepo || "").trim();
+		const githubBranch = (payload.githubBranch || "main").trim();
 
 		if (!appName || !clusterName || !prometheusUrl) {
 			return NextResponse.json(
@@ -219,6 +247,8 @@ export async function POST(request: NextRequest) {
 			apiServerEndpoint,
 			prometheusUrl,
 			authToken: authToken || undefined,
+			githubRepo: githubRepo || undefined,
+			githubBranch,
 			discoveredServices,
 		});
 

@@ -1,14 +1,5 @@
-import { RefreshCw } from "lucide-react";
 import { Container } from "lucide-react";
-
-type DashboardService = {
-  id: string;
-  name: string;
-  namespace: string;
-  platform: "kubernetes" | "docker";
-  status: "running" | "down" | "unknown";
-  ports: string[];
-};
+import type { DashboardService } from "@/lib/monitoring-types";
 
 function ActiveContainers({ services }: { services: DashboardService[] }) {
   const statusClassName = (status: DashboardService["status"]) => {

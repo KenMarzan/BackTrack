@@ -1,28 +1,7 @@
 import { NextResponse } from "next/server";
 import { listConnections } from "@/lib/monitoring-store";
-
-type DashboardService = {
-	id: string;
-	connectionId: string;
-	name: string;
-	namespace: string;
-	platform: "kubernetes" | "docker";
-	status: "running" | "down" | "unknown";
-	cpuCores: number;
-	memoryMiB: number;
-	requestRate: number;
-	ports: string[];
-};
-
-type DashboardAnomaly = {
-	id: string;
-	service: string;
-	severity: "critical" | "high" | "warning";
-	message: string;
-	metric: string;
-	current: string;
-	baseline: string;
-};
+import { runCommand } from "@/lib/command";
+import type { DashboardService, DashboardAnomaly } from "@/lib/monitoring-types";
 
 type RawConnection = {
 	id: string;
@@ -45,6 +24,82 @@ type RawConnection = {
 
 function workloadFromService(serviceName: string) {
 	return serviceName.replaceAll(".", "\\.");
+}
+
+function serviceNameRegex(serviceName: string) {
+	return serviceName.toLowerCase().replaceAll(".", "-");
+}
+
+function parseCpuToCores(raw: string) {
+	const value = raw.trim().toLowerCase();
+	if (!value) return 0;
+	if (value.endsWith("m")) {
+		const milli = Number(value.slice(0, -1));
+		return Number.isFinite(milli) ? milli / 1000 : 0;
+	}
+
+	const cores = Number(value);
+	return Number.isFinite(cores) ? cores : 0;
+}
+
+function parseMemoryToMiB(raw: string) {
+	const value = raw.trim();
+	const match = value.match(/^([0-9]+(?:\.[0-9]+)?)(Ki|Mi|Gi|Ti|K|M|G|T)?$/i);
+	if (!match) return 0;
+
+	const amount = Number(match[1]);
+	if (!Number.isFinite(amount)) return 0;
+
+	const unit = (match[2] || "Mi").toLowerCase();
+	if (unit === "ki" || unit === "k") return amount / 1024;
+	if (unit === "mi" || unit === "m") return amount;
+	if (unit === "gi" || unit === "g") return amount * 1024;
+	if (unit === "ti" || unit === "t") return amount * 1024 * 1024;
+
+	return amount;
+}
+
+
+async function getKubectlTopByService(namespace: string, services: string[]) {
+	const result = await runCommand("kubectl", [
+		"top",
+		"pods",
+		"-n",
+		namespace,
+		"--no-headers",
+	]);
+
+	if (result.code !== 0) {
+		return new Map<string, { cpuCores: number; memoryMiB: number }>();
+	}
+
+	const lines = result.stdout
+		.split("\n")
+		.map((line) => line.trim())
+		.filter(Boolean);
+
+	const rows = lines
+		.map((line) => line.split(/\s+/))
+		.filter((parts) => parts.length >= 3)
+		.map((parts) => ({
+			podName: parts[0].toLowerCase(),
+			cpuCores: parseCpuToCores(parts[1]),
+			memoryMiB: parseMemoryToMiB(parts[2]),
+		}));
+
+	const metrics = new Map<string, { cpuCores: number; memoryMiB: number }>();
+
+	for (const serviceName of services) {
+		const needle = serviceNameRegex(serviceName);
+		const matched = rows.filter((row) => row.podName.includes(needle));
+
+		metrics.set(serviceName, {
+			cpuCores: matched.reduce((sum, row) => sum + row.cpuCores, 0),
+			memoryMiB: matched.reduce((sum, row) => sum + row.memoryMiB, 0),
+		});
+	}
+
+	return metrics;
 }
 
 function normalizeConnectionServices(connection: RawConnection) {
@@ -108,13 +163,19 @@ async function queryScalarOptional(
 	}
 }
 
-async function queryScalar(
+async function queryFirstScalar(
 	baseUrl: string,
-	query: string,
+	queries: string[],
 	authToken?: string,
 ) {
-	const value = await queryScalarOptional(baseUrl, query, authToken);
-	return value ?? 0;
+	for (const query of queries) {
+		const value = await queryScalarOptional(baseUrl, query, authToken);
+		if (value !== null) {
+			return value;
+		}
+	}
+
+	return 0;
 }
 
 export async function GET() {
@@ -125,6 +186,12 @@ export async function GET() {
 		const connectionPlatform = (connection.platform || connection.kind || "kubernetes") as "kubernetes" | "docker";
 		const connectionNamespace = connection.namespace || "default";
 		const normalizedServices = normalizeConnectionServices(connection);
+		const kubectlTopByService = connectionPlatform === "kubernetes"
+			? await getKubectlTopByService(
+				connectionNamespace,
+				normalizedServices.map((service) => service.name),
+			)
+			: new Map<string, { cpuCores: number; memoryMiB: number }>();
 
 		for (const service of normalizedServices) {
 			if (connectionPlatform === "docker") {
@@ -144,6 +211,7 @@ export async function GET() {
 			}
 
 			const svcName = workloadFromService(service.name);
+			const podRegex = `${svcName}-.*|.*${svcName}.*`;
 			const ns = connectionNamespace;
 			const prometheusUrl = connection.prometheusUrl || "";
 
@@ -163,35 +231,55 @@ export async function GET() {
 				continue;
 			}
 
-			const podUp = await queryScalarOptional(
-				prometheusUrl,
-				`max(up{job="kubernetes-pods",kubernetes_namespace="${ns}",kubernetes_pod_name=~"${svcName}-.*"} or up{job="kubernetes-pods",kubernetes_namespace="${ns}",app="${service.name}"})`,
-				connection.authToken,
-			);
+			const [podUp, tcpProbe, cpu, memoryBytes, requestRate] = await Promise.all([
+				queryScalarOptional(
+					prometheusUrl,
+					`max(up{job="kubernetes-pods",kubernetes_namespace="${ns}",kubernetes_pod_name=~"${svcName}-.*"} or up{job="kubernetes-pods",kubernetes_namespace="${ns}",app="${service.name}"})`,
+					connection.authToken,
+				),
+				queryScalarOptional(
+					prometheusUrl,
+					`max(probe_success{job="kubernetes-services-tcp",kubernetes_namespace="${ns}",service="${service.name}"})`,
+					connection.authToken,
+				),
+				queryFirstScalar(
+					prometheusUrl,
+					[
+						`sum(rate(container_cpu_usage_seconds_total{namespace="${ns}",pod=~"${podRegex}",container!="POD"}[5m]))`,
+						`sum(rate(container_cpu_usage_seconds_total{kubernetes_namespace="${ns}",pod_name=~"${podRegex}",container_name!="POD"}[5m]))`,
+						`sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{namespace="${ns}",pod=~"${podRegex}"})`,
+						`sum(rate(process_cpu_seconds_total{kubernetes_namespace="${ns}",pod=~"${podRegex}"}[5m]))`,
+						`sum(rate(process_cpu_seconds_total{namespace="${ns}",pod=~"${podRegex}"}[5m]))`,
+					],
+					connection.authToken,
+				),
+				queryFirstScalar(
+					prometheusUrl,
+					[
+						`sum(container_memory_working_set_bytes{namespace="${ns}",pod=~"${podRegex}",container!="POD"})`,
+						`sum(container_memory_working_set_bytes{kubernetes_namespace="${ns}",pod_name=~"${podRegex}",container_name!="POD"})`,
+						`sum(node_namespace_pod_container:container_memory_working_set_bytes{namespace="${ns}",pod=~"${podRegex}"})`,
+						`sum(process_resident_memory_bytes{kubernetes_namespace="${ns}",pod=~"${podRegex}"})`,
+						`sum(process_resident_memory_bytes{namespace="${ns}",pod=~"${podRegex}"})`,
+					],
+					connection.authToken,
+				),
+				queryFirstScalar(
+					prometheusUrl,
+					[
+						`sum(rate(http_requests_total{kubernetes_namespace="${ns}",app="${service.name}"}[5m]))`,
+						`sum(rate(http_server_requests_seconds_count{kubernetes_namespace="${ns}",app="${service.name}"}[5m]))`,
+						`sum(rate(http_requests_total{namespace="${ns}",service="${service.name}"}[5m]))`,
+					],
+					connection.authToken,
+				),
+			]);
 
-			const tcpProbe = await queryScalarOptional(
-				prometheusUrl,
-				`max(probe_success{job="kubernetes-services-tcp",kubernetes_namespace="${ns}",service="${service.name}"})`,
-				connection.authToken,
-			);
-
-			const cpu = await queryScalar(
-				prometheusUrl,
-				`sum(rate(container_cpu_usage_seconds_total{namespace="${ns}",pod=~"${svcName}-.*",container!="POD",image!=""}[5m]))`,
-				connection.authToken,
-			);
-
-			const memoryBytes = await queryScalar(
-				prometheusUrl,
-				`sum(container_memory_working_set_bytes{namespace="${ns}",pod=~"${svcName}-.*",container!="POD",image!=""})`,
-				connection.authToken,
-			);
-
-			const requestRate = await queryScalar(
-				prometheusUrl,
-				`sum(rate(http_requests_total{kubernetes_namespace="${ns}",app="${service.name}"}[5m]))`,
-				connection.authToken,
-			);
+			const fallbackUsage = kubectlTopByService.get(service.name);
+			const cpuFinal = cpu > 0 ? cpu : (fallbackUsage?.cpuCores ?? 0);
+			const memoryMiBFinal = memoryBytes > 0
+				? memoryBytes / 1024 / 1024
+				: (fallbackUsage?.memoryMiB ?? 0);
 
 			let status: "running" | "down" | "unknown" = "unknown";
 			const observedValues = [podUp, tcpProbe].filter(
@@ -209,8 +297,8 @@ export async function GET() {
 				namespace: ns,
 				platform: "kubernetes",
 				status,
-				cpuCores: cpu,
-				memoryMiB: memoryBytes / 1024 / 1024,
+				cpuCores: cpuFinal,
+				memoryMiB: memoryMiBFinal,
 				requestRate,
 				ports: service.ports,
 			});
@@ -225,6 +313,7 @@ export async function GET() {
 				issues.push({
 					id: `${service.id}-down`,
 					service: service.name,
+					namespace: service.namespace,
 					severity: "critical",
 					message: "Service scrape status is down.",
 					metric: "up",
@@ -237,6 +326,7 @@ export async function GET() {
 				issues.push({
 					id: `${service.id}-memory`,
 					service: service.name,
+					namespace: service.namespace,
 					severity: "warning",
 					message: "Memory usage above baseline threshold.",
 					metric: "memory",

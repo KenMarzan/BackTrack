@@ -1,14 +1,6 @@
+import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
-
-type DashboardAnomaly = {
-  id: string;
-  service: string;
-  severity: "critical" | "high" | "warning";
-  message: string;
-  metric: string;
-  current: string;
-  baseline: string;
-};
+import type { DashboardAnomaly } from "@/lib/monitoring-types";
 
 function AnomalyDetection({ anomalies }: { anomalies: DashboardAnomaly[] }) {
   const critical = anomalies.filter((anomaly) => anomaly.severity === "critical").length;
@@ -61,8 +53,14 @@ function AnomalyDetection({ anomalies }: { anomalies: DashboardAnomaly[] }) {
                 ? "text-orange-400"
                 : "text-yellow-400";
 
+            const diagnosticHref = `/anomalies/${encodeURIComponent(anomaly.service)}?namespace=${encodeURIComponent(anomaly.namespace)}&severity=${encodeURIComponent(anomaly.severity)}&metric=${encodeURIComponent(anomaly.metric)}&current=${encodeURIComponent(anomaly.current)}&baseline=${encodeURIComponent(anomaly.baseline)}&message=${encodeURIComponent(anomaly.message)}`;
+
             return (
-              <div className="bg-red-500/10 border border-red-500/30 rounded p-3" key={anomaly.id}>
+              <Link
+                href={diagnosticHref}
+                className="block bg-red-500/10 border border-red-500/30 rounded p-3 hover:bg-red-500/15 transition"
+                key={anomaly.id}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex flex-row items-center gap-2 ">
                     <div>
@@ -93,7 +91,7 @@ function AnomalyDetection({ anomalies }: { anomalies: DashboardAnomaly[] }) {
                     Current: <span className={textClass}>{anomaly.current}</span>
                   </span>
                 </div>
-              </div>
+              </Link>
             );
           })
         )}

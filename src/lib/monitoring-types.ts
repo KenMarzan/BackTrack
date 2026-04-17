@@ -19,6 +19,8 @@ export interface AppConnectionInput {
   apiServerEndpoint: string;
   prometheusUrl: string;
   authToken?: string;
+  githubRepo?: string;
+  githubBranch?: string;
   discoveredServices: DiscoveredService[];
 }
 
@@ -27,3 +29,27 @@ export interface AppConnection extends AppConnectionInput {
   createdAt: string;
   status: "connected" | "error";
 }
+
+export type DashboardService = {
+  id: string;
+  connectionId: string;
+  name: string;
+  namespace: string;
+  platform: PlatformType;
+  status: "running" | "down" | "unknown";
+  cpuCores: number;
+  memoryMiB: number;
+  requestRate: number;
+  ports: string[];
+};
+
+export type DashboardAnomaly = {
+  id: string;
+  service: string;
+  namespace: string;
+  severity: "critical" | "high" | "warning";
+  message: string;
+  metric: string;
+  current: string;
+  baseline: string;
+};

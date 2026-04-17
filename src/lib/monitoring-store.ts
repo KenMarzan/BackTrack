@@ -20,6 +20,8 @@ type LegacyConnection = {
 	apiServerEndpoint?: string;
 	prometheusUrl?: string;
 	authToken?: string;
+	githubRepo?: string;
+	githubBranch?: string;
 	discoveredServices?: Array<{
 		name?: string;
 		namespace?: string;
@@ -71,6 +73,8 @@ function normalizeConnection(connection: LegacyConnection): AppConnection {
 		apiServerEndpoint: (connection.apiServerEndpoint || "").trim(),
 		prometheusUrl: (connection.prometheusUrl || "").trim(),
 		authToken: connection.authToken,
+		githubRepo: (connection.githubRepo || "").trim() || undefined,
+		githubBranch: (connection.githubBranch || "main").trim(),
 		discoveredServices,
 	};
 }
