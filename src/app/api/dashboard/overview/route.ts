@@ -216,15 +216,16 @@ export async function GET() {
 			const prometheusUrl = connection.prometheusUrl || "";
 
 			if (!prometheusUrl) {
+				const fallbackUsageNoPrometheus = kubectlTopByService.get(service.name);
 				services.push({
 					id: `${connection.id}:${service.name}`,
 					connectionId: connection.id,
 					name: service.name,
 					namespace: ns,
 					platform: "kubernetes",
-					status: "unknown",
-					cpuCores: 0,
-					memoryMiB: 0,
+					status: service.status === "running" ? "running" : "unknown",
+					cpuCores: fallbackUsageNoPrometheus?.cpuCores ?? 0,
+					memoryMiB: fallbackUsageNoPrometheus?.memoryMiB ?? 0,
 					requestRate: 0,
 					ports: service.ports,
 				});

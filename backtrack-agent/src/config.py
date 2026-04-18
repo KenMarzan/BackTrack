@@ -29,7 +29,10 @@ class BacktrackConfig:
 
     @property
     def mode(self) -> str:
-        """Returns 'kubernetes' if running inside a K8s pod, else 'docker'."""
+        """Returns 'kubernetes' if forced via env var or running inside a K8s pod, else 'docker'."""
+        forced = os.getenv("BACKTRACK_MODE", "").lower()
+        if forced in ("kubernetes", "k8s"):
+            return "kubernetes"
         if os.path.exists(K8S_SERVICE_ACCOUNT_PATH):
             return "kubernetes"
         return "docker"

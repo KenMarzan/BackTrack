@@ -101,25 +101,16 @@ function writeConnections(connections: AppConnection[]) {
 	fs.writeFileSync(CONNECTIONS_FILE, JSON.stringify(connections, null, 2));
 }
 
-const store = globalThis as typeof globalThis & {
-	backtrackConnections?: AppConnection[];
-};
-
-const connections = store.backtrackConnections ?? readConnections();
-
-if (!store.backtrackConnections) {
-	store.backtrackConnections = connections;
-}
-
 export function listConnections() {
-	return connections;
+	return readConnections();
 }
 
 export function getConnection(id: string) {
-	return connections.find((connection) => connection.id === id) ?? null;
+	return readConnections().find((connection) => connection.id === id) ?? null;
 }
 
 export function registerConnection(input: AppConnectionInput) {
+	const connections = readConnections();
 	const existingIndex = connections.findIndex(
 		(connection) =>
 			(connection.appName || "").toLowerCase() === input.appName.toLowerCase() &&
