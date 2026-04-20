@@ -1,48 +1,141 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import Nav from "./components/Nav";
 import ContainerHealth from "./components/ContainerHealth";
-import RecentDeployment from "./components/RecentDeployment";
+import RecentDeployment from "@/app/components/RecentDeployment";
 import ActiveContainers from "./components/ActiveContainers";
 import AnomalyDetection from "./components/AnomalyDetection";
-import { RefreshCw } from "lucide-react";
+import { Activity, RefreshCw } from "lucide-react";
+import type { DashboardService, DashboardAnomaly } from "@/lib/monitoring-types";
+
 export default function Home() {
+  const [services, setServices] = useState<DashboardService[]>([]);
+  const [anomalies, setAnomalies] = useState<DashboardAnomaly[]>([]);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [syncState, setSyncState] = useState<"idle" | "syncing" | "error">("idle");
+
+  useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      setSyncState("syncing");
+      try {
+        const response = await fetch("/api/dashboard/overview", { cache: "no-store" });
+        const data = await response.json();
+
+        if (!active) return;
+        setServices(data.services ?? []);
+        setAnomalies(data.anomalies ?? []);
+        setLastSync(new Date());
+        setSyncState("idle");
+      } catch {
+        if (!active) return;
+        setServices([]);
+        setAnomalies([]);
+        setSyncState("error");
+      }
+    };
+
+    load();
+    const timer = window.setInterval(load, 10000);
+
+    const refresh = () => {
+      load();
+    };
+
+    window.addEventListener("backtrack:connection-updated", refresh);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("backtrack:connection-updated", refresh);
+    };
+  }, []);
+
+  const lastSyncLabel = useMemo(() => {
+    if (!lastSync) return "—";
+    return lastSync.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }, [lastSync]);
+
+  const healthSummary = useMemo(() => {
+    const total = services.length;
+    const up = services.filter((s) => s.status === "running").length;
+    const down = services.filter((s) => s.status === "down").length;
+    return { total, up, down };
+  }, [services]);
+
   return (
-    <div className="w-full h-screen flex flex-col bg-[#161C27] overflow-hidden">
-      <Nav />
+    <div className="min-h-screen w-full flex flex-col bg-transparent">
+      <Nav healthSummary={healthSummary} />
 
-      <div className="p-8 flex-1 grid grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-4 overflow-hidden min-h-0">
-        <div className="flex flex-row justify-end gap-2">
-          <div className=" flex flex-row  gap-2 w-40 border rounded-2xl border-[#5D5A5A] p-1 text-center text-white hover:bg-blue-200 justify-between items-center pr-4">
-            <div className="flex flex-row gap-1 items-center  border-r-2 border-[#5D5A5A] pr-2 pl-2">
-              <RefreshCw
-                strokeWidth={2}
-                absoluteStrokeWidth
-                color="white"
-                size={17}
-              />
-              <h1 className="text-shadow-md">Refresh</h1>
+      <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-6 lg:py-8 flex flex-col gap-5 lg:gap-6">
+        {/* Status strip */}
+        <section className="bt-rise flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(148,163,184,0.15)] bg-white/[0.02] px-3 py-1.5">
+              <Activity size={14} className="text-[var(--accent-teal)]" />
+              <span className="text-[11px] tracking-[0.18em] uppercase text-[var(--text-secondary)]">
+                Live Telemetry
+              </span>
             </div>
-
-            <div>
-              <h1>10s</h1>
+            <div className="hidden md:flex items-center gap-2 text-xs text-[var(--text-muted)]">
+              <span>Self-healing observability across containerized workloads.</span>
             </div>
           </div>
-        </div>
-        {/* Grid container below the navbar */}
-        <div className="grid grid-cols-3 w-full gap-20 min-h-0 h-full">
-          {/* 2/3 Column */}
-          <ContainerHealth />
 
-          {/* 1/3 Column */}
+          <div className="flex items-center gap-2">
+            <div className="bt-shimmer flex items-center gap-2 rounded-full border border-[rgba(148,163,184,0.15)] bg-white/[0.02] px-3 py-1.5 text-xs text-[var(--text-secondary)]">
+              <RefreshCw
+                size={13}
+                className={`text-[var(--accent-teal)] ${syncState === "syncing" ? "animate-spin" : ""}`}
+              />
+              <span className="bt-mono text-[11px]">
+                {syncState === "error" ? "sync failed" : `synced ${lastSyncLabel}`}
+              </span>
+              <span className="h-3 w-px bg-[var(--border-mid)]" />
+              <span className="bt-mono text-[11px] text-[var(--text-muted)]">10s</span>
+            </div>
+          </div>
+        </section>
 
-          <RecentDeployment />
-        </div>
+        {/* Primary grid: health + deployments */}
+        <section className="bt-rise grid grid-cols-1 xl:grid-cols-3 gap-5 lg:gap-6">
+          <div className="xl:col-span-2 min-h-[460px]">
+            <ContainerHealth services={services} />
+          </div>
+          <div className="xl:col-span-1 min-h-[460px]">
+            <RecentDeployment />
+          </div>
+        </section>
 
-        {/* Bottom row - Anomaly Detection and Active Containers */}
-        <div className="grid grid-cols-2 w-full gap-20 min-h-0 h-full">
-          <AnomalyDetection />
-          <ActiveContainers />
-        </div>
-      </div>
+        {/* Secondary grid: anomalies + containers */}
+        <section className="bt-rise grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6">
+          <div className="min-h-[360px]">
+            <AnomalyDetection anomalies={anomalies} />
+          </div>
+          <div className="min-h-[360px]">
+            <ActiveContainers services={services} />
+          </div>
+        </section>
+
+        <footer className="pt-2 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
+          <div className="flex items-center gap-2">
+            <span className="bt-mono uppercase tracking-[0.2em]">backtrack</span>
+            <span>/</span>
+            <span>local-first observability</span>
+          </div>
+          <div className="flex items-center gap-3 bt-mono">
+            <span>services {healthSummary.up}/{healthSummary.total}</span>
+            <span className="h-3 w-px bg-[var(--border-mid)]" />
+            <span>anomalies {anomalies.length}</span>
+          </div>
+        </footer>
+      </main>
     </div>
   );
 }

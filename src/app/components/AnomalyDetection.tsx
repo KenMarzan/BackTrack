@@ -1,171 +1,100 @@
+import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
-function AnomalyDetection() {
+import type { DashboardAnomaly } from "@/lib/monitoring-types";
+
+function AnomalyDetection({ anomalies }: { anomalies: DashboardAnomaly[] }) {
+  const critical = anomalies.filter((anomaly) => anomaly.severity === "critical").length;
+  const high = anomalies.filter((anomaly) => anomaly.severity === "high").length;
+  const warning = anomalies.filter((anomaly) => anomaly.severity === "warning").length;
+
   return (
     <div className="border border-[#5D5A5A] rounded-2xl p-6 bg-[#F01010]/[0.02] h-full flex flex-col overflow-hidden">
       <div className="flex flex-row justify-between items-center mb-5 flex-shrink-0">
         <h1 className="text-white font-bold text-xl mb-4">Anomaly Detection</h1>
         <div className="flex flex-row gap-4">
           <div className="w-15 h-14 border border-[#FF0000] bg-[#DC0E0E]/10 text-center rounded-md">
-            <h1 className="text-red-600 text-2xl font-bold">1</h1>
+            <h1 className="text-red-600 text-2xl font-bold">{critical}</h1>
             <h1 className="text-xs text-white">Critical</h1>
           </div>
           <div className="w-15 h-14 border bg-[#EE9B00]/10 border-[#FF9D00] text-center rounded-md">
-            <h1 className="text-[#FFA600] text-2xl font-bold">4</h1>
+            <h1 className="text-[#FFA600] text-2xl font-bold">{high}</h1>
             <h1 className="text-xs text-white">High</h1>
           </div>
           <div className="w-15 h-14 border bg-[#E2D710]/10 border-[#CA9E0D] text-center rounded-md">
-            <h1 className="text-[#FFDD00] text-2xl font-bold">2</h1>
+            <h1 className="text-[#FFDD00] text-2xl font-bold">{warning}</h1>
             <h1 className="text-xs text-white">Warning</h1>
           </div>
         </div>
       </div>
       <div className="space-y-3 overflow-y-auto flex-1 min-h-0 scrollbar-hide">
-        <div className="bg-red-500/10 border border-red-500/30 rounded p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex flex-row items-center gap-2 ">
-              <div>
-                <TriangleAlert size={15} color="red" />
-              </div>
-              <div>
-                <div className="flex flex-row gap-2">
-                  <p className="text-red-400 font-semibold">
-                    checkpoint-service
-                  </p>
-                  <div className="bg-red-500 w-20 p-1 text-center rounded-md ">
-                    <p className="text-white text-sm">CRITICAL</p>
+        {anomalies.length === 0 ? (
+          <div className="bg-green-500/10 border border-green-500/30 rounded p-3">
+            <p className="text-green-400 text-sm">
+              No active anomalies detected.
+            </p>
+          </div>
+        ) : (
+          anomalies.map((anomaly) => {
+            const color = anomaly.severity === "critical"
+              ? "red"
+              : anomaly.severity === "high"
+                ? "orange"
+                : "#FFDD00";
+
+            const badgeClass = anomaly.severity === "critical"
+              ? "bg-red-500"
+              : anomaly.severity === "high"
+                ? "bg-orange-500"
+                : "bg-yellow-500";
+
+            const textClass = anomaly.severity === "critical"
+              ? "text-red-400"
+              : anomaly.severity === "high"
+                ? "text-orange-400"
+                : "text-yellow-400";
+
+            const diagnosticHref = `/anomalies/${encodeURIComponent(anomaly.service)}?namespace=${encodeURIComponent(anomaly.namespace)}&severity=${encodeURIComponent(anomaly.severity)}&metric=${encodeURIComponent(anomaly.metric)}&current=${encodeURIComponent(anomaly.current)}&baseline=${encodeURIComponent(anomaly.baseline)}&message=${encodeURIComponent(anomaly.message)}`;
+
+            return (
+              <Link
+                href={diagnosticHref}
+                className="block bg-red-500/10 border border-red-500/30 rounded p-3 hover:bg-red-500/15 transition"
+                key={anomaly.id}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-row items-center gap-2 ">
+                    <div>
+                      <TriangleAlert size={15} color={color} />
+                    </div>
+                    <div>
+                      <div className="flex flex-row gap-2">
+                        <p className={`${textClass} font-semibold`}>{anomaly.service}</p>
+                        <div className={`${badgeClass} w-20 p-1 text-center rounded-md `}>
+                          <p className="text-white text-sm">{anomaly.severity.toUpperCase()}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-gray-300 text-xs">{anomaly.message}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <p className="text-gray-400 text-xs">
-                    Unexpected spike in request latency
-                  </p>
+                <hr className="border-[#5D5A5A] my-2" />
+                <div className="flex justify-between text-xs text-gray-400 mt-2">
+                  <span>
+                    Metric: <span className={textClass}>{anomaly.metric}</span>
+                  </span>
+                  <span>
+                    Baseline: <span className="text-gray-300">{anomaly.baseline}</span>
+                  </span>
+                  <span>
+                    Current: <span className={textClass}>{anomaly.current}</span>
+                  </span>
                 </div>
-              </div>
-            </div>
-
-            <span className="text-gray-400 text-xs">5 minutes ago</span>
-          </div>
-          <hr className="border-[#5D5A5A] my-2" />
-          <div className="flex justify-between text-xs text-gray-400 mt-2">
-            <span>
-              Metric: <span className="text-red-400">Error Rate</span>
-            </span>
-            <span>
-              Baseline: <span className="text-gray-300">0.1%</span>
-            </span>
-            <span>
-              Current: <span className="text-red-400">15.8%</span>
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-orange-500/10 border border-orange-500/30 rounded p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex flex-row items-center gap-2 ">
-              <div>
-                <TriangleAlert size={15} color="orange" />
-              </div>
-              <div>
-                <div className="flex flex-row gap-2">
-                  <p className="text-orange-400 font-semibold">api-gateway</p>
-                  <div className="bg-orange-500 w-20 p-1 text-center rounded-md">
-                    <p className="text-white text-sm">WARNING</p>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-gray-400 text-xs">
-                    Memory usage exceeded threshold
-                  </p>
-                </div>
-              </div>
-            </div>
-            <span className="text-gray-400 text-xs">2 minutes ago</span>
-          </div>
-          <hr className="border-[#5D5A5A] my-2" />
-          <div className="flex justify-between text-xs text-gray-400 mt-2">
-            <span>
-              Metric: <span className="text-orange-400">Memory Usage</span>
-            </span>
-            <span>
-              Baseline: <span className="text-gray-300">60%</span>
-            </span>
-            <span>
-              Current: <span className="text-orange-400">85%</span>
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex flex-row items-center gap-2 ">
-              <div>
-                <TriangleAlert size={15} color="#FFDD00" />
-              </div>
-              <div>
-                <div className="flex flex-row gap-2">
-                  <p className="text-yellow-400 font-semibold">api-gateway</p>
-                  <div className="bg-yellow-500 w-20 p-1 text-center rounded-md">
-                    <p className="text-white text-sm">WARNING</p>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-gray-400 text-xs">
-                    Memory usage exceeded threshold
-                  </p>
-                </div>
-              </div>
-            </div>
-            <span className="text-gray-400 text-xs">2 minutes ago</span>
-          </div>
-          <hr className="border-[#5D5A5A] my-2" />
-          <div className="flex justify-between text-xs text-gray-400 mt-2">
-            <span>
-              Metric: <span className="text-yellow-400">Response Time</span>
-            </span>
-            <span>
-              Baseline: <span className="text-gray-300">200ms</span>
-            </span>
-            <span>
-              Current: <span className="text-yellow-400">850ms</span>
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex flex-row items-center gap-2 ">
-              <div>
-                <TriangleAlert size={15} color="#FFDD00" />
-              </div>
-              <div>
-                <div className="flex flex-row gap-2">
-                  <p className="text-yellow-400 font-semibold">cache-service</p>
-                  <div className="bg-yellow-500 w-20 p-1 text-center rounded-md">
-                    <p className="text-white text-sm">WARNING</p>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-gray-400 text-xs">
-                    Cache hit rate degradation detected
-                  </p>
-                </div>
-              </div>
-            </div>
-            <span className="text-gray-400 text-xs">1 minute ago</span>
-          </div>
-          <hr className="border-[#5D5A5A] my-2" />
-          <div className="flex justify-between text-xs text-gray-400 mt-2">
-            <span>
-              Metric: <span className="text-yellow-400">Cache Hit Rate</span>
-            </span>
-            <span>
-              Baseline: <span className="text-gray-300">92%</span>
-            </span>
-            <span>
-              Current: <span className="text-yellow-400">72%</span>
-            </span>
-          </div>
-        </div>
+              </Link>
+            );
+          })
+        )}
       </div>
     </div>
   );
