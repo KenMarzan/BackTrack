@@ -1,0 +1,54 @@
+[
+  {
+    "id": "711c3471-6505-417a-83d4-9c8d684c97fe",
+    "status": "connected",
+    "createdAt": "2026-04-20T03:03:21.654Z",
+    "appName": "memstress",
+    "platform": "kubernetes",
+    "architecture": "monolith",
+    "clusterName": "docker-desktop",
+    "namespace": "default",
+    "apiServerEndpoint": "https://127.0.0.1:43377",
+    "prometheusUrl": "",
+    "authToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImlYTVJrN01OckRzY1RJWVlTSjlDTjFZdE1ka3ZKM0FUQ0NwdzZJU0ZGbEEifQ.eyJhdWQiOlsiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwiXSwiZXhwIjoxNzc2NzM5NTE1LCJpYXQiOjE3NzY2NTMxMTUsImlzcyI6Imh0dHBzOi8va3ViZXJuZXRlcy5kZWZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsIiwianRpIjoiOGIzNjU4MGEtNzdlNy00MmU3LTllMjEtNTUyOWQ5MWJhZmFlIiwia3ViZXJuZXRlcy5pbyI6eyJuYW1lc3BhY2UiOiJkZWZhdWx0Iiwic2VydmljZWFjY291bnQiOnsibmFtZSI6ImRlZmF1bHQiLCJ1aWQiOiJjZWZhNDEzMC05MDk4LTQxOWItODdiNy0xYzIwOGI4NDk2MmYifX0sIm5iZiI6MTc3NjY1MzExNSwic3ViIjoic3lzdGVtOnNlcnZpY2VhY2NvdW50OmRlZmF1bHQ6ZGVmYXVsdCJ9.kqG69Gu5W9ruMgkRRToZHkndYblX6wD4ZtcvwYMtYXjkFBn6dWQHdiyY5ZvwQI6ibixctpJaS_dqmWnMoWLTr1GO0dtTGCFnZmwPNqsCpcBCmcbq0hBw_RNUFLDJu_DVUNXMozdh9ufX2AKEg2apMhPTqheixqqV3R87gfyP4QDZ90rx8tQ4XLeA9Mpr4XirlOLWXz08evX9XQ1n-wegcLtNK8H0261A1_K4dHwJYAwR_MgKNODTHRfU6z-UbAzexjxhucDeMEudtn7LoIUDqwxsdSiFzHQ3MkoGSM7fzCwe0W5j91q4nlhDs2qND9V1gBMXpK39-1T7aodIAiB9Fw",
+    "githubBranch": "main",
+    "discoveredServices": [
+      {
+        "name": "memstress",
+        "namespace": "default",
+        "status": "running",
+        "ports": [
+          "80:80"
+        ],
+        "source": "kubernetes"
+      }
+    ]
+  },
+  {
+    "id": "5b8fe19f-e7ce-4670-8172-aa81203d2839",
+    "status": "connected",
+    "createdAt": "2026-04-20T02:48:54.836Z",
+    "appName": "podinfo",
+    "platform": "kubernetes",
+    "architecture": "monolith",
+    "clusterName": "docker-desktop",
+    "namespace": "default",
+    "apiServerEndpoint": "https://127.0.0.1:43377",
+    "prometheusUrl": "",
+    "authToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImlYTVJrN01OckRzY1RJWVlTSjlDTjFZdE1ka3ZKM0FUQ0NwdzZJU0ZGbEEifQ.eyJhdWQiOlsiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwiXSwiZXhwIjoxNzc2NzM5NTE1LCJpYXQiOjE3NzY2NTMxMTUsImlzcyI6Imh0dHBzOi8va3ViZXJuZXRlcy5kZWZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsIiwianRpIjoiOGIzNjU4MGEtNzdlNy00MmU3LTllMjEtNTUyOWQ5MWJhZmFlIiwia3ViZXJuZXRlcy5pbyI6eyJuYW1lc3BhY2UiOiJkZWZhdWx0Iiwic2VydmljZWFjY291bnQiOnsibmFtZSI6ImRlZmF1bHQiLCJ1aWQiOiJjZWZhNDEzMC05MDk4LTQxOWItODdiNy0xYzIwOGI4NDk2MmYifX0sIm5iZiI6MTc3NjY1MzExNSwic3ViIjoic3lzdGVtOnNlcnZpY2VhY2NvdW50OmRlZmF1bHQ6ZGVmYXVsdCJ9.kqG69Gu5W9ruMgkRRToZHkndYblX6wD4ZtcvwYMtYXjkFBn6dWQHdiyY5ZvwQI6ibixctpJaS_dqmWnMoWLTr1GO0dtTGCFnZmwPNqsCpcBCmcbq0hBw_RNUFLDJu_DVUNXMozdh9ufX2AKEg2apMhPTqheixqqV3R87gfyP4QDZ90rx8tQ4XLeA9Mpr4XirlOLWXz08evX9XQ1n-wegcLtNK8H0261A1_K4dHwJYAwR_MgKNODTHRfU6z-UbAzexjxhucDeMEudtn7LoIUDqwxsdSiFzHQ3MkoGSM7fzCwe0W5j91q4nlhDs2qND9V1gBMXpK39-1T7aodIAiB9Fw",
+    "githubRepo": "stefanprodan/podinfo",
+    "githubBranch": "master",
+    "discoveredServices": [
+      {
+        "name": "podinfo",
+        "namespace": "default",
+        "status": "running",
+        "ports": [
+          "9898:http",
+          "9999:grpc"
+        ],
+        "source": "kubernetes"
+      }
+    ]
+  }
+]
