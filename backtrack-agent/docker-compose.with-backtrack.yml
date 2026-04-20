@@ -1,0 +1,28 @@
+version: "3.9"
+
+# ──────────────────────────────────────────────────────────────
+# Copy this file into your project. Only 2 env vars required:
+#   BACKTRACK_TARGET        — your app service name below
+#   BACKTRACK_IMAGE_TAG     — current deployed image tag (set by CI)
+# ──────────────────────────────────────────────────────────────
+
+services:
+  app:
+    image: ${APP_IMAGE}
+    # (users fill in their existing service config here)
+
+  backtrack:
+    image: ghcr.io/your-org/backtrack-agent:latest
+    environment:
+      - BACKTRACK_TARGET=app
+      - BACKTRACK_IMAGE_TAG=${BACKTRACK_IMAGE_TAG}
+      - BACKTRACK_ROLLBACK_ENABLED=true
+    volumes:
+      - backtrack-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "9090:9090"
+      - "3000:3000"
+
+volumes:
+  backtrack-data:
