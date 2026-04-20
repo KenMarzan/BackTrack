@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const allowed = ["health", "config", "metrics", "lsi", "versions", "rollback/history"];
+  const allowed = ["health", "config", "metrics", "lsi", "versions", "services", "rollback/history"];
   if (!allowed.includes(agentPath)) {
     return NextResponse.json(
       { error: `Invalid path. Allowed: ${allowed.join(", ")}` },
@@ -29,7 +29,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const url = `${AGENT_URL}/${agentPath}`;
+    const agentUrl = new URL(`${AGENT_URL}/${agentPath}`);
+    // Forward service query param if present
+    const serviceParam = request.nextUrl.searchParams.get("service");
+    if (serviceParam) agentUrl.searchParams.set("service", serviceParam);
+    const url = agentUrl.toString();
     const response = await fetch(url, { cache: "no-store" });
 
     if (!response.ok) {

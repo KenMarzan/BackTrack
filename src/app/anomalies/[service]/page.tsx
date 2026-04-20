@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   RefreshCw,
+  Search,
   ShieldAlert,
 } from "lucide-react";
 import Link from "next/link";
@@ -85,6 +86,120 @@ function decode(value: string | null) {
   return value ? decodeURIComponent(value) : "unknown";
 }
 
+// --- Root Cause Analysis helpers ---
+
+type InsightDriver = "TSD_DRIFT" | "LSI_ANOMALOUS" | "BOTH" | "NONE";
+
+type RootCauseInsight = {
+  driver: InsightDriver;
+  driftingMetrics: Array<{
+    name: string;
+    lastResidual: number;
+    iqrThreshold: number;
+    ratio: number;
+  }>;
+  novelRatio: number;
+  errorRatio: number;
+  scoreRatio: number;
+  novelLines: Array<{ line: string; timestamp: number }>;
+  headline: string;
+  explanation: string;
+};
+
+function estimateIQR(values: number[]): number {
+  if (values.length < 4) return 1;
+  const sorted = [...values].map(Math.abs).sort((a, b) => a - b);
+  const q1 = sorted[Math.floor(sorted.length * 0.25)];
+  const q3 = sorted[Math.floor(sorted.length * 0.75)];
+  return Math.max(q3 - q1, 0.001);
+}
+
+const METRIC_DEFS = [
+  { name: "CPU", key: "cpu" as const },
+  { name: "Memory", key: "memory" as const },
+  { name: "Latency", key: "latency" as const },
+  { name: "Error Rate", key: "error_rate" as const },
+];
+
+function generateInsight(
+  tsd: TSDMetrics | null,
+  lsi: LSIData | null,
+): RootCauseInsight {
+  const empty: RootCauseInsight = {
+    driver: "NONE",
+    driftingMetrics: [],
+    novelRatio: 0,
+    errorRatio: 0,
+    scoreRatio: 0,
+    novelLines: [],
+    headline: "No active anomaly signals.",
+    explanation: "Both TSD residuals and LSI log scores are within normal bounds.",
+  };
+
+  if (!tsd && !lsi) return empty;
+
+  const driftingMetrics: RootCauseInsight["driftingMetrics"] = [];
+  if (tsd?.is_drifting) {
+    for (const def of METRIC_DEFS) {
+      const residuals = tsd.residuals[def.key];
+      const lastResidual = residuals.at(-1) ?? 0;
+      const iqrThreshold = 3.0 * estimateIQR(residuals);
+      const ratio = Math.abs(lastResidual) / iqrThreshold;
+      if (ratio > 1.0) {
+        driftingMetrics.push({ name: def.name, lastResidual, iqrThreshold, ratio });
+      }
+    }
+    driftingMetrics.sort((a, b) => b.ratio - a.ratio);
+  }
+
+  const wc = lsi?.window_counts ?? { INFO: 0, WARN: 0, ERROR: 0, NOVEL: 0 };
+  const total = Math.max((wc.INFO + wc.WARN + wc.ERROR + wc.NOVEL), 1);
+  const novelRatio = wc.NOVEL / total;
+  const errorRatio = wc.ERROR / total;
+  const scoreRatio = (lsi?.current_score ?? 0) / Math.max(lsi?.threshold ?? 0.0001, 0.0001);
+  const novelLines = (lsi?.recent_lines ?? [])
+    .filter((e) => e.label === "NOVEL")
+    .slice(0, 3)
+    .map((e) => ({ line: e.line, timestamp: e.timestamp }));
+
+  const isDrifting = tsd?.is_drifting ?? false;
+  const isAnomalous = lsi?.is_anomalous ?? false;
+
+  let driver: InsightDriver = "NONE";
+  if (isDrifting && isAnomalous) driver = "BOTH";
+  else if (isDrifting) driver = "TSD_DRIFT";
+  else if (isAnomalous) driver = "LSI_ANOMALOUS";
+
+  const topMetric = driftingMetrics[0];
+
+  let headline = "No active anomaly signals.";
+  let explanation = "Both TSD residuals and LSI log scores are within normal bounds.";
+
+  if (driver === "BOTH") {
+    headline = `Correlated metric drift and anomalous log patterns detected.`;
+    explanation =
+      topMetric
+        ? `${topMetric.name} residuals are approximately ${topMetric.ratio.toFixed(1)}× above the 3×IQR drift threshold, indicating a structural shift in ${topMetric.name.toLowerCase()} behavior. ` +
+          `Simultaneously, ${(novelRatio * 100).toFixed(0)}% of recent log lines are NOVEL patterns — sequences with cosine similarity < 0.25 to all baseline centroids. ` +
+          `LSI score is ${scoreRatio.toFixed(1)}× the anomaly threshold, suggesting a new failure mode rather than a known error class.`
+        : `Both TSD drift and LSI anomaly signals are active. LSI score is ${scoreRatio.toFixed(1)}× the anomaly threshold with ${(novelRatio * 100).toFixed(0)}% NOVEL log lines.`;
+  } else if (driver === "TSD_DRIFT") {
+    headline = `Metric drift detected — log patterns nominal.`;
+    explanation = topMetric
+      ? `${topMetric.name} residuals are approximately ${topMetric.ratio.toFixed(1)}× above the 3×IQR threshold after STL decomposition, meaning the trend and seasonal components no longer explain the observed values. ` +
+        `This pattern suggests a resource regression or infrastructure issue rather than an application error, as log semantics remain within the trained baseline.`
+      : `TSD residuals are outside normal bounds after STL decomposition. Log semantics remain within the trained baseline.`;
+  } else if (driver === "LSI_ANOMALOUS") {
+    headline = `Anomalous log patterns without metric drift.`;
+    explanation =
+      `LSI score is ${scoreRatio.toFixed(1)}× the anomaly threshold, driven by ${(novelRatio * 100).toFixed(0)}% NOVEL and ${(errorRatio * 100).toFixed(0)}% ERROR log lines in the current 30-second window. ` +
+      `NOVEL lines are log sequences with cosine similarity < 0.25 to all SVD baseline centroids — indicating new, unseen error paths or dependency failures not present during baseline training. ` +
+      `CPU, memory, and latency residuals are within normal bounds.`;
+  }
+
+  return { driver, driftingMetrics, novelRatio, errorRatio, scoreRatio, novelLines, headline, explanation };
+}
+
 // --- Mini bar chart component ---
 
 function BarChart({
@@ -154,9 +269,10 @@ export default function ServiceDiagnosticsPage() {
 
     const poll = async () => {
       try {
+        const svcParam = `&service=${encodeURIComponent(serviceName)}`;
         const [metricsRes, lsiRes, versionsRes] = await Promise.all([
-          fetch("/api/agent?path=metrics", { cache: "no-store" }),
-          fetch("/api/agent?path=lsi", { cache: "no-store" }),
+          fetch(`/api/agent?path=metrics${svcParam}`, { cache: "no-store" }),
+          fetch(`/api/agent?path=lsi${svcParam}`, { cache: "no-store" }),
           fetch("/api/agent?path=versions", { cache: "no-store" }),
         ]);
 
@@ -204,9 +320,18 @@ export default function ServiceDiagnosticsPage() {
   const lastMemResidual = memResiduals.at(-1) ?? 0;
   const lastLatResidual = latResiduals.at(-1) ?? 0;
 
+  // TSD error_rate residuals
+  const errResiduals = tsd?.residuals.error_rate ?? [];
+  const lastErrResidual = errResiduals.at(-1) ?? 0;
+
   // LSI derived
   const scoreHistory = lsi?.score_history ?? [];
   const recentLines = lsi?.recent_lines ?? [];
+  const novelLogLines = recentLines.filter((e) => e.label === "NOVEL");
+  const otherLogLines = recentLines.filter((e) => e.label !== "NOVEL");
+
+  // Root cause insight
+  const insight = generateInsight(tsd, lsi);
 
   return (
     <div className="h-screen w-full overflow-hidden bg-[#151a24] text-white">
@@ -350,59 +475,99 @@ export default function ServiceDiagnosticsPage() {
               </div>
 
               {/* Residual values */}
-              <div className="mb-3 grid grid-cols-3 gap-2">
+              <div className="mb-3 grid grid-cols-4 gap-2">
                 {[
                   {
                     label: "CPU Residual",
                     value: lastCpuResidual,
-                    color:
-                      Math.abs(lastCpuResidual) > 5
-                        ? "text-red-400"
-                        : "text-green-400",
+                    threshold: 3 * estimateIQR(cpuResiduals),
                   },
                   {
                     label: "Mem Residual",
                     value: lastMemResidual,
-                    color:
-                      Math.abs(lastMemResidual) > 10
-                        ? "text-red-400"
-                        : "text-green-400",
+                    threshold: 3 * estimateIQR(memResiduals),
                   },
                   {
                     label: "Lat Residual",
                     value: lastLatResidual,
-                    color:
-                      Math.abs(lastLatResidual) > 50
-                        ? "text-red-400"
-                        : "text-green-400",
+                    threshold: 3 * estimateIQR(latResiduals),
                   },
-                ].map((row) => (
-                  <div
-                    key={row.label}
-                    className="rounded-xl border border-white/5 bg-[#0f1420] p-2.5"
-                  >
-                    <div className="text-[9px] uppercase tracking-wide text-white/35">
-                      {row.label}
+                  {
+                    label: "Err Residual",
+                    value: lastErrResidual,
+                    threshold: 3 * estimateIQR(errResiduals),
+                  },
+                ].map((row) => {
+                  const isHot = row.threshold > 0 && Math.abs(row.value) > row.threshold;
+                  return (
+                    <div
+                      key={row.label}
+                      className="rounded-xl border border-white/5 bg-[#0f1420] p-2.5"
+                    >
+                      <div className="text-[9px] uppercase tracking-wide text-white/35">
+                        {row.label}
+                      </div>
+                      <div className={`mt-1 text-lg font-bold ${isHot ? "text-red-400" : "text-green-400"}`}>
+                        {row.value !== 0
+                          ? (row.value > 0 ? "+" : "") + row.value.toFixed(3)
+                          : "—"}
+                      </div>
                     </div>
-                    <div className={`mt-1 text-lg font-bold ${row.color}`}>
-                      {row.value !== 0
-                        ? (row.value > 0 ? "+" : "") + row.value.toFixed(3)
-                        : "—"}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              {/* CPU residual chart */}
-              {cpuResiduals.length > 0 && (
-                <div>
-                  <div className="mb-1 text-[10px] text-white/40">
-                    CPU Residuals (STL)
-                  </div>
-                  <BarChart
-                    values={cpuResiduals}
-                    color="bg-gradient-to-t from-green-500/30 to-green-400/70"
-                  />
+              {/* All 4 residual sparklines */}
+              {(cpuResiduals.length > 0 || memResiduals.length > 0) && (
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    {
+                      label: "CPU Residuals",
+                      values: cpuResiduals,
+                      last: lastCpuResidual,
+                      color: "bg-gradient-to-t from-green-500/30 to-green-400/70",
+                    },
+                    {
+                      label: "Memory Residuals",
+                      values: memResiduals,
+                      last: lastMemResidual,
+                      color: "bg-gradient-to-t from-sky-500/30 to-sky-400/70",
+                    },
+                    {
+                      label: "Latency Residuals",
+                      values: latResiduals,
+                      last: lastLatResidual,
+                      color: "bg-gradient-to-t from-purple-500/30 to-purple-400/70",
+                    },
+                    {
+                      label: "Error Rate Residuals",
+                      values: errResiduals,
+                      last: lastErrResidual,
+                      color: "bg-gradient-to-t from-red-500/30 to-red-400/70",
+                    },
+                  ].map((chart) => (
+                    <div key={chart.label}>
+                      <div className="mb-1 flex items-center justify-between text-[10px]">
+                        <span className="text-white/40">{chart.label}</span>
+                        <span className="font-mono text-white/40">
+                          {chart.last !== 0
+                            ? (chart.last > 0 ? "+" : "") + chart.last.toFixed(2)
+                            : "—"}
+                        </span>
+                      </div>
+                      {chart.values.length > 0 ? (
+                        <BarChart
+                          values={chart.values}
+                          color={chart.color}
+                          threshold={3 * estimateIQR(chart.values)}
+                        />
+                      ) : (
+                        <div className="h-[120px] rounded-2xl border border-white/5 bg-[#0b101a] flex items-center justify-center text-[10px] text-white/20">
+                          No data
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -550,28 +715,48 @@ export default function ServiceDiagnosticsPage() {
                       : "Connect backtrack-agent to see classified logs."}
                   </div>
                 ) : (
-                  recentLines.map((entry, i) => {
-                    const labelColor =
-                      entry.label === "ERROR"
-                        ? "text-red-400"
-                        : entry.label === "WARN"
-                          ? "text-yellow-400"
-                          : entry.label === "NOVEL"
-                            ? "text-purple-400"
+                  <>
+                    {novelLogLines.length > 0 && (
+                      <>
+                        <div className="mb-1.5 flex items-center gap-1.5 text-[9px] uppercase tracking-wide text-purple-400/70">
+                          <span className="h-px flex-1 bg-purple-500/20" />
+                          Unknown Patterns ({novelLogLines.length})
+                          <span className="h-px flex-1 bg-purple-500/20" />
+                        </div>
+                        {novelLogLines.map((entry, i) => (
+                          <div key={`novel-${i}`} className="flex gap-2 py-0.5 rounded bg-purple-500/5">
+                            <span className="shrink-0 w-12 text-right font-semibold text-purple-400">
+                              NOVEL
+                            </span>
+                            <span className="text-purple-200/70 truncate">{entry.line}</span>
+                          </div>
+                        ))}
+                        {otherLogLines.length > 0 && (
+                          <div className="my-2 flex items-center gap-1.5 text-[9px] uppercase tracking-wide text-white/25">
+                            <span className="h-px flex-1 bg-white/5" />
+                            Classified Lines ({otherLogLines.length})
+                            <span className="h-px flex-1 bg-white/5" />
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {otherLogLines.map((entry, i) => {
+                      const labelColor =
+                        entry.label === "ERROR"
+                          ? "text-red-400"
+                          : entry.label === "WARN"
+                            ? "text-yellow-400"
                             : "text-green-400";
-                    return (
-                      <div key={i} className="flex gap-2 py-0.5">
-                        <span
-                          className={`shrink-0 w-12 text-right font-semibold ${labelColor}`}
-                        >
-                          {entry.label}
-                        </span>
-                        <span className="text-white/60 truncate">
-                          {entry.line}
-                        </span>
-                      </div>
-                    );
-                  })
+                      return (
+                        <div key={`line-${i}`} className="flex gap-2 py-0.5">
+                          <span className={`shrink-0 w-12 text-right font-semibold ${labelColor}`}>
+                            {entry.label}
+                          </span>
+                          <span className="text-white/60 truncate">{entry.line}</span>
+                        </div>
+                      );
+                    })}
+                  </>
                 )}
               </div>
             </div>
@@ -620,6 +805,92 @@ export default function ServiceDiagnosticsPage() {
 
           {/* Right sidebar — Summary */}
           <aside className="flex w-[280px] shrink-0 flex-col gap-4 overflow-y-auto">
+            {/* Root Cause Analysis */}
+            <div className="rounded-[20px] border border-white/5 bg-[#171e29] p-5">
+              <div className="mb-4 flex items-center gap-2 font-semibold text-white">
+                <Search size={16} />
+                Root Cause Analysis
+                {insight.driver !== "NONE" && (
+                  <span className="ml-auto rounded-full border border-orange-500/30 bg-orange-500/15 px-2 py-0.5 text-[10px] text-orange-300">
+                    ACTIVE
+                  </span>
+                )}
+              </div>
+
+              {/* Headline */}
+              <div className="mb-3 rounded-xl border border-white/5 bg-[#0f1420] p-3">
+                <div className="mb-1 text-[10px] uppercase tracking-wide text-white/35">
+                  Analysis
+                </div>
+                <div className="text-xs leading-5 text-white/80">
+                  {insight.headline}
+                </div>
+              </div>
+
+              {/* Explanation */}
+              <p className="mb-3 text-[11px] leading-[1.65] text-white/55">
+                {insight.explanation}
+              </p>
+
+              {/* Drifting metric callouts */}
+              {insight.driftingMetrics.length > 0 && (
+                <div className="mb-3 space-y-1.5">
+                  <div className="mb-1 text-[10px] uppercase tracking-wide text-white/35">
+                    Metric Drift
+                  </div>
+                  {insight.driftingMetrics.map((m) => (
+                    <div
+                      key={m.name}
+                      className="flex items-center justify-between rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2"
+                    >
+                      <span className="text-[11px] text-white/60">
+                        {m.name} residual
+                      </span>
+                      <span className="text-[11px] font-bold text-red-400">
+                        ~{m.ratio.toFixed(1)}× threshold
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* NOVEL ratio */}
+              {lsi?.is_anomalous && (
+                <div className="mb-3 flex items-center justify-between rounded-lg border border-purple-500/20 bg-purple-500/5 px-3 py-2">
+                  <span className="text-[11px] text-white/60">NOVEL log ratio</span>
+                  <span className="text-[11px] font-bold text-purple-400">
+                    {(insight.novelRatio * 100).toFixed(0)}% of window
+                  </span>
+                </div>
+              )}
+
+              {/* NOVEL evidence lines */}
+              {insight.novelLines.length > 0 && (
+                <div>
+                  <div className="mb-1.5 text-[10px] uppercase tracking-wide text-white/35">
+                    Unknown Patterns (evidence)
+                  </div>
+                  <div className="space-y-1 rounded-xl border border-white/5 bg-[#0b101a] p-2.5 font-mono text-[10px]">
+                    {insight.novelLines.map((e, i) => (
+                      <div key={i} className="flex gap-1.5 text-purple-300/80 leading-4">
+                        <span className="shrink-0 text-purple-500/60">▸</span>
+                        <span className="truncate">{e.line}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {insight.driver === "NONE" && (
+                <div className="py-2 text-center text-[11px] text-white/30">
+                  {tsd && lsi
+                    ? "No anomaly signals detected."
+                    : "Waiting for agent data..."}
+                </div>
+              )}
+            </div>
+
             <div className="rounded-[20px] border border-white/5 bg-[#171e29] p-5">
               <div className="flex items-center gap-2 font-semibold text-white">
                 <Activity size={16} />

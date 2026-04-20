@@ -26,7 +26,10 @@ MIN_READINGS_FOR_STL = 12  # Need at least 2×period readings
 class TSDCollector:
     """Collects metrics and runs STL decomposition to detect anomalies."""
 
-    def __init__(self) -> None:
+    def __init__(self, service_name: str = "", label_selector: str = "") -> None:
+        self.service_name = service_name or config.target
+        self.label_selector = label_selector or config.k8s_label_selector
+
         self.cpu_history: collections.deque[float] = collections.deque(maxlen=DEQUE_SIZE)
         self.memory_history: collections.deque[float] = collections.deque(maxlen=DEQUE_SIZE)
         self.latency_history: collections.deque[float] = collections.deque(maxlen=DEQUE_SIZE)
@@ -51,7 +54,7 @@ class TSDCollector:
         """Start the background collection loop."""
         self._running = True
         self._task = asyncio.create_task(self._collect_loop())
-        logger.info("TSD collector started (interval=%ds, mode=%s)", config.scrape_interval, config.mode)
+        logger.info("TSD collector started for %s (interval=%ds)", self.service_name, config.scrape_interval)
 
     async def stop(self) -> None:
         """Stop the background collection loop."""
@@ -132,7 +135,7 @@ class TSDCollector:
             proc = await asyncio.create_subprocess_exec(
                 "kubectl", "top", "pods",
                 "-n", config.k8s_namespace,
-                "-l", config.k8s_label_selector,
+                "-l", self.label_selector,
                 "--no-headers",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -169,7 +172,7 @@ class TSDCollector:
             self.current_error_rate = 0.0
 
         except Exception:
-            logger.warning("K8s metrics scrape failed")
+            logger.warning("K8s metrics scrape failed for %s", self.service_name)
             self.current_cpu = 0.0
             self.current_memory = 0.0
             self.current_latency = 0.0
@@ -185,9 +188,9 @@ class TSDCollector:
         import aiohttp
 
         urls = [
-            f"http://{config.target}:8080/health",
-            f"http://{config.target}:8080/",
-            f"http://{config.target}:80/",
+            f"http://{self.service_name}:8080/health",
+            f"http://{self.service_name}:8080/",
+            f"http://{self.service_name}:80/",
         ]
         for url in urls:
             try:
@@ -234,7 +237,7 @@ class TSDCollector:
                 continue
             q1, q3 = np.percentile(baseline, [25, 75])
             iqr = q3 - q1
-            threshold = config.tsd_iqr_multiplier * iqr
+            threshold = config.tsd_iqr_multiplier * iqr  # noqa: E501
             last_three = residuals[-3:]
             if all(abs(r) > threshold for r in last_three) and threshold > 0:
                 logger.warning(

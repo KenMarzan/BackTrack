@@ -37,7 +37,9 @@ SEED_KEYWORDS = {
 class LSICollector:
     """Collects container logs, classifies them with SVD, and scores anomaly windows."""
 
-    def __init__(self) -> None:
+    def __init__(self, service_name: str = "", label_selector: str = "") -> None:
+        self.service_name = service_name or config.target
+        self.label_selector = label_selector or config.k8s_label_selector
         self.vectorizer: Optional[TfidfVectorizer] = None
         self.svd: Optional[TruncatedSVD] = None
         self.centroids: dict[str, np.ndarray] = {}
@@ -65,7 +67,7 @@ class LSICollector:
         """Start the background log tailing loop."""
         self._running = True
         self._task = asyncio.create_task(self._tail_loop())
-        logger.info("LSI collector started (mode=%s)", config.mode)
+        logger.info("LSI collector started for %s (mode=%s)", self.service_name, config.mode)
 
     async def stop(self) -> None:
         """Stop the background log tailing loop."""
@@ -91,7 +93,7 @@ class LSICollector:
             import docker
 
             client = docker.from_env()
-            container = client.containers.get(config.target)
+            container = client.containers.get(self.service_name)
             log_stream = container.logs(stream=True, follow=True, tail=0)
 
             for raw_line in log_stream:
@@ -105,7 +107,7 @@ class LSICollector:
                 await asyncio.sleep(0)
 
         except Exception:
-            logger.exception("Docker log tailing failed for target=%s", config.target)
+            logger.exception("Docker log tailing failed for target=%s", self.service_name)
             # Fall back to polling logs
             await self._poll_logs_fallback()
 
@@ -115,7 +117,7 @@ class LSICollector:
             proc = await asyncio.create_subprocess_exec(
                 "kubectl", "logs",
                 "-n", config.k8s_namespace,
-                "-l", config.k8s_label_selector,
+                "-l", self.label_selector,
                 "--follow", "--tail=0",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -139,13 +141,13 @@ class LSICollector:
                 if config.mode == "docker":
                     import docker
                     client = docker.from_env()
-                    container = client.containers.get(config.target)
+                    container = client.containers.get(self.service_name)
                     logs = container.logs(tail=20).decode("utf-8", errors="replace")
                 else:
                     proc = await asyncio.create_subprocess_exec(
                         "kubectl", "logs",
                         "-n", config.k8s_namespace,
-                        "-l", config.k8s_label_selector,
+                        "-l", self.label_selector,
                         "--tail=20",
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
