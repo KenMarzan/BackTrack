@@ -24,6 +24,12 @@ type TSDSummary = {
   is_drifting: boolean;
 };
 
+type LSILogLine = {
+  line: string;
+  label: "INFO" | "WARN" | "ERROR" | "NOVEL";
+  timestamp: number;
+};
+
 type LSISummary = {
   fitted: boolean;
   corpus_size: number;
@@ -32,6 +38,7 @@ type LSISummary = {
   threshold: number;
   is_anomalous: boolean;
   score_history: number[];
+  recent_lines: LSILogLine[];
 };
 
 export default function AnomaliesPage() {
@@ -247,6 +254,43 @@ export default function AnomaliesPage() {
                     ? `Model active — baseline ${lsi.baseline_mean.toFixed(4)}`
                     : `Training corpus (${lsi.corpus_size}/200 lines)`}
                 </div>
+
+                {/* Classified log lines */}
+                {lsi.recent_lines && lsi.recent_lines.length > 0 ? (
+                  <div className="mt-1">
+                    <div className="text-[9px] uppercase tracking-wide text-white/30 mb-1">
+                      {lsi.is_anomalous ? "Anomalous log lines (ERROR / NOVEL)" : "Recent log lines"}
+                    </div>
+                    <div className="space-y-[3px] max-h-[160px] overflow-y-auto scrollbar-hide">
+                      {(lsi.is_anomalous
+                        ? lsi.recent_lines.filter((l) => l.label === "ERROR" || l.label === "NOVEL")
+                        : lsi.recent_lines.slice(-10)
+                      ).slice(-15).map((entry, i) => {
+                        const labelColors: Record<string, string> = {
+                          ERROR: "bg-red-500/20 text-red-300 border-red-500/30",
+                          NOVEL: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+                          WARN:  "bg-orange-500/20 text-orange-300 border-orange-500/30",
+                          INFO:  "bg-white/5 text-white/40 border-white/10",
+                        };
+                        const ageStr = new Date(entry.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+                        return (
+                          <div key={i} className="flex items-start gap-1.5 rounded bg-white/[0.02] border border-white/[0.04] px-2 py-1">
+                            <span className={`mt-[1px] shrink-0 text-[9px] px-1 py-[1px] rounded border ${labelColors[entry.label] || labelColors.INFO}`}>
+                              {entry.label}
+                            </span>
+                            <span className="text-[10px] text-white/60 font-mono truncate flex-1 leading-tight">
+                              {entry.line.slice(0, 120)}
+                            </span>
+                            <span className="shrink-0 text-[9px] text-white/25">{ageStr}</span>
+                          </div>
+                        );
+                      })}
+                      {lsi.is_anomalous && lsi.recent_lines.filter((l) => l.label === "ERROR" || l.label === "NOVEL").length === 0 ? (
+                        <p className="text-[10px] text-white/30 text-center py-2">No anomalous lines in current window</p>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <p className="text-sm text-gray-400">

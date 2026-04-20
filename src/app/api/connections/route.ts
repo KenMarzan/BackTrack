@@ -211,9 +211,9 @@ export async function POST(request: NextRequest) {
 		const githubRepo = (payload.githubRepo || "").trim();
 		const githubBranch = (payload.githubBranch || "main").trim();
 
-		if (!appName || !clusterName || !prometheusUrl) {
+		if (!appName || !clusterName) {
 			return NextResponse.json(
-				{ error: "App name, cluster name, and Prometheus URL are required." },
+				{ error: "App name and cluster name are required." },
 				{ status: 400 },
 			);
 		}

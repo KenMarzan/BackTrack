@@ -118,7 +118,7 @@ class LSICollector:
                 "kubectl", "logs",
                 "-n", config.k8s_namespace,
                 "-l", self.label_selector,
-                "--follow", "--tail=0",
+                "--follow", "--tail=100",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

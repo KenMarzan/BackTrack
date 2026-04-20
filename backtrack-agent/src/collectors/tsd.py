@@ -237,7 +237,12 @@ class TSDCollector:
                 continue
             q1, q3 = np.percentile(baseline, [25, 75])
             iqr = q3 - q1
-            threshold = config.tsd_iqr_multiplier * iqr  # noqa: E501
+            # Skip metrics with near-zero variance — flat series produce
+            # floating-point noise residuals (~1e-16) that falsely exceed a
+            # zero threshold.
+            if iqr < 1e-6:
+                continue
+            threshold = config.tsd_iqr_multiplier * iqr
             last_three = residuals[-3:]
             if all(abs(r) > threshold for r in last_three) and threshold > 0:
                 logger.warning(

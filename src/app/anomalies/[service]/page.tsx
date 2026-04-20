@@ -508,9 +508,7 @@ export default function ServiceDiagnosticsPage() {
                         {row.label}
                       </div>
                       <div className={`mt-1 text-lg font-bold ${isHot ? "text-red-400" : "text-green-400"}`}>
-                        {row.value !== 0
-                          ? (row.value > 0 ? "+" : "") + row.value.toFixed(3)
-                          : "—"}
+                        {(row.value > 0 ? "+" : "") + row.value.toFixed(3)}
                       </div>
                     </div>
                   );
@@ -550,9 +548,7 @@ export default function ServiceDiagnosticsPage() {
                       <div className="mb-1 flex items-center justify-between text-[10px]">
                         <span className="text-white/40">{chart.label}</span>
                         <span className="font-mono text-white/40">
-                          {chart.last !== 0
-                            ? (chart.last > 0 ? "+" : "") + chart.last.toFixed(2)
-                            : "—"}
+                          {(chart.last > 0 ? "+" : "") + chart.last.toFixed(2)}
                         </span>
                       </div>
                       {chart.values.length > 0 ? (

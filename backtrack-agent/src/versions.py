@@ -14,7 +14,7 @@ from typing import Literal, Optional
 
 logger = logging.getLogger("backtrack.versions")
 
-VERSIONS_FILE = "/data/versions.json"
+VERSIONS_FILE = os.getenv("BACKTRACK_DATA_DIR", "/tmp/backtrack-data") + "/versions.json"
 MAX_STABLE = 5
 
 

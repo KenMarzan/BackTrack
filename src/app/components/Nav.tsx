@@ -231,7 +231,7 @@ function Nav({ healthSummary }: NavProps) {
                 </Field>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label="Prometheus URL" hint="PromQL endpoint. Falls back to kubectl top if absent.">
+                  <Field label="Prometheus URL (optional)" hint="PromQL endpoint. Leave blank to use kubectl top / Docker stats fallback.">
                     <input
                       type="text"
                       value={form.prometheusUrl}
