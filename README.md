@@ -307,6 +307,121 @@ BackTrack/
 
 ---
 
+## Docker Quick Start (Pull Prebuilt Images)
+
+**Fastest path** — no source code, no Node, no Python. Just Docker.
+
+### What you need
+
+- Docker Desktop (or Docker Engine + Compose plugin)
+- A running cluster to monitor: local Docker containers OR a Kubernetes cluster
+
+### Step 1 — Create a project folder
+
+```bash
+mkdir backtrack && cd backtrack
+```
+
+### Step 2 — Download two files
+
+**`docker-compose.yml`:**
+```bash
+curl -O https://raw.githubusercontent.com/KenMarzan/BackTrack/main/docker-compose.yml
+```
+
+**`.env.local`:**
+```bash
+curl -o .env.local https://raw.githubusercontent.com/KenMarzan/BackTrack/main/.env.example
+```
+
+### Step 3 — Edit `.env.local`
+
+```env
+# Name of your Docker container or Kubernetes deployment to monitor
+BACKTRACK_TARGET=my-app
+
+# Image tag for rollback snapshot reference
+BACKTRACK_IMAGE_TAG=v1.0.0
+
+# GitHub token — optional, only for deployment history panel
+GITHUB_TOKEN=ghp_xxxx
+```
+
+### Step 4 — Pull and start
+
+```bash
+docker compose pull
+docker compose up
+```
+
+Compose pulls two images from Docker Hub:
+- `zeritzuu/backtrack-dashboard` → web UI on port **3000**
+- `zeritzuu/backtrack-agent` → anomaly engine on port **9090**
+
+Open **http://localhost:3000**
+
+### Step 5 — Connect your cluster (in the UI)
+
+1. Click **Configure Cluster** top-right
+2. Pick platform: **Docker** or **Kubernetes**
+3. Fill the form (same fields as the source-based Quick Start above)
+4. Click **Test Connection** → **Connect**
+
+---
+
+### For Kubernetes — also mount your kubeconfig
+
+Edit `docker-compose.yml`, add `~/.kube` volume to `backtrack-dashboard`:
+
+```yaml
+backtrack-dashboard:
+  image: zeritzuu/backtrack-dashboard:latest
+  volumes:
+    - ~/.kube:/root/.kube:ro                       # ← add this
+    - /var/run/docker.sock:/var/run/docker.sock
+    - backtrack-data:/.backtrack
+```
+
+Then set agent mode under `backtrack-agent.environment`:
+
+```yaml
+- BACKTRACK_MODE=kubernetes
+- BACKTRACK_K8S_NAMESPACE=default
+```
+
+Restart: `docker compose down && docker compose up`
+
+---
+
+### Common commands
+
+```bash
+docker compose up -d         # start in background
+docker compose logs -f       # tail logs
+docker compose down          # stop containers (keeps data volume)
+docker compose down -v       # stop AND wipe connections
+docker compose pull          # update to latest images
+```
+
+Connections persist in the `backtrack-data` Docker volume across restarts.
+
+---
+
+## Docker — Build From Source (Alternative)
+
+Prefer to build locally instead of pulling? Clone the repo:
+
+```bash
+git clone https://github.com/KenMarzan/BackTrack.git
+cd BackTrack
+cp .env.example .env.local   # edit values
+docker compose up --build
+```
+
+Compose detects the `Dockerfile` in the repo and builds both images locally instead of pulling from Docker Hub. Use this if you want to modify BackTrack source before running.
+
+---
+
 ## Development Commands
 
 ```bash
