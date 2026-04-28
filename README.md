@@ -87,6 +87,82 @@ BackTrack monitors your containerized services in real time, detects metric drif
 
 ---
 
+## Is Your App Compatible?
+
+BackTrack monitors apps running as **Docker containers** or **Kubernetes pods**. Service discovery uses `docker ps` (Docker mode) or `kubectl get pods` (Kubernetes mode), so the workload must be reachable through one of those runtimes.
+
+| App is running as… | Supported? | What to do |
+|---|---|---|
+| Docker container | ✅ Yes | Use **Docker mode** in the connection modal |
+| Kubernetes pod / deployment | ✅ Yes | Use **Kubernetes mode** in the connection modal |
+| Bare process / systemd / VM / `node app.js` | ❌ Not directly | **Containerize it first** — see below |
+| Serverless (Lambda, Cloud Run) | ❌ Not directly | Out of scope — BackTrack targets long-running workloads |
+
+### Containerizing a Non-Containerized App
+
+If your app runs as a plain process, wrap it in Docker first. BackTrack can then discover it via Docker mode.
+
+**1. Add a `Dockerfile` to your app's repo.** Example for a Node.js service:
+
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY . .
+EXPOSE 3000
+CMD ["node", "server.js"]
+```
+
+Equivalent skeletons for other stacks:
+
+```dockerfile
+# Python
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+CMD ["python", "app.py"]
+```
+
+```dockerfile
+# Go (multi-stage)
+FROM golang:1.23 AS build
+WORKDIR /src
+COPY . .
+RUN CGO_ENABLED=0 go build -o /app ./...
+
+FROM gcr.io/distroless/static
+COPY --from=build /app /app
+CMD ["/app"]
+```
+
+**2. Build and run the image with a stable name** (BackTrack discovers by container name):
+
+```bash
+docker build -t my-app:latest .
+docker run -d --name my-app -p 3000:3000 my-app:latest
+```
+
+**3. Verify the container is up:**
+
+```bash
+docker ps --filter "name=my-app"
+```
+
+**4. Connect from BackTrack:**
+- Open the dashboard → **Add Connection** → choose **Docker**
+- **App Name:** `my-app` (must match `--name` exactly)
+- **Cluster Name:** any label (e.g. `local`)
+- Save → BackTrack runs `docker ps` and registers the container
+
+**5. (Optional) Expose metrics for richer signals.** Without Prometheus, BackTrack falls back to container-level health (up/down, memory). To get latency / request-rate anomalies, expose a `/metrics` endpoint in your app and point Prometheus at it, then set `prometheusUrl` in the connection.
+
+> **Tip:** if you have multiple services, define them in a `docker-compose.yml` so they all share a network and start together. BackTrack's discovery treats each named service as a separate target.
+
+---
+
 ## Quick Start
 
 ### 1. Clone and install
