@@ -5,6 +5,7 @@ Exposes /health, /config, /metrics?service=X, /lsi?service=X, /services endpoint
 """
 import asyncio
 import logging
+import os
 import time
 from typing import Optional
 
@@ -40,7 +41,7 @@ service_monitors: dict[str, tuple[TSDCollector, LSICollector]] = {}
 version_store: Optional[VersionStore] = None
 rollback_executor: Optional[RollbackExecutor] = None
 
-STABLE_THRESHOLD_SECONDS = 600
+STABLE_THRESHOLD_SECONDS = int(os.getenv("BACKTRACK_STABLE_SECONDS", "600"))
 consecutive_anomaly_counts: dict[str, int] = {}
 clean_seconds_map: dict[str, int] = {}
 
@@ -49,6 +50,11 @@ async def _discover_services() -> list[tuple[str, str]]:
     """Returns list of (service_name, label_selector) tuples."""
     if config.mode == "docker":
         return [(config.target, "")]
+
+    # If a specific target is set, monitor only that deployment
+    if config.target:
+        label = config.k8s_label_selector or f"app={config.target}"
+        return [(config.target, label)]
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -61,12 +67,12 @@ async def _discover_services() -> list[tuple[str, str]]:
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
         names = [n.strip() for n in stdout.decode().strip().splitlines() if n.strip()]
         if not names:
-            logger.warning("No deployments in %s, falling back to config.target", config.k8s_namespace)
-            return [(config.target, f"app={config.target}")]
+            logger.warning("No deployments in %s", config.k8s_namespace)
+            return []
         return [(name, f"app={name}") for name in names]
     except Exception:
-        logger.exception("Service discovery failed, falling back to config.target")
-        return [(config.target, f"app={config.target}")]
+        logger.exception("Service discovery failed")
+        return []
 
 
 async def polling_loop() -> None:

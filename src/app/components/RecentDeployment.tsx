@@ -1,7 +1,9 @@
 "use client";
 
-import { ExternalLink, GitMerge, RotateCcw, Triangle } from "lucide-react";
+import { ExternalLink, GitMerge, RotateCcw, Search, Terminal, Triangle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import RollbackEventCard, { type RollbackEvent } from "./RollbackEventCard";
 
 type AgentSnapshot = {
   id: string;
@@ -41,7 +43,22 @@ type HistoryResponse = {
   deployments?: DeploymentItem[];
 };
 
-function RecentDeployment() {
+type DiscoveredService = {
+  id: string;
+  name: string;
+  namespace: string;
+  platform: string;
+  status: string;
+};
+
+function RecentDeployment({
+  rollbackEvents = [],
+  onDismissRollback,
+}: {
+  rollbackEvents?: RollbackEvent[];
+  onDismissRollback?: (id: number) => void;
+}) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"k8s" | "backtrack">("k8s");
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
   const [deployments, setDeployments] = useState<DeploymentItem[]>([]);
@@ -50,6 +67,8 @@ function RecentDeployment() {
   const [message, setMessage] = useState<string>("");
   const [rollingBackKey, setRollingBackKey] = useState<string>("");
   const hasLoadedRef = useRef(false);
+
+  const [allServices, setAllServices] = useState<DiscoveredService[]>([]);
 
   const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
   const [agentOnline, setAgentOnline] = useState(false);
@@ -60,17 +79,30 @@ function RecentDeployment() {
     if (!hasLoadedRef.current) setIsLoading(true);
 
     try {
-      const response = await fetch("/api/deployments/history", { cache: "no-store" });
-      const payload = (await response.json()) as HistoryResponse;
+      const [historyRes, overviewRes] = await Promise.all([
+        fetch("/api/deployments/history", { cache: "no-store" }),
+        fetch("/api/dashboard/overview", { cache: "no-store" }),
+      ]);
 
-      if (!response.ok) {
-        throw new Error("Unable to fetch deployment history.");
-      }
+      if (!historyRes.ok) throw new Error("Unable to fetch deployment history.");
 
+      const payload = (await historyRes.json()) as HistoryResponse;
       setConnectionId(payload.connectionId || "");
       setDeployments(Array.isArray(payload.deployments) ? payload.deployments : []);
       setMessage("");
       hasLoadedRef.current = true;
+
+      if (overviewRes.ok) {
+        const overview = await overviewRes.json();
+        const svcs: DiscoveredService[] = (overview.services ?? []).map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          namespace: s.namespace,
+          platform: s.platform,
+          status: s.status,
+        }));
+        setAllServices(svcs);
+      }
     } catch (error: any) {
       setDeployments([]);
       setMessage(error.message || "Failed to load deployment history.");
@@ -183,227 +215,292 @@ function RecentDeployment() {
     return Math.round((successful / deployments.length) * 100);
   }, [deployments]);
 
+  const snapStatusTokens: Record<string, { chip: string; label: string }> = {
+    PENDING:     { chip: "bt-chip bt-chip-amber",   label: "PENDING" },
+    STABLE:      { chip: "bt-chip bt-chip-green",   label: "STABLE" },
+    ROLLED_BACK: { chip: "bt-chip",                 label: "ROLLED BACK" },
+  };
+
   return (
-    <div className="col-span-1 p-6 border border-[#5D5A5A] rounded-lg h-full flex flex-col overflow-hidden">
-      <div className="flex flex-row gap-2 justify-between mb-3 flex-shrink-0">
-        <div className="flex flex-row items-center gap-2">
-          <GitMerge color="#6da3ff" />
-          <h1 className="text-white font-bold text-xl">Recent Deployment</h1>
+    <div className="bt-panel h-full flex flex-col overflow-hidden p-5">
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between gap-3 mb-3 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <GitMerge size={14} className="text-[var(--accent-violet)]" />
+          <span className="bt-label">Recent Deployment</span>
         </div>
-        <div>
-          <h1 className="text-green-500 text-sm">{successRate}% success rate</h1>
-        </div>
+        {successRate > 0 && (
+          <span className="bt-mono text-[10.5px] text-[var(--accent-green)]">
+            {successRate}% success
+          </span>
+        )}
       </div>
 
-      {/* Tab toggle */}
-      <div className="flex gap-1 mb-3 flex-shrink-0">
+      {/* ── Tabs ── */}
+      <div className="flex gap-1.5 mb-3 flex-shrink-0">
         <button
           type="button"
           onClick={() => setActiveTab("k8s")}
-          className={`px-3 py-1 rounded-md text-xs transition ${activeTab === "k8s" ? "bg-sky-500/20 text-sky-300 border border-sky-500/40" : "text-white/40 hover:text-white/60 border border-transparent"}`}
+          className={`flex-1 bt-tab text-center text-[11.5px] ${activeTab === "k8s" ? "bt-tab-active" : ""}`}
         >
           K8s History
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("backtrack")}
-          className={`px-3 py-1 rounded-md text-xs transition flex items-center gap-1 ${activeTab === "backtrack" ? "bg-teal-500/20 text-teal-300 border border-teal-500/40" : "text-white/40 hover:text-white/60 border border-transparent"}`}
+          className={`flex-1 bt-tab text-center text-[11.5px] flex items-center justify-center gap-1.5 ${activeTab === "backtrack" ? "bt-tab-active" : ""}`}
         >
           BackTrack Versions
-          {agentOnline ? <span className="w-1.5 h-1.5 rounded-full bg-teal-400" /> : <span className="w-1.5 h-1.5 rounded-full bg-white/20" />}
+          <span className={`h-1.5 w-1.5 rounded-full ${agentOnline ? "bg-[var(--accent-teal)]" : "bg-[var(--border-mid)]"}`} />
         </button>
       </div>
 
-      {activeTab === "backtrack" ? (
+      {/* ── Rollback event cards ── */}
+      {rollbackEvents.length > 0 && (
+        <div className="space-y-2 mb-3 flex-shrink-0">
+          {rollbackEvents.map((ev) => (
+            <RollbackEventCard
+              key={ev.id}
+              event={ev}
+              onDismiss={onDismissRollback ?? (() => {})}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ── BackTrack Versions tab ── */}
+      {activeTab === "backtrack" && (
         <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide space-y-2">
-          {agentMessage ? (
-            <div className="mb-2 rounded border border-[#5D5A5A] bg-[#ffffff]/5 px-3 py-2 text-xs text-gray-200">
+          {agentMessage && (
+            <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] px-3 py-2 text-[12px] text-[var(--text-primary)]">
               {agentMessage}
             </div>
-          ) : null}
+          )}
           {!agentOnline ? (
-            <div className="text-sm text-gray-400 border border-[#5D5A5A] rounded-md p-3 bg-[#ffffff]/5">
-              BackTrack agent offline — start backtrack-agent on port 9090 to see version history.
+            <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-3 text-[12px] text-[var(--text-muted)]">
+              Agent offline — start backtrack-agent on port 9090 to see version history.
             </div>
           ) : agentSnapshots.length === 0 ? (
-            <div className="text-sm text-gray-400 border border-[#5D5A5A] rounded-md p-3 bg-[#ffffff]/5">
+            <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-3 text-[12px] text-[var(--text-muted)]">
               No version snapshots yet.
             </div>
           ) : agentSnapshots.map((snap) => {
-            const statusColors: Record<string, string> = {
-              PENDING: "bg-yellow-500/15 text-yellow-300 border-yellow-500/30",
-              STABLE: "bg-green-500/15 text-green-300 border-green-500/30",
-              ROLLED_BACK: "bg-white/5 text-white/35 border-white/10",
-            };
+            const token = snapStatusTokens[snap.status] ?? snapStatusTokens.PENDING;
             const canRollback = snap.status === "STABLE";
             const relTime = new Date(snap.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
             const hasTsd = snap.tsd_baseline && Object.keys(snap.tsd_baseline).length > 0;
             return (
-              <div key={snap.id} className="border border-[#9C9C9C] bg-[#ffffff]/4 rounded-md p-3">
+              <div
+                key={snap.id}
+                className="rounded-xl border border-[var(--border-mid)] bg-white/[0.02] p-3 hover:bg-white/[0.03] transition-colors"
+              >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex flex-col gap-1 min-w-0">
+                  <div className="flex flex-col gap-1.5 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-white text-sm truncate">{snap.image_tag}</span>
-                      <span className={`text-[10px] px-2 py-[2px] rounded-full border ${statusColors[snap.status] || statusColors.PENDING}`}>
-                        {snap.status}
-                      </span>
+                      <span className="bt-mono text-[12.5px] text-[var(--text-primary)] truncate">{snap.image_tag}</span>
+                      <span className={token.chip}>{token.label}</span>
                     </div>
-                    <span className="text-gray-500 text-[11px]">{relTime}</span>
-                    {hasTsd ? (
-                      <div className="flex gap-3 text-[10px] text-white/40 mt-0.5">
-                        {snap.tsd_baseline.cpu_percent !== undefined ? (
-                          <span>CPU {snap.tsd_baseline.cpu_percent.toFixed(1)}%</span>
-                        ) : null}
-                        {snap.tsd_baseline.memory_mb !== undefined ? (
-                          <span>Mem {snap.tsd_baseline.memory_mb.toFixed(0)} MB</span>
-                        ) : null}
-                        {snap.lsi_baseline > 0 ? (
-                          <span>LSI {snap.lsi_baseline.toFixed(4)}</span>
-                        ) : null}
+                    <span className="bt-mono text-[10.5px] text-[var(--text-muted)]">{relTime}</span>
+                    {hasTsd && (
+                      <div className="flex gap-3 bt-mono text-[10px] text-[var(--text-muted)]">
+                        {snap.tsd_baseline.cpu_percent !== undefined && (
+                          <span>CPU <span className="text-[var(--text-secondary)]">{snap.tsd_baseline.cpu_percent.toFixed(1)}%</span></span>
+                        )}
+                        {snap.tsd_baseline.memory_mb !== undefined && (
+                          <span>Mem <span className="text-[var(--text-secondary)]">{snap.tsd_baseline.memory_mb.toFixed(0)} MB</span></span>
+                        )}
+                        {snap.lsi_baseline > 0 && (
+                          <span>LSI <span className="text-[var(--text-secondary)]">{snap.lsi_baseline.toFixed(4)}</span></span>
+                        )}
                       </div>
-                    ) : null}
+                    )}
                   </div>
                   {canRollback ? (
                     <button
                       type="button"
                       disabled={agentRollingBack}
                       onClick={() => rollbackToSnapshot(snap)}
-                      className="flex items-center gap-1 px-3 py-1 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/50 text-orange-400 rounded text-xs transition disabled:opacity-50 shrink-0"
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[rgba(251,191,36,0.35)] bg-[rgba(251,191,36,0.08)] text-[#fcd34d] text-xs transition hover:bg-[rgba(251,191,36,0.14)] disabled:opacity-40 shrink-0"
                     >
-                      <RotateCcw size={12} />
-                      {agentRollingBack ? "Rolling back..." : "Rollback"}
+                      <RotateCcw size={11} />
+                      {agentRollingBack ? "Rolling back…" : "Rollback"}
                     </button>
                   ) : snap.status === "PENDING" ? (
-                    <span className="text-yellow-400 text-xs shrink-0">Current</span>
+                    <span className="bt-mono text-[10.5px] text-[var(--accent-amber)] shrink-0">Current</span>
                   ) : null}
                 </div>
               </div>
             );
           })}
         </div>
-      ) : null}
+      )}
 
-      {activeTab === "k8s" ? (
+      {/* ── K8s History tab ── */}
+      {activeTab === "k8s" && (
         <>
-      {message ? (
-        <div className="mb-3 rounded border border-[#5D5A5A] bg-[#ffffff]/5 px-3 py-2 text-xs text-gray-200">
-          {message}
-        </div>
-      ) : null}
+          {message && (
+            <div className="mb-3 shrink-0 rounded-xl border border-[var(--border-soft)] bg-white/[0.02] px-3 py-2 text-[12px] text-[var(--text-primary)]">
+              {message}
+            </div>
+          )}
 
-      <div className="space-y-2 overflow-y-auto scrollbar-hide flex-1 min-h-0">
-        {isLoading ? (
-          <div className="text-sm text-gray-300">Loading deployment history...</div>
-        ) : null}
-
-        {!isLoading && deployments.length === 0 ? (
-          <div className="text-sm text-gray-300 border border-[#5D5A5A] rounded-md p-3 bg-[#ffffff]/5">
-            No deployment history yet. Configure a Kubernetes connection and optional GitHub repo.
-          </div>
-        ) : null}
-
-        {deployments.map((deployment, index) => (
-          <div key={`${deployment.name}-${index}`}>
-            <button
-              type="button"
-              onClick={() => toggleExpand(index)}
-              className="w-full border border-[#9C9C9C] bg-[#ffffff]/4 rounded-md p-3 hover:bg-[#ffffff]/8 transition text-left"
-            >
-              <div className="flex flex-row justify-between items-center">
-                <div className="flex flex-col gap-2">
-                  <h1 className="text-white font-semibold">{deployment.name}</h1>
-                  <div className="flex flex-row gap-2 items-center text-xs text-gray-300">
-                    <span className="font-mono">{deployment.currentVersion}</span>
-                    <div className="w-1 h-1 rounded-full bg-white" />
-                    <span>{deployment.deployedTime}</span>
-                    <div className="w-1 h-1 rounded-full bg-white" />
-                    <span>{deployment.source}</span>
-                    <div className="w-1 h-1 rounded-full bg-white" />
-                    <span>{deployment.versionCount} versions</span>
-                    <div className="w-1 h-1 rounded-full bg-white" />
-                    <span>{deployment.commitCount} commits</span>
-                  </div>
-                </div>
-                <div className="flex flex-row items-center gap-3">
-                  <div className="text-right">
-                    <p className="text-green-500 text-xs font-semibold">{deployment.status}</p>
-                    <p className="text-white text-xs">{deployment.deployment}</p>
-                  </div>
-                  <Triangle
-                    size={15}
-                    color="white"
-                    className={`transition-transform ${expandedIndex === index ? "rotate-0" : "rotate-180"}`}
-                  />
-                </div>
-              </div>
-            </button>
-
-            {expandedIndex === index ? (
-              <div className="mt-2 border border-[#9C9C9C]/50 bg-[#ffffff]/[0.02] rounded-md p-3 space-y-2">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-gray-400 text-xs font-semibold">Version History</h3>
-                  <p className="text-[11px] text-gray-400">
-                    {deployment.versionCount} deployment versions • {deployment.commitCount} repo commits
-                  </p>
-                </div>
-                {deployment.versions.length === 0 ? (
-                  <div className="text-xs text-gray-400">No versions available for this service.</div>
-                ) : null}
-                {deployment.versions.map((version, versionIndex) => {
-                  const rollbackKey = `${deployment.name}:${version.revision ? `revision ${version.revision}` : version.version}`;
-                  const canRollback = version.source === "kubernetes" && version.status !== "Current";
-
+          {/* All containers strip */}
+          {allServices.length > 0 && (
+            <div className="mb-3 shrink-0">
+              <p className="bt-mono text-[9px] uppercase tracking-[0.2em] text-[var(--text-muted)] mb-1.5">All Containers</p>
+              <div className="flex flex-wrap gap-1.5">
+                {allServices.map((svc) => {
+                  const isRunning = svc.status === "running";
+                  const isDown = svc.status === "down";
                   return (
-                    <div
-                      key={`${version.version}-${versionIndex}`}
-                      className="flex flex-row justify-between items-center p-2 hover:bg-[#ffffff]/5 rounded transition"
+                    <button
+                      key={svc.id}
+                      type="button"
+                      onClick={() => router.push(`/anomalies/${encodeURIComponent(svc.name)}?namespace=${encodeURIComponent(svc.namespace)}&severity=warning&metric=general&current=—&baseline=—&message=Inspecting+service`)}
+                      className={`bt-chip transition hover:opacity-80 ${isRunning ? "bt-chip-green" : isDown ? "bt-chip-critical" : ""}`}
                     >
-                      <div className="flex flex-col gap-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-white text-sm font-mono">{version.version}</p>
-                          <span className={`text-[10px] px-2 py-[2px] rounded-full ${version.source === "kubernetes" ? "bg-sky-500/20 text-sky-300" : "bg-violet-500/20 text-violet-300"}`}>
-                            {version.source}
-                          </span>
-                          {version.link ? (
-                            <button
-                              type="button"
-                              onClick={() => window.open(version.link, "_blank", "noopener,noreferrer")}
-                              className="text-gray-300 hover:text-white"
-                              aria-label="Open GitHub commit"
-                            >
-                              <ExternalLink size={13} />
-                            </button>
-                          ) : null}
-                        </div>
-                        <p className="text-gray-400 text-xs truncate">{version.message}</p>
-                        <p className="text-gray-500 text-[11px]">{version.time}</p>
-                      </div>
-
-                      {canRollback ? (
-                        <button
-                          type="button"
-                          disabled={rollingBackKey === rollbackKey}
-                          onClick={() => rollback(deployment.name, version)}
-                          className="flex items-center gap-1 px-3 py-1 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/50 text-orange-400 rounded text-xs transition disabled:opacity-50"
-                        >
-                          <RotateCcw size={12} />
-                          {rollingBackKey === rollbackKey ? "Rolling back..." : "Rollback"}
-                        </button>
-                      ) : null}
-
-                      {!canRollback && version.status === "Current" ? (
-                        <span className="text-green-500 text-xs font-semibold">Current</span>
-                      ) : null}
-                    </div>
+                      <span className={`h-1.5 w-1.5 rounded-full ${isRunning ? "bg-[var(--accent-green)]" : isDown ? "bg-[var(--accent-rose)]" : "bg-[var(--border-mid)]"}`} />
+                      {svc.name}
+                      <Search size={9} className="opacity-50" />
+                    </button>
                   );
                 })}
               </div>
-            ) : null}
+            </div>
+          )}
+
+          <div className="space-y-1.5 overflow-y-auto scrollbar-hide flex-1 min-h-0">
+            {isLoading && (
+              <div className="text-[12px] text-[var(--text-muted)] px-1">Loading deployment history…</div>
+            )}
+            {!isLoading && deployments.length === 0 && (
+              <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-3 text-[12px] text-[var(--text-muted)]">
+                No deployment history yet. Configure a Kubernetes connection and optional GitHub repo.
+              </div>
+            )}
+
+            {deployments.map((deployment, index) => (
+              <div key={`${deployment.name}-${index}`}>
+                <button
+                  type="button"
+                  onClick={() => toggleExpand(index)}
+                  className="w-full rounded-xl border border-[var(--border-mid)] bg-white/[0.02] hover:bg-white/[0.035] transition-colors p-3 text-left"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col gap-1.5 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-medium text-[var(--text-primary)]">{deployment.name}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/anomalies/${encodeURIComponent(deployment.name)}?namespace=${encodeURIComponent(deployment.namespace)}&severity=warning&metric=general&current=—&baseline=—&message=Inspecting+service`);
+                          }}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-[rgba(94,234,212,0.28)] bg-[rgba(94,234,212,0.08)] text-[10px] text-[var(--accent-teal)] hover:bg-[rgba(94,234,212,0.14)] transition"
+                        >
+                          <Search size={9} />
+                          Inspect
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2 bt-mono text-[10.5px] text-[var(--text-muted)]">
+                        <span>{deployment.currentVersion}</span>
+                        <span className="h-3 w-px bg-[var(--border-mid)]" />
+                        <span>{deployment.deployedTime}</span>
+                        <span className="h-3 w-px bg-[var(--border-mid)]" />
+                        <span>{deployment.versionCount}v · {deployment.commitCount}c</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <div className="text-right">
+                        <p className="text-[11px] text-[var(--accent-green)] font-medium">{deployment.status}</p>
+                        <p className="text-[10.5px] text-[var(--text-muted)] bt-mono">{deployment.source}</p>
+                      </div>
+                      <Triangle
+                        size={12}
+                        className={`text-[var(--text-muted)] transition-transform ${expandedIndex === index ? "rotate-0" : "rotate-180"}`}
+                      />
+                    </div>
+                  </div>
+                </button>
+
+                {expandedIndex === index && (
+                  <div className="mt-1 rounded-xl border border-[var(--border-soft)] bg-white/[0.01] p-3">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="bt-label text-[9.5px]">Version History</span>
+                      <span className="bt-mono text-[10px] text-[var(--text-muted)]">
+                        {deployment.versionCount}v · {deployment.commitCount} commits
+                      </span>
+                    </div>
+                    {deployment.versions.length === 0 && (
+                      <p className="text-[11px] text-[var(--text-muted)]">No versions available.</p>
+                    )}
+                    {deployment.versions.map((version, versionIndex) => {
+                      const rollbackKey = `${deployment.name}:${version.revision ? `revision ${version.revision}` : version.version}`;
+                      const canRollback = version.source === "kubernetes" && version.status !== "Current";
+                      const isCurrent = version.status === "Current";
+
+                      return (
+                        <div
+                          key={`${version.version}-${versionIndex}`}
+                          className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-white/[0.03] transition-colors"
+                        >
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="bt-mono text-[12px] text-[var(--text-primary)]">{version.version}</span>
+                              <span className={`bt-chip ${version.source === "kubernetes" ? "bt-chip-teal" : "bt-chip-violet"}`}>
+                                {version.source}
+                              </span>
+                              {version.link && (
+                                <button
+                                  type="button"
+                                  onClick={() => window.open(version.link, "_blank", "noopener,noreferrer")}
+                                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                                >
+                                  <ExternalLink size={12} />
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-[var(--text-secondary)] truncate">{version.message}</p>
+                            <p className="bt-mono text-[10px] text-[var(--text-muted)]">{version.time}</p>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                            {isCurrent && version.source === "kubernetes" && (
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/anomalies/${encodeURIComponent(deployment.name)}?namespace=${encodeURIComponent(deployment.namespace)}&severity=warning&metric=general&current=—&baseline=—&message=Live+view`)}
+                                className="flex items-center gap-1 px-2 py-1 rounded-md border border-[rgba(94,234,212,0.28)] bg-[rgba(94,234,212,0.08)] text-[var(--accent-teal)] text-[11px] hover:bg-[rgba(94,234,212,0.14)] transition"
+                              >
+                                <Terminal size={10} />
+                                Live
+                              </button>
+                            )}
+                            {canRollback && (
+                              <button
+                                type="button"
+                                disabled={rollingBackKey === rollbackKey}
+                                onClick={() => rollback(deployment.name, version)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-md border border-[rgba(251,191,36,0.35)] bg-[rgba(251,191,36,0.08)] text-[#fcd34d] text-[11px] hover:bg-[rgba(251,191,36,0.14)] transition disabled:opacity-40"
+                              >
+                                <RotateCcw size={11} />
+                                {rollingBackKey === rollbackKey ? "Rolling…" : "Rollback"}
+                              </button>
+                            )}
+                            {!canRollback && isCurrent && (
+                              <span className="bt-mono text-[10.5px] text-[var(--accent-green)]">Current</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
         </>
-      ) : null}
+      )}
     </div>
   );
 }

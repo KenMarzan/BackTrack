@@ -255,6 +255,13 @@ body {
 .xterm {
   overflow: hidden !important;
 }
+.xterm-viewport {
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+}
+.xterm-viewport::-webkit-scrollbar {
+  display: none !important;
+}
 
 /* Animation — fade up on load */
 @keyframes bt-rise {
@@ -289,4 +296,161 @@ body {
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
+}
+
+/* Section / field label */
+.bt-label {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* Severity chip variants — extends bt-chip */
+.bt-chip-critical {
+  color: #fca5a5;
+  border-color: rgba(251, 113, 133, 0.40);
+  background: rgba(251, 113, 133, 0.08);
+}
+
+.bt-chip-warning {
+  color: #fde68a;
+  border-color: rgba(253, 224, 71, 0.30);
+  background: rgba(253, 224, 71, 0.06);
+}
+
+/* Anomaly row — glass card with severity left bar */
+.bt-anomaly-row {
+  position: relative;
+  border-radius: 14px;
+  padding: 12px 14px 12px 18px;
+  transition: background 120ms ease;
+}
+
+.bt-anomaly-row:hover {
+  background: rgba(255, 255, 255, 0.012) !important;
+}
+
+/* Data table row */
+.bt-table-row {
+  border-bottom: 1px solid var(--border-soft);
+  transition: background 100ms ease;
+}
+
+.bt-table-row:hover {
+  background: rgba(255, 255, 255, 0.012);
+}
+
+/* Stat number — prominent data value */
+.bt-stat {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+/* Card divider */
+.bt-card-divider {
+  height: 1px;
+  margin: 12px 0;
+  background: var(--border-soft);
+}
+
+/* Subtle scanline on panels for depth */
+.bt-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(255,255,255,0.008) 3px,
+    rgba(255,255,255,0.008) 4px
+  );
+  z-index: 0;
+}
+
+.bt-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Button — ghost */
+.bt-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+  background: rgba(148, 163, 184, 0.03);
+  color: var(--text-secondary);
+  font-size: 12px;
+  transition: border-color 160ms, background 160ms, color 160ms;
+}
+
+.bt-btn-ghost:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+  background: rgba(148, 163, 184, 0.06);
+}
+
+/* Button — accent (teal) */
+.bt-btn-accent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(94, 234, 212, 0.45);
+  background: rgba(94, 234, 212, 0.10);
+  color: #c6f5e8;
+  font-size: 12px;
+  transition: background 160ms, border-color 160ms;
+}
+
+.bt-btn-accent:hover {
+  background: rgba(94, 234, 212, 0.18);
+  border-color: rgba(94, 234, 212, 0.6);
+}
+
+.bt-btn-accent:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Rollback event card animations */
+@keyframes rollback-progress {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+.bt-rollback-progress {
+  animation: rollback-progress 3s ease-out forwards;
+}
+
+@keyframes rollback-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.bt-rollback-event {
+  animation: rollback-in 400ms cubic-bezier(0.2, 0.8, 0.1, 1) both;
+}
+
+.bt-pulse-dot.bt-amber {
+  background: var(--accent-amber);
+  box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.6);
+  animation: bt-pulse-amber 2s infinite;
+}
+
+@keyframes bt-pulse-amber {
+  0%   { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.55); }
+  70%  { box-shadow: 0 0 0 10px rgba(251, 191, 36, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
 }

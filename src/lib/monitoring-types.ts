@@ -52,4 +52,6 @@ export type DashboardAnomaly = {
   metric: string;
   current: string;
   baseline: string;
+  detectedAt?: string;
+  autoRollback?: boolean;
 };

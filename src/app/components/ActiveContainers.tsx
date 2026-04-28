@@ -1,65 +1,83 @@
 import { Container } from "lucide-react";
 import type { DashboardService } from "@/lib/monitoring-types";
 
-function ActiveContainers({ services }: { services: DashboardService[] }) {
-  const statusClassName = (status: DashboardService["status"]) => {
-    if (status === "running") return "text-green-500 p-3";
-    if (status === "down") return "text-red-500 p-3";
-    return "text-yellow-400 p-3";
-  };
+function StatusChip({ status }: { status: DashboardService["status"] }) {
+  if (status === "running")
+    return <span className="bt-chip bt-chip-green">Running</span>;
+  if (status === "down")
+    return <span className="bt-chip bt-chip-rose">Down</span>;
+  return <span className="bt-chip bt-chip-amber">Unknown</span>;
+}
 
-  const statusLabel = (status: DashboardService["status"]) => {
-    if (status === "running") return "Running";
-    if (status === "down") return "Down";
-    return "Unknown";
-  };
-
+function PlatformChip({ platform }: { platform: DashboardService["platform"] }) {
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex flex-row gap-2 items-center mb-4"></div>
-      <div className="border border-[#5D5A5A] rounded-2xl p-6 flex-1 min-h-0 flex flex-col overflow-hidden">
-        <div className="flex flex-row items-center gap-2 flex-shrink-0">
-          <Container color="white" />
-          <h1 className="text-white font-semibold">ACTIVE CONTAINERS</h1>
-        </div>
-        <div className="overflow-y-auto overflow-x-auto flex-1 min-h-0 scrollbar-hide">
+    <span className={platform === "kubernetes" ? "bt-chip bt-chip-teal" : "bt-chip bt-chip-violet"}>
+      {platform === "kubernetes" ? "k8s" : "docker"}
+    </span>
+  );
+}
+
+function ActiveContainers({ services }: { services: DashboardService[] }) {
+  return (
+    <div className="bt-panel h-full flex flex-col overflow-hidden p-5">
+      <div className="flex items-center gap-2 mb-4 flex-shrink-0">
+        <Container size={15} className="text-[var(--accent-teal)]" />
+        <span className="bt-label">Active Containers</span>
+        <span className="bt-chip ml-auto">{services.length}</span>
+      </div>
+
+      <div className="bt-card-divider flex-shrink-0" />
+
+      <div className="overflow-y-auto overflow-x-auto flex-1 min-h-0 scrollbar-hide mt-3">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-[#9C9C9C]">
-                <th className="text-white font-semibold p-3">Container ID</th>
-                <th className="text-white font-semibold p-3">Name</th>
-                <th className="text-white font-semibold p-3">Image</th>
-                <th className="text-white font-semibold p-3">Status</th>
-                <th className="text-white font-semibold p-3">Created</th>
-                <th className="text-white font-semibold p-3">Ports</th>
+              <tr className="border-b border-[var(--border-soft)]">
+                {["ID", "Name", "Platform", "Status", "Namespace", "Ports"].map((h) => (
+                  <th
+                    key={h}
+                    className="text-[10px] uppercase tracking-[0.14em] text-[var(--text-muted)] font-medium px-3 py-2.5"
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {services.length === 0 ? (
                 <tr>
-                  <td className="text-gray-400 p-3" colSpan={6}>
-                    No discovered services yet. Connect an app from Configure Cluster.
+                  <td className="text-[var(--text-muted)] px-3 py-4 text-xs" colSpan={6}>
+                    No services yet — connect an app via Configure Cluster.
                   </td>
                 </tr>
               ) : (
                 services.map((service) => (
-                  <tr className="border-b border-[#9C9C9C]/50" key={service.id}>
-                    <td className="text-gray-300 p-3 font-mono text-sm">
-                      {service.id.slice(0, 12)}
+                  <tr
+                    className="border-b border-[var(--border-soft)] hover:bg-white/[0.015] transition-colors"
+                    key={service.id}
+                  >
+                    <td className="px-3 py-2.5 bt-mono text-[11px] text-[var(--text-muted)]">
+                      {service.id.slice(0, 8)}
                     </td>
-                    <td className="text-white p-3">{service.name}</td>
-                    <td className="text-gray-300 p-3">{service.platform}</td>
-                    <td className={statusClassName(service.status)}>
-                      {statusLabel(service.status)}
+                    <td className="px-3 py-2.5 text-[13px] text-[var(--text-primary)] font-medium">
+                      {service.name}
                     </td>
-                    <td className="text-gray-300 p-3">{service.namespace}</td>
-                    <td className="text-gray-300 p-3">{service.ports.join(", ") || "-"}</td>
+                    <td className="px-3 py-2.5">
+                      <PlatformChip platform={service.platform} />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <StatusChip status={service.status} />
+                    </td>
+                    <td className="px-3 py-2.5 text-[12px] text-[var(--text-secondary)] bt-mono">
+                      {service.namespace || "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-[11px] text-[var(--text-muted)] bt-mono">
+                      {service.ports.join(", ") || "—"}
+                    </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
-        </div>
       </div>
     </div>
   );

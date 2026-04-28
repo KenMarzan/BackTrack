@@ -13,18 +13,37 @@ export default function AnomalyTerminal() {
 
     const term = new Terminal({
       theme: {
-        background: "#161C27",
-        foreground: "#E0E0E0",
-        cursor: "#00FF00",
+        background:   "#07090d",
+        foreground:   "#c9d3e0",
+        cursor:       "#5eead4",
+        cursorAccent: "#07090d",
+        black:        "#0b1018",
+        brightBlack:  "#3d4a5c",
+        red:          "#fb7185",
+        brightRed:    "#fca5a5",
+        green:        "#34d399",
+        brightGreen:  "#6ee7b7",
+        yellow:       "#fbbf24",
+        brightYellow: "#fcd34d",
+        blue:         "#60a5fa",
+        brightBlue:   "#93c5fd",
+        magenta:      "#a78bfa",
+        brightMagenta:"#c4b5fd",
+        cyan:         "#5eead4",
+        brightCyan:   "#67e8f9",
+        white:        "#a5b0c2",
+        brightWhite:  "#e6edf6",
       },
-      fontSize: 13,
-      fontFamily: 'Monaco, Menlo, "Courier New", monospace',
+      fontSize: 12,
+      fontFamily: '"IBM Plex Mono", "JetBrains Mono", Monaco, Menlo, monospace',
       cursorBlink: true,
-      cursorStyle: "block",
-      lineHeight: 1.5,
+      cursorStyle: "bar",
+      lineHeight: 1.6,
+      letterSpacing: 0,
       cols: 120,
       rows: 30,
-      scrollback: 1000,
+      scrollback: 2000,
+      allowTransparency: true,
     });
     termRef.current = term;
 
@@ -44,20 +63,10 @@ export default function AnomalyTerminal() {
       }
     }, 100);
 
-    // Beautiful header
-    term.writeln(
-      "\x1b[36m╔════════════════════════════════════════════════════════════╗\x1b[0m",
-    );
-    term.writeln(
-      "\x1b[36m║           Kubernetes Cluster Terminal                      ║\x1b[0m",
-    );
-    term.writeln(
-      "\x1b[36m╚════════════════════════════════════════════════════════════╝\x1b[0m",
-    );
-    term.writeln("");
-    term.writeln(
-      "\x1b[33mType kubectl commands (e.g., 'kubectl get pods')\x1b[0m",
-    );
+    term.writeln("\x1b[2m" + "─".repeat(64) + "\x1b[0m");
+    term.writeln("\x1b[36;1m  BackTrack \x1b[0m\x1b[2m·\x1b[0m\x1b[36m kubectl \x1b[0m\x1b[2m· production-us-east\x1b[0m");
+    term.writeln("\x1b[2m" + "─".repeat(64) + "\x1b[0m");
+    term.writeln("\x1b[2mType kubectl commands. Tab to complete. Ctrl+C to cancel.\x1b[0m");
     term.writeln("");
 
     let currentCommand = "";

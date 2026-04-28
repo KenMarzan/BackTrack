@@ -25,17 +25,29 @@ export default function LineChart({ labels, datasets, yAxisLabel }: LineChartPro
     if (chartRef.current) {
       const chart = chartRef.current;
       chart.data.labels = labels;
-      chart.data.datasets = datasets.map((dataset) => ({
-        label: dataset.label,
-        data: dataset.data,
-        borderColor: dataset.borderColor,
-        pointBackgroundColor: dataset.borderColor,
-        pointBorderColor: dataset.borderColor,
-        pointRadius: 3,
-        borderWidth: 2,
-        tension: 0.35,
-        fill: false,
-      }));
+      const ctx2 = canvasRef.current!.getContext("2d");
+      chart.data.datasets = datasets.map((dataset) => {
+        const h = canvasRef.current!.clientHeight || 200;
+        let bg: CanvasGradient | string = "transparent";
+        if (ctx2) {
+          bg = ctx2.createLinearGradient(0, 0, 0, h);
+          bg.addColorStop(0, dataset.borderColor + "38");
+          bg.addColorStop(1, dataset.borderColor + "00");
+        }
+        return {
+          label: dataset.label,
+          data: dataset.data,
+          borderColor: dataset.borderColor,
+          backgroundColor: bg,
+          pointBackgroundColor: dataset.borderColor,
+          pointBorderColor: "transparent",
+          pointRadius: 2,
+          pointHoverRadius: 4,
+          borderWidth: 1.5,
+          tension: 0.4,
+          fill: true,
+        };
+      });
       const yScale = chart.options.scales?.y as { title?: { text?: string } } | undefined;
       if (yScale?.title) {
         yScale.title.text = yAxisLabel;
@@ -44,7 +56,18 @@ export default function LineChart({ labels, datasets, yAxisLabel }: LineChartPro
       return;
     }
 
-    chartRef.current = new Chart(canvasRef.current, {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+
+    const buildGradient = (color: string) => {
+      if (!ctx) return color;
+      const grad = ctx.createLinearGradient(0, 0, 0, canvas.clientHeight || 200);
+      grad.addColorStop(0, color.replace(")", ", 0.22)").replace("rgb", "rgba"));
+      grad.addColorStop(1, color.replace(")", ", 0)").replace("rgb", "rgba"));
+      return grad;
+    };
+
+    chartRef.current = new Chart(canvas, {
       type: "line",
       data: {
         labels,
@@ -52,12 +75,22 @@ export default function LineChart({ labels, datasets, yAxisLabel }: LineChartPro
           label: dataset.label,
           data: dataset.data,
           borderColor: dataset.borderColor,
+          backgroundColor: (() => {
+            if (!ctx) return "transparent";
+            const h = canvas.clientHeight || 200;
+            const grad = ctx.createLinearGradient(0, 0, 0, h);
+            const hex = dataset.borderColor;
+            grad.addColorStop(0, hex + "38");
+            grad.addColorStop(1, hex + "00");
+            return grad;
+          })(),
           pointBackgroundColor: dataset.borderColor,
-          pointBorderColor: dataset.borderColor,
-          pointRadius: 3,
-          borderWidth: 2,
-          tension: 0.35,
-          fill: false,
+          pointBorderColor: "transparent",
+          pointRadius: 2,
+          pointHoverRadius: 4,
+          borderWidth: 1.5,
+          tension: 0.4,
+          fill: true,
         })),
       },
       options: {
@@ -70,17 +103,20 @@ export default function LineChart({ labels, datasets, yAxisLabel }: LineChartPro
         },
         scales: {
           x: {
-            ticks: { color: "#E5E7EB" },
-            grid: { color: "rgba(148, 163, 184, 0.35)" },
+            ticks: { color: "#6b7689", font: { family: "'IBM Plex Mono', monospace", size: 10 } },
+            grid: { color: "rgba(148, 163, 184, 0.07)" },
+            border: { color: "rgba(148,163,184,0.1)" },
           },
           y: {
             beginAtZero: true,
-            ticks: { color: "#E5E7EB" },
-            grid: { color: "rgba(148, 163, 184, 0.35)" },
+            ticks: { color: "#6b7689", font: { family: "'IBM Plex Mono', monospace", size: 10 } },
+            grid: { color: "rgba(148, 163, 184, 0.07)" },
+            border: { color: "rgba(148,163,184,0.1)" },
             title: {
               display: true,
               text: yAxisLabel,
-              color: "#E5E7EB",
+              color: "#a5b0c2",
+              font: { family: "'IBM Plex Mono', monospace", size: 10 },
             },
           },
         },

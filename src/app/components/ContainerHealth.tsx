@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import LineChart from "./LineChart";
 import type { DashboardService } from "@/lib/monitoring-types";
+import { Activity, Cpu, HardDrive, TrendingUp, Wifi, Layers } from "lucide-react";
 
 type TrendView = "overview" | "cpu" | "memory" | "request" | "network";
 
@@ -19,7 +21,16 @@ type TrendSnapshot = {
   services: ServiceSnapshot[];
 };
 
+const TAB_META: Record<TrendView, { label: string; icon: React.ReactNode; color: string; key?: string; yAxisLabel: string }> = {
+  overview: { label: "Overview", icon: <Layers size={13} />, color: "#5eead4", yAxisLabel: "Utilization" },
+  cpu:      { label: "CPU",      icon: <Cpu size={13} />,    color: "#7CFC00", key: "cpu",     yAxisLabel: "CPU Cores" },
+  memory:   { label: "Memory",   icon: <HardDrive size={13} />, color: "#38BDF8", key: "memory", yAxisLabel: "MiB" },
+  request:  { label: "Request",  icon: <TrendingUp size={13} />, color: "#A855F7", key: "request", yAxisLabel: "Req/s" },
+  network:  { label: "Network",  icon: <Wifi size={13} />,   color: "#2563EB", key: "network", yAxisLabel: "Trend" },
+};
+
 function ContainerHealth({ services }: { services: DashboardService[] }) {
+  const router = useRouter();
   const [activeView, setActiveView] = useState<TrendView>("overview");
   const [selectedServiceId, setSelectedServiceId] = useState<string>("all");
   const [history, setHistory] = useState<TrendSnapshot[]>([]);
@@ -44,169 +55,120 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
         });
       if (unchanged) return prev;
 
-      const snapshot: TrendSnapshot = {
-        at: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        }),
-        services: services.map((service) => ({
-          id: service.id,
-          name: service.name,
-          cpuCores: service.cpuCores,
-          memoryMiB: service.memoryMiB,
-          requestRate: service.requestRate,
-        })),
-      };
-
-      return [...prev, snapshot].slice(-20);
+      return [
+        ...prev,
+        {
+          at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+          services: services.map((s) => ({
+            id: s.id, name: s.name,
+            cpuCores: s.cpuCores, memoryMiB: s.memoryMiB, requestRate: s.requestRate,
+          })),
+        },
+      ].slice(-20);
     });
   }, [services]);
 
   const serviceOptions = useMemo(() => {
-    const unique = new Map<string, string>();
-
-    for (const service of services) {
-      if (!unique.has(service.id)) {
-        unique.set(service.id, service.name);
-      }
+    const unique = new Map<string, { name: string; namespace: string }>();
+    for (const s of services) {
+      if (!unique.has(s.id)) unique.set(s.id, { name: s.name, namespace: s.namespace });
     }
-
-    return Array.from(unique.entries()).map(([id, name]) => ({ id, name }));
+    return Array.from(unique.entries()).map(([id, v]) => ({ id, ...v }));
   }, [services]);
 
   useEffect(() => {
-    if (selectedServiceId !== "all" && !serviceOptions.some((service) => service.id === selectedServiceId)) {
+    if (selectedServiceId !== "all" && !serviceOptions.some((s) => s.id === selectedServiceId)) {
       setSelectedServiceId("all");
     }
-  }, [serviceOptions]);
+  }, [serviceOptions, selectedServiceId]);
 
   const trendPoints = useMemo(() => {
     return history.map((snapshot) => {
-      const selectedService = snapshot.services.find((service) => service.id === selectedServiceId);
-
-      const totalCpu = snapshot.services.reduce((sum, service) => sum + service.cpuCores, 0);
-      const totalMemory = snapshot.services.reduce((sum, service) => sum + service.memoryMiB, 0);
-      const totalRequest = snapshot.services.reduce((sum, service) => sum + service.requestRate, 0);
-
-      const cpu = selectedServiceId === "all" ? totalCpu : selectedService?.cpuCores ?? 0;
-      const memory = selectedServiceId === "all" ? totalMemory : selectedService?.memoryMiB ?? 0;
-      const request = selectedServiceId === "all" ? totalRequest : selectedService?.requestRate ?? 0;
-
-      return {
-        at: snapshot.at,
-        cpu,
-        memory,
-        request,
-        network: request,
-      };
+      const sel = snapshot.services.find((s) => s.id === selectedServiceId);
+      const cpu     = selectedServiceId === "all" ? snapshot.services.reduce((a, s) => a + s.cpuCores, 0)    : sel?.cpuCores ?? 0;
+      const memory  = selectedServiceId === "all" ? snapshot.services.reduce((a, s) => a + s.memoryMiB, 0)   : sel?.memoryMiB ?? 0;
+      const request = selectedServiceId === "all" ? snapshot.services.reduce((a, s) => a + s.requestRate, 0) : sel?.requestRate ?? 0;
+      return { at: snapshot.at, cpu, memory, request, network: request };
     });
   }, [history, selectedServiceId]);
 
   const chartConfig = useMemo(() => {
-    const labels = trendPoints.map((point) => point.at);
-
+    const labels = trendPoints.map((p) => p.at);
     if (activeView === "overview") {
       return {
-        labels,
-        yAxisLabel: "Utilization",
+        labels, yAxisLabel: "Utilization",
         datasets: [
-          {
-            label: "CPU",
-            data: trendPoints.map((point) => Number(point.cpu.toFixed(3))),
-            borderColor: "#7CFC00",
-          },
-          {
-            label: "Memory",
-            data: trendPoints.map((point) => Number(point.memory.toFixed(1))),
-            borderColor: "#38BDF8",
-          },
-          {
-            label: "Request",
-            data: trendPoints.map((point) => Number(point.request.toFixed(2))),
-            borderColor: "#A855F7",
-          },
-          {
-            label: "Network",
-            data: trendPoints.map((point) => Number(point.network.toFixed(2))),
-            borderColor: "#2563EB",
-          },
+          { label: "CPU",     data: trendPoints.map((p) => +p.cpu.toFixed(3)),     borderColor: "#7CFC00" },
+          { label: "Memory",  data: trendPoints.map((p) => +p.memory.toFixed(1)),  borderColor: "#38BDF8" },
+          { label: "Request", data: trendPoints.map((p) => +p.request.toFixed(2)), borderColor: "#A855F7" },
+          { label: "Network", data: trendPoints.map((p) => +p.network.toFixed(2)), borderColor: "#2563EB" },
         ],
       };
     }
-
-    const mapByView: Record<Exclude<TrendView, "overview">, { label: string; key: "cpu" | "memory" | "request" | "network"; color: string; yAxisLabel: string }> = {
-      cpu: { label: "CPU", key: "cpu", color: "#7CFC00", yAxisLabel: "CPU Cores" },
-      memory: { label: "Memory", key: "memory", color: "#38BDF8", yAxisLabel: "Memory MiB" },
-      request: { label: "Request", key: "request", color: "#A855F7", yAxisLabel: "Req/s" },
-      network: { label: "Network", key: "network", color: "#2563EB", yAxisLabel: "Network Trend" },
-    };
-
-    const selected = mapByView[activeView];
-
+    const m = TAB_META[activeView];
+    const key = m.key as "cpu" | "memory" | "request" | "network";
     return {
-      labels,
-      yAxisLabel: selected.yAxisLabel,
-      datasets: [
-        {
-          label: selected.label,
-          data: trendPoints.map((point) => Number(point[selected.key].toFixed(2))),
-          borderColor: selected.color,
-        },
-      ],
+      labels, yAxisLabel: m.yAxisLabel,
+      datasets: [{ label: m.label, data: trendPoints.map((p) => +p[key].toFixed(2)), borderColor: m.color }],
     };
   }, [activeView, trendPoints]);
 
-  const totalCpu = services.reduce((sum, service) => sum + service.cpuCores, 0);
-  const totalMemory = services.reduce((sum, service) => sum + service.memoryMiB, 0);
-  const totalRate = services.reduce((sum, service) => sum + service.requestRate, 0);
-  const running = services.filter((service) => service.status === "running").length;
+  const totalCpu    = services.reduce((a, s) => a + s.cpuCores, 0);
+  const totalMemory = services.reduce((a, s) => a + s.memoryMiB, 0);
+  const totalRate   = services.reduce((a, s) => a + s.requestRate, 0);
+  const running     = services.filter((s) => s.status === "running").length;
 
-  const tabs: Array<{ id: TrendView; label: string }> = [
-    { id: "overview", label: "Overview" },
-    { id: "cpu", label: "CPU" },
-    { id: "memory", label: "Memory" },
-    { id: "request", label: "Request" },
-    { id: "network", label: "Network" },
-  ];
+  const handleServiceClick = (svc: { name: string; namespace: string }) => {
+    router.push(`/anomalies/${encodeURIComponent(svc.name)}?namespace=${encodeURIComponent(svc.namespace)}&severity=warning&metric=cpu&current=—&baseline=—&message=Inspecting+service`);
+  };
 
   return (
-    <div className="col-span-2 p-6 border border-[#5D5A5A] rounded-2xl h-full flex flex-col overflow-hidden bg-[#121B2B]">
-      <div className="flex items-start justify-between gap-4 flex-shrink-0">
-        <h1 className="font-bold text-5xl text-white leading-none">Container Health</h1>
+    <div className="bt-panel h-full flex flex-col overflow-hidden p-5">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3 flex-shrink-0 mb-4">
+        <div className="flex items-center gap-2">
+          <Activity size={15} className="text-[var(--accent-teal)]" />
+          <span className="bt-label">Container Health</span>
+        </div>
 
         <select
-          className="w-56 rounded-full border border-[#5D5A5A] bg-[#26344F] px-4 py-2 text-sm text-gray-100 focus:outline-none"
+          className="rounded-full border border-[var(--border-soft)] bg-[rgba(148,163,184,0.04)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)] focus:outline-none focus:border-[var(--accent-teal)] transition"
           value={selectedServiceId}
-          onChange={(event) => setSelectedServiceId(event.target.value)}
+          onChange={(e) => setSelectedServiceId(e.target.value)}
         >
           <option value="all">All Services</option>
-          {serviceOptions.map((service) => (
-            <option key={service.id} value={service.id}>
-              {service.name}
-            </option>
+          {serviceOptions.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-3 flex-shrink-0">
-        {tabs.map((tab) => (
+      {/* Divider */}
+      <div className="bt-card-divider flex-shrink-0" />
+
+      {/* Tabs */}
+      <div className="flex gap-2 flex-shrink-0 mb-3">
+        {(Object.entries(TAB_META) as [TrendView, typeof TAB_META[TrendView]][]).map(([id, meta]) => (
           <button
-            key={tab.id}
+            key={id}
             type="button"
-            onClick={() => setActiveView(tab.id)}
-            className={`min-w-28 rounded-xl border px-4 py-2 text-sm transition ${
-              activeView === tab.id
-                ? "border-[#8CA3C8] bg-[#26344F] text-white"
-                : "border-[#5D5A5A] bg-transparent text-gray-200 hover:border-[#8CA3C8]"
+            onClick={() => setActiveView(id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11.5px] transition border ${
+              activeView === id
+                ? "bt-tab-active"
+                : "bt-tab"
             }`}
           >
-            {tab.label}
+            <span className={activeView === id ? "text-[var(--accent-teal)]" : "text-[var(--text-muted)]"}>
+              {meta.icon}
+            </span>
+            {meta.label}
           </button>
         ))}
       </div>
 
-      <div className="mt-4 flex-1 min-h-0 border border-[#5D5A5A] rounded-xl p-4">
+      {/* Chart */}
+      <div className="flex-1 min-h-0 rounded-xl border border-[var(--border-soft)] bg-[rgba(11,16,26,0.7)] p-3">
         <LineChart
           labels={chartConfig.labels}
           datasets={chartConfig.datasets}
@@ -214,32 +176,50 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
         />
       </div>
 
-      <div className="mt-2 flex items-center justify-center gap-6 text-xs text-gray-200 flex-shrink-0">
-        {chartConfig.datasets.map((dataset) => (
-          <div key={dataset.label} className="flex items-center gap-2">
-            <span
-              className="inline-block h-3 w-3 rounded-full"
-              style={{ backgroundColor: dataset.borderColor }}
-            />
-            <span>{dataset.label}</span>
+      {/* Legend */}
+      <div className="mt-2 flex items-center justify-center gap-5 text-[11px] text-[var(--text-muted)] flex-shrink-0">
+        {chartConfig.datasets.map((d) => (
+          <div key={d.label} className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full inline-block" style={{ backgroundColor: d.borderColor }} />
+            <span>{d.label}</span>
           </div>
         ))}
       </div>
 
-      <div className="mt-3 grid grid-cols-4 gap-2 text-xs text-white flex-shrink-0">
-        <div className="border border-[#5D5A5A] rounded-md p-2 text-center bg-[#0f172a]">
-          CPU {totalCpu.toFixed(3)}
-        </div>
-        <div className="border border-[#5D5A5A] rounded-md p-2 text-center bg-[#0f172a]">
-          MEM {totalMemory.toFixed(1)} MiB
-        </div>
-        <div className="border border-[#5D5A5A] rounded-md p-2 text-center bg-[#0f172a]">
-          REQ {totalRate.toFixed(2)}
-        </div>
-        <div className="border border-[#5D5A5A] rounded-md p-2 text-center bg-[#0f172a]">
-          UP {running}/{services.length}
-        </div>
+      {/* Stats row */}
+      <div className="mt-3 grid grid-cols-4 gap-2 flex-shrink-0">
+        {[
+          { icon: <Cpu size={12} />, label: "CPU", value: totalCpu.toFixed(3), unit: "cores" },
+          { icon: <HardDrive size={12} />, label: "MEM", value: totalMemory.toFixed(1), unit: "MiB" },
+          { icon: <TrendingUp size={12} />, label: "REQ", value: totalRate.toFixed(2), unit: "req/s" },
+          { icon: <Activity size={12} />, label: "UP", value: `${running}/${services.length}`, unit: "svcs" },
+        ].map((stat) => (
+          <div key={stat.label} className="bt-tile flex flex-col items-center justify-center py-2 gap-0.5">
+            <span className="text-[var(--accent-teal)]">{stat.icon}</span>
+            <span className="bt-mono text-[13px] font-semibold text-[var(--text-primary)]">{stat.value}</span>
+            <span className="text-[9px] uppercase tracking-widest text-[var(--text-muted)]">{stat.unit}</span>
+          </div>
+        ))}
       </div>
+
+      {/* Clickable service list */}
+      {serviceOptions.length > 0 && (
+        <div className="mt-3 flex-shrink-0">
+          <p className="text-[9px] uppercase tracking-[0.18em] text-[var(--text-muted)] mb-1.5">Inspect Service</p>
+          <div className="flex flex-wrap gap-1.5">
+            {serviceOptions.map((svc) => (
+              <button
+                key={svc.id}
+                type="button"
+                onClick={() => handleServiceClick(svc)}
+                className="bt-chip hover:bt-chip-teal transition cursor-pointer"
+              >
+                {svc.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

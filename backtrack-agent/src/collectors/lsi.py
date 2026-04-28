@@ -10,6 +10,7 @@ Computes LSI anomaly score per 30-second window.
 import asyncio
 import collections
 import logging
+import os
 import time
 from typing import Optional
 
@@ -22,9 +23,9 @@ from src.config import config
 
 logger = logging.getLogger("backtrack.lsi")
 
-CORPUS_SIZE = 200  # Lines to collect before fitting SVD
-WINDOW_SECONDS = 30
-BASELINE_WINDOWS = 10
+CORPUS_SIZE = int(os.getenv("BACKTRACK_CORPUS_SIZE", "200"))
+WINDOW_SECONDS = int(os.getenv("BACKTRACK_WINDOW_SECONDS", "30"))
+BASELINE_WINDOWS = int(os.getenv("BACKTRACK_BASELINE_WINDOWS", "10"))
 
 # Seed keywords for each log class
 SEED_KEYWORDS = {
@@ -112,27 +113,38 @@ class LSICollector:
             await self._poll_logs_fallback()
 
     async def _tail_kubernetes(self) -> None:
-        """Tail logs from Kubernetes pods using kubectl."""
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "kubectl", "logs",
-                "-n", config.k8s_namespace,
-                "-l", self.label_selector,
-                "--follow", "--tail=100",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            while self._running and proc.stdout:
-                raw_line = await proc.stdout.readline()
-                if not raw_line:
-                    break
-                line = raw_line.decode("utf-8", errors="replace").strip()
-                if line:
-                    await self._process_line(line)
+        """Tail logs from Kubernetes pods using kubectl. Retries on stream break."""
+        while self._running:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "kubectl", "logs",
+                    "-n", config.k8s_namespace,
+                    "-l", self.label_selector,
+                    "--follow", "--tail=50",
+                    "--prefix",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                while self._running and proc.stdout:
+                    try:
+                        raw_line = await asyncio.wait_for(proc.stdout.readline(), timeout=15)
+                    except asyncio.TimeoutError:
+                        break
+                    if not raw_line:
+                        break
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if line:
+                        await self._process_line(line)
 
-        except Exception:
-            logger.exception("K8s log tailing failed")
-            await self._poll_logs_fallback()
+                if proc.returncode is None:
+                    proc.kill()
+                    await proc.wait()
+
+            except Exception:
+                logger.warning("K8s log tail broke for %s — retrying in 3s", self.service_name)
+
+            if self._running:
+                await asyncio.sleep(3)
 
     async def _poll_logs_fallback(self) -> None:
         """Fallback: periodically fetch the last N log lines."""
@@ -163,7 +175,7 @@ class LSICollector:
             except Exception:
                 logger.warning("Log poll fallback failed")
 
-            await asyncio.sleep(WINDOW_SECONDS)
+            await asyncio.sleep(max(5, WINDOW_SECONDS // 3))
 
     async def _process_line(self, line: str) -> None:
         """Process a single log line: collect for corpus, classify, score."""

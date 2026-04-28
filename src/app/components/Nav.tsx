@@ -1,6 +1,8 @@
 "use client";
-import { Boxes, CircuitBoard, Cloud, Plug, Settings2, X } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import { Boxes, CircuitBoard, Cloud, Info, Plug, Settings2, X } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import React, { useEffect, useMemo, useState } from "react";
 
 type ConnectionForm = {
   appName: string;
@@ -24,6 +26,13 @@ function Nav({ healthSummary }: NavProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [discoveredCount, setDiscoveredCount] = useState<number | null>(null);
+  const [lastAction, setLastAction] = useState<"test" | "connect" | null>(null);
+
+  useEffect(() => {
+    const open = () => setIsOpen(true);
+    window.addEventListener("backtrack:open-configure", open);
+    return () => window.removeEventListener("backtrack:open-configure", open);
+  }, []);
   const [form, setForm] = useState<ConnectionForm>({
     appName: "",
     platform: "kubernetes",
@@ -54,6 +63,7 @@ function Nav({ healthSummary }: NavProps) {
   const submitConnection = async (action: "test" | "connect") => {
     setIsSubmitting(true);
     setStatusMessage(null);
+    setLastAction(action);
 
     try {
       const response = await fetch("/api/connections", {
@@ -83,6 +93,7 @@ function Nav({ healthSummary }: NavProps) {
     }
   };
 
+  const pathname = usePathname();
   const total = healthSummary?.total ?? 0;
   const up = healthSummary?.up ?? 0;
   const down = healthSummary?.down ?? 0;
@@ -110,6 +121,33 @@ function Nav({ healthSummary }: NavProps) {
               </p>
             </div>
           </div>
+
+          {/* Screen navigation */}
+          <nav className="hidden md:flex items-center gap-1">
+            {([
+              { href: "/", label: "Dashboard" },
+              { href: "/anomalies", label: "Anomalies" },
+            ] as const).map(({ href, label }) => {
+              const isActive =
+                href === "/"
+                  ? pathname === "/"
+                  : pathname === href || pathname.startsWith(href + "/");
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className="px-3 py-[5px] rounded-lg border text-[12px] transition-all duration-150"
+                  style={{
+                    borderColor: isActive ? "rgba(94,234,212,0.35)" : "transparent",
+                    background: isActive ? "rgba(94,234,212,0.07)" : "transparent",
+                    color: isActive ? "#d7f7ee" : "var(--text-secondary)",
+                  }}
+                >
+                  {label}
+                </Link>
+              );
+            })}
+          </nav>
 
           {/* Status cluster */}
           <div className="flex items-center gap-2">
@@ -290,6 +328,27 @@ function Nav({ healthSummary }: NavProps) {
                         ✓ discovered {discoveredCount} service{discoveredCount === 1 ? "" : "s"}
                       </p>
                     ) : null}
+                  </div>
+                ) : null}
+
+                {lastAction === "connect" && discoveredCount !== null ? (
+                  <div className="rounded-xl border border-[rgba(167,139,250,0.28)] bg-[rgba(167,139,250,0.06)] p-4 flex gap-3">
+                    <Info size={15} className="text-[var(--accent-violet)] mt-0.5 shrink-0" />
+                    <div className="space-y-1">
+                      <p className="text-[12px] font-medium text-[var(--text-primary)]">
+                        Enable LSI · TSD · Auto-rollback
+                      </p>
+                      <p className="text-[11px] text-[var(--text-secondary)]">
+                        The backtrack-agent must be running locally at{" "}
+                        <code className="bt-mono text-[var(--accent-violet)]">
+                          http://localhost:9090
+                        </code>{" "}
+                        for anomaly detection and auto-rollback features.
+                      </p>
+                      <code className="block mt-2 bt-mono text-[11px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2 whitespace-pre-wrap break-all">
+                        cd backtrack-agent && pip install -r requirements.txt{"\n"}BACKTRACK_TARGET=&lt;your-app&gt; python3 -m uvicorn src.main:app --port 9090
+                      </code>
+                    </div>
                   </div>
                 ) : null}
 

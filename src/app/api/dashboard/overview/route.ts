@@ -310,6 +310,7 @@ export async function GET() {
 		.flatMap((service) => {
 			const issues: DashboardAnomaly[] = [];
 
+			const now = new Date().toISOString();
 			if (service.status === "down") {
 				issues.push({
 					id: `${service.id}-down`,
@@ -320,6 +321,8 @@ export async function GET() {
 					metric: "up",
 					baseline: "1",
 					current: "0",
+					detectedAt: now,
+					autoRollback: true,
 				});
 			}
 
@@ -333,6 +336,7 @@ export async function GET() {
 					metric: "memory",
 					baseline: "< 120 MiB",
 					current: `${service.memoryMiB.toFixed(1)} MiB`,
+					detectedAt: now,
 				});
 			}
 
