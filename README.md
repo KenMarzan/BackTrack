@@ -1,451 +1,382 @@
 # BackTrack
 
-BackTrack is a local-first observability dashboard for Kubernetes and Docker workloads. It helps you:
+**Local-first observability, anomaly detection, and self-healing rollback for Kubernetes and Docker workloads.**
 
-- discover services from a cluster or local Docker runtime,
-- query Prometheus for health and runtime metrics,
-- visualize service and anomaly states in one UI,
-- run quick terminal commands from the anomaly screen.
+BackTrack monitors your containerized services in real time, detects metric drift and log anomalies using two independent ML algorithms (TSD and LSI), and automatically rolls back to a stable version when thresholds are breached — without any cloud dependency.
 
-This project is built with Next.js App Router, React 19, Tailwind CSS, and Chart.js.
+---
 
-## Table of Contents
+## Screenshots
 
-- Overview
-- Architecture
-- Prerequisites
-- Quick Start
-- Configuration Guide
-- Workarounds and Troubleshooting
-- API Reference
-- Customization Guide
-- Security Notes
-- Known Limitations
-- Roadmap Suggestions
+### Anomalies Page — Terminal + TSD/LSI
+![Anomalies page with TSD and LSI panels](docs/screenshots/anomalies-tsd-lsi.png)
+> Left: interactive kubectl terminal. Right: TSD Metrics (CPU · Memory · Latency · Error Rate) and LSI Analysis (score, threshold, score history chart, classified recent lines).
 
-## Overview
+### Anomaly Detection — All Systems Nominal
+![Anomaly Detection panel showing all systems nominal](docs/screenshots/anomaly-detection-nominal.png)
+> Anomaly Detection panel on the dashboard. When no anomalies are active it fills the card with a green "All systems nominal" state. Severity counters (Critical · High · Medium) are shown top-right.
 
-BackTrack currently focuses on a practical workflow:
+### Anomalies — Live View with Agent Running
+![Anomalies page live view](docs/screenshots/anomalies-page.png)
+> Full anomalies page with the backtrack-agent online. TSD metrics update every 10 s. LSI score history chart fills as the corpus grows. Recent log lines are classified as INFO · WARN · ERROR · NOVEL.
 
-1. Configure cluster/runtime details from the UI.
-2. Discover services automatically.
-3. Persist connections locally.
-4. Poll Prometheus and compute service health.
-5. Display dashboard cards/tables/charts and anomaly events.
+### Service Diagnostics — Per-Service Detail
+![Service diagnostics page](docs/screenshots/service-diagnostics.png)
+> Drill-down view per service. Left: tabbed TSD/LSI panels with residual sparklines and score history. Centre: classified log stream with NOVEL pattern separation. Right: root cause analysis, diagnostic summary, agent status, rollback action.
 
-### Health evaluation behavior
+---
 
-For Kubernetes services, BackTrack combines two signals:
+## What It Does
 
-- pod-level scrape state from up with job kubernetes-pods,
-- blackbox TCP probe state from probe_success with job kubernetes-services-tcp.
+| Capability | Description |
+|---|---|
+| **Service Discovery** | Auto-discovers pods/containers via `kubectl` or `docker ps` |
+| **Live Metrics** | Polls Prometheus for CPU, memory, request rate with fallback to `kubectl top` |
+| **TSD — Time Series Decomposition** | STL decomposition into Seasonal · Trend · Residual; flags drift when residuals exceed 3×IQR for 3 consecutive readings |
+| **LSI — Latent Semantic Indexing** | TF-IDF + SVD on log lines; classifies each line as INFO/WARN/ERROR/NOVEL; triggers when score exceeds 2× baseline mean |
+| **Auto-Rollback** | After 3 consecutive anomaly cycles (~90s), rolls back deployment to the last STABLE snapshot |
+| **Kubectl Terminal** | Interactive terminal embedded in the Anomalies page for live cluster commands |
+| **Rollback History** | Full audit trail of every rollback event |
 
-If no sample exists yet for a service in Prometheus, status remains unknown (instead of down).
+---
 
 ## Architecture
 
-### Main UI screens
+```
+┌─────────────────────────────────────────────────────────┐
+│                    BackTrack Dashboard                   │
+│                 Next.js 16 · React 19 · TypeScript       │
+│                                                         │
+│  /          → Dashboard (health, metrics, anomalies)    │
+│  /anomalies → Terminal + TSD/LSI live panels            │
+│  /anomalies/[service] → Per-service diagnostics         │
+└───────────────┬─────────────────┬───────────────────────┘
+                │                 │
+          kubectl/docker     HTTP :9090
+                │                 │
+    ┌───────────▼───┐   ┌─────────▼──────────────┐
+    │   Your Cluster │   │   backtrack-agent       │
+    │   or Docker    │   │   (Python · FastAPI)    │
+    │   runtime      │   │                         │
+    └───────────────┘   │  TSD collector          │
+                        │  LSI log analyser        │
+                        │  Version snapshotter     │
+                        │  Rollback executor       │
+                        └────────────────────────-─┘
+```
 
-- Dashboard home: service health, metrics, active containers, anomalies.
-- Anomalies screen: interactive terminal panel.
+### Data Flow
 
-### API routes
+1. **Connect** → Nav modal → `POST /api/connections` → discovers services via kubectl/docker → persists to `.backtrack/connections.json`
+2. **Dashboard polling** → `GET /api/dashboard/overview` every 10 s → queries Prometheus → falls back to `kubectl top`
+3. **Agent polling** → `GET /api/agent?path=metrics|lsi|versions` every 5 s → live TSD/LSI state
+4. **Rollback** → `POST /api/rollback` → agent executes `kubectl rollout undo` or Docker image swap
 
-- GET /api/connections
-	- list saved connections.
-- POST /api/connections
-	- discover and optionally register a connection.
-	- actions: test, connect.
-- GET /api/dashboard/overview
-	- aggregate service status and metric snapshots for dashboard widgets.
-- GET /api/prometheus/query
-	- proxy arbitrary PromQL query for a selected connection.
-- POST /api/terminal
-	- execute shell command and return stdout/stderr.
-
-### Persistence
-
-Connections are stored in:
-
-- .backtrack/connections.json
-
-The app also keeps an in-memory copy for runtime speed.
+---
 
 ## Prerequisites
 
-- Node.js 20+
-- pnpm (recommended), npm, yarn, or bun
-- For Kubernetes mode:
-	- kubectl installed on host running BackTrack
-	- valid kube context and namespace access
-	- Prometheus endpoint reachable from BackTrack
-- For Docker mode:
-	- docker CLI installed
-	- user has permission to run docker ps
+| Requirement | Version | Notes |
+|---|---|---|
+| Node.js | 20+ | For the dashboard |
+| npm | 10+ | Or pnpm / yarn |
+| Python | 3.10+ | For backtrack-agent (anomaly detection) |
+| kubectl | any | Required for Kubernetes mode |
+| Docker CLI | any | Required for Docker mode |
+| Prometheus | any | Optional but recommended for full metrics |
+
+---
 
 ## Quick Start
 
-1. Install dependencies:
+### 1. Clone and install
 
-		pnpm install
+```bash
+git clone https://github.com/KenMarzan/BackTrack.git
+cd BackTrack
+npm install
+```
 
-2. Start development server:
+### 2. Start the dashboard
 
-		pnpm dev
+```bash
+npm run dev
+```
 
-3. Open:
+Open **http://localhost:3000**
 
-		http://localhost:3000
+### 3. Connect your cluster
 
-4. Click Configure Cluster and fill:
+1. Click **Configure Cluster** in the top-right corner
+2. Fill in the connection form:
 
-- Application Name
-- Platform (kubernetes or docker)
-- Architecture (microservices or monolith)
-- Cluster Name
-- API Server Endpoint
-- Prometheus URL
-- Namespace
-- Optional service account token
+| Field | Example | Notes |
+|---|---|---|
+| Application Name | `my-app` | Used to filter services in monolith mode |
+| Platform | `Kubernetes` | Or `Docker` |
+| Architecture | `Microservices` | `Monolith` for single-app deployments |
+| Cluster Name | `prod-us-east` | Label only — not validated |
+| API Server Endpoint | `https://127.0.0.1:6443` | From `kubectl cluster-info` |
+| Namespace | `default` | Your deployment namespace |
+| Prometheus URL | `http://localhost:9090` | Leave blank to use kubectl top only |
+| Service Account Token | _(optional)_ | From `kubectl create token default` |
 
-5. Use Test Connection first, then Connect.
+3. Click **Test Connection** — verify services are discovered
+4. Click **Connect**
 
-## Configuration Guide
+### 4. Start the BackTrack Agent
 
-BackTrack is currently configured via UI input and source constants (no dedicated env file yet).
+The agent powers anomaly detection, version snapshots, and auto-rollback. Run it in a separate terminal.
 
-### Connection form settings
+**Kubernetes:**
 
-- Application Name
-	- Used for monolith-focused filtering during discovery.
-- Platform
-	- kubernetes: uses kubectl discovery.
-	- docker: uses docker ps discovery.
-- Architecture
-	- microservices: broad discovery.
-	- monolith: app-name-focused discovery.
-- Namespace
-	- default namespace for discovery and Prometheus label filters.
-- Prometheus URL
-	- base URL to query /api/v1/query.
-- Auth Token
-	- optional Bearer token for secured Prometheus endpoints.
+```bash
+cd backtrack-agent
+pip install -r requirements.txt
 
-### Polling interval
+BACKTRACK_MODE=kubernetes \
+BACKTRACK_K8S_NAMESPACE=default \
+BACKTRACK_TARGET=my-deployment \
+BACKTRACK_IMAGE_TAG=v1.2.3 \
+python3 -m uvicorn src.main:app --host 0.0.0.0 --port 9090
+```
 
-Dashboard refresh interval is currently 10 seconds.
+**Docker:**
 
-To customize:
+```bash
+cd backtrack-agent
+pip install -r requirements.txt
 
-- Edit Home page polling timer in src/app/page.tsx.
+BACKTRACK_MODE=docker \
+BACKTRACK_TARGET=my-container \
+BACKTRACK_IMAGE_TAG=v1.2.3 \
+python3 -m uvicorn src.main:app --host 0.0.0.0 --port 9090
+```
 
-### Metric and anomaly thresholds
+Keep this terminal open. The agent must stay running while BackTrack is in use.
 
-Current anomaly logic includes:
+### 5. Verify
 
-- critical when service status is down,
-- warning when memory usage is greater than 120 MiB.
+Navigate to **http://localhost:3000/anomalies** — you should see:
 
-To customize:
+- Green **Agent Online** badge in the top-right
+- TSD Metrics panel populating within ~30 seconds
+- LSI Analysis panel activating after ~3 minutes (200 log lines needed for corpus)
 
-- Edit thresholds and rules in src/app/api/dashboard/overview/route.ts.
+---
 
-### Data retention behavior
+## Anomaly Detection Timing
 
-- Connections persist in .backtrack/connections.json.
-- Registering a connection with same app name + namespace + platform replaces older entry.
+| Milestone | Time after agent start |
+|---|---|
+| TSD begins collecting metrics | Immediately |
+| TSD ready for drift detection | ~2 min (12 readings × 10 s) |
+| LSI corpus filled | ~3 min (200 log lines) |
+| Version snapshot marked STABLE | 10 min of clean operation |
+| Auto-rollback triggers | 3 consecutive anomaly cycles (~90 s) |
 
-## Workarounds and Troubleshooting
+---
 
-This section covers known operational issues and practical workarounds.
+## Agent Environment Variables
 
-### 1) Prometheus target shows unknown or never scraped
+| Variable | Default | Description |
+|---|---|---|
+| `BACKTRACK_TARGET` | _(required)_ | Deployment name (K8s) or container name (Docker) |
+| `BACKTRACK_MODE` | auto-detected | `kubernetes` or `docker` |
+| `BACKTRACK_K8S_NAMESPACE` | `default` | Kubernetes namespace to watch |
+| `BACKTRACK_K8S_LABEL_SELECTOR` | _(optional)_ | e.g. `app=myapp` — overrides TARGET for pod selection |
+| `BACKTRACK_IMAGE_TAG` | `unknown` | Current version tag for snapshot tracking |
+| `BACKTRACK_ROLLBACK_ENABLED` | `true` | Set `false` to disable automatic rollback |
+| `BACKTRACK_TSD_IQR_MULTIPLIER` | `3.0` | Drift sensitivity — lower = more sensitive |
+| `BACKTRACK_LSI_SCORE_MULTIPLIER` | `2.0` | Log anomaly sensitivity — lower = more sensitive |
 
-Symptoms:
+---
 
-- Target appears in Prometheus but Last scrape is never.
-- Dashboard service status remains unknown.
+## Pages
 
-Why this happens:
+### Dashboard (`/`)
 
-- Discovery exists, but Prometheus has not produced a sample for that label set yet.
+Four panels:
 
-Workarounds:
+- **Container Health** — per-service CPU/memory line charts, running/down/unknown status
+- **Recent Deployments** — K8s rollout history, BackTrack version snapshots, one-click rollback
+- **Anomaly Detection** — live anomaly list with severity chips, auto-rollback badge, "Rollback now" button
+- **Active Containers** — table of all discovered services with status, platform, ports
+
+### Anomalies (`/anomalies`)
+
+Three panels:
+
+- **Terminal** — interactive kubectl terminal with syntax-coloured output
+- **TSD Metrics** — CPU/Memory/Latency/Error Rate tiles with Season · Trend · Residual values + STL progress bar
+- **LSI Analysis** — current score vs threshold, score/threshold ratio bar, score history chart, classified log lines
 
-1. Verify target appears in Prometheus Targets for job kubernetes-services-tcp.
-2. Run query in Prometheus UI:
+### Service Diagnostics (`/anomalies/[service]`)
 
-			 probe_success{job="kubernetes-services-tcp",kubernetes_namespace="default",service="YOUR_SERVICE"}
+Three columns:
+
+- **Left** — TSD tab: live metrics, residual values, 4 residual sparklines, memory/latency history; LSI tab: score history chart, window label counts, recent log lines
+- **Center** — classified log stream (NOVEL/ERROR/WARN/INFO with dividers)
+- **Right** — root cause analysis, diagnostic summary, agent status, rollback action
 
-3. Confirm labels match exactly: service, kubernetes_namespace, and job.
-4. Validate DNS/connectivity from blackbox exporter pod to service endpoint.
-5. Wait for one full scrape interval after relabel changes.
+---
 
-### 2) Dashboard shows missing metrics (CPU, Memory, Request Rate = 0)
+## How TSD Works
 
-Symptoms:
+BackTrack collects CPU, memory, latency, and error rate every 10 seconds. Once 12 readings are available:
 
-- Service appears, but numeric metrics are zero.
+1. **STL decomposition** separates each time series into **Seasonal** (periodic pattern) + **Trend** (long-term direction) + **Residual** (what remains)
+2. **IQR envelope** — computes 3×IQR on the residuals as the drift boundary
+3. **Drift flag** — raised when the last residual exceeds 3×IQR on 3 consecutive readings
 
-Why this happens:
+This catches gradual degradation (memory leaks, creeping latency) that threshold-only monitors miss.
+
+---
 
-- PromQL selectors do not match labels in your cluster metrics.
+## How LSI Works
+
+BackTrack tails logs from the target container/pod and processes them in 30-second windows:
+
+1. **TF-IDF vectorisation** of each log line
+2. **SVD (Truncated SVD)** reduces to a latent semantic space
+3. **Cosine similarity** classifies each line: similarity < 0.25 to all baseline centroids → **NOVEL**
+4. **Anomaly score** = weighted sum of window entropy; anomalous when `score > 2.0 × baseline_mean` (after 10 baseline windows)
 
-Workarounds:
-
-1. Test selectors manually in Prometheus expression browser.
-2. Adjust pod/app label filters in src/app/api/dashboard/overview/route.ts.
-3. If your metrics use different label keys, update query labels accordingly.
-
-### 3) Kubernetes discovery fails
-
-Symptoms:
-
-- Error mentioning kubectl service discovery failed.
-
-Why this happens:
-
-- kubectl missing, wrong context, or insufficient RBAC.
-
-Workarounds:
-
-1. Check kubectl availability:
-
-			 kubectl version --client
-
-2. Check active context:
-
-			 kubectl config current-context
-
-3. Verify namespace resources are readable:
-
-			 kubectl get svc -n YOUR_NAMESPACE
-			 kubectl get pods -n YOUR_NAMESPACE
-
-4. Fix kubeconfig/context or run BackTrack in environment with correct credentials.
-
-### 4) Docker discovery fails
-
-Symptoms:
-
-- Error mentioning docker discovery failed.
-
-Why this happens:
-
-- Docker daemon not running or permission denied.
-
-Workarounds:
-
-1. Validate daemon:
-
-			 docker ps
-
-2. Ensure user belongs to docker group or run with proper permissions.
-
-### 5) Empty dashboard after connect
-
-Symptoms:
-
-- Connect succeeds but no useful data in table/charts.
-
-Why this happens:
-
-- Discovery returned zero services, or service filters are too strict for your naming.
-
-Workarounds:
-
-1. Use Test Connection and check discovered service count.
-2. Switch architecture to microservices for broad discovery.
-3. Verify namespace input matches real deployment namespace.
-
-### 6) Terminal command execution concerns
-
-Symptoms:
-
-- You need safer command execution policy.
-
-Why this happens:
-
-- Current terminal API executes raw shell command text.
-
-Workarounds:
-
-1. Restrict deployment of /api/terminal to trusted/internal environments only.
-2. Replace free-form execution with allowlisted commands in API route.
-3. Add authentication/authorization middleware before production use.
+This detects new error patterns and unfamiliar log semantics that regex rules miss.
+
+---
+
+## Rollback Flow
+
+**Manual rollback** (from Dashboard → Recent Deployments):
+1. Click **Rollback** on any non-current stable version
+2. Rollback event card appears (amber pulse + 3 s progress bar)
+3. Card turns green on completion; success/failure toast appears bottom-right
+
+**Auto-rollback** (agent-triggered):
+1. Agent detects 3 consecutive anomaly cycles
+2. Executes `kubectl rollout undo deployment/<name>` or Docker image swap
+3. Dashboard anomaly row gains **auto-rollback** badge
+4. "Rollback now" button available for manual trigger
+
+---
+
+## Project Structure
+
+```
+BackTrack/
+├── src/
+│   ├── app/
+│   │   ├── page.tsx                    # Dashboard
+│   │   ├── anomalies/
+│   │   │   ├── page.tsx               # Anomalies + Terminal
+│   │   │   ├── KubernetesTerminal.tsx # xterm.js terminal
+│   │   │   └── [service]/page.tsx    # Service diagnostics
+│   │   ├── components/
+│   │   │   ├── Nav.tsx
+│   │   │   ├── ContainerHealth.tsx
+│   │   │   ├── AnomalyDetection.tsx
+│   │   │   ├── ActiveContainers.tsx
+│   │   │   ├── RecentDeployment.tsx
+│   │   │   ├── RollbackEventCard.tsx
+│   │   │   └── RollbackToast.tsx
+│   │   └── api/
+│   │       ├── connections/route.ts
+│   │       ├── dashboard/overview/route.ts
+│   │       ├── deployments/history/route.ts
+│   │       ├── rollback/route.ts
+│   │       ├── agent/route.ts
+│   │       ├── prometheus/query/route.ts
+│   │       └── terminal/route.ts
+│   └── lib/
+│       ├── monitoring-store.ts         # File-backed connection store
+│       └── monitoring-types.ts        # Shared TypeScript types
+├── backtrack-agent/                    # Python FastAPI agent
+│   ├── src/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── versions.py
+│   │   ├── collectors/               # TSD + LSI collectors
+│   │   └── rollback/                 # Rollback executors
+│   └── requirements.txt
+├── .backtrack/
+│   └── connections.json              # Auto-created, persists connections
+└── docs/
+    └── screenshots/
+```
+
+---
+
+## Development Commands
+
+```bash
+npm run dev      # Start dev server at http://localhost:3000
+npm run build    # Production build
+npm run start    # Start production server
+npm run lint     # Run ESLint
+```
+
+---
+
+## Troubleshooting
+
+**Dashboard shows no services**
+```bash
+kubectl config current-context          # Check active context
+kubectl get pods -n <namespace>         # Verify namespace
+```
+
+**Agent offline on Anomalies page**
+```bash
+curl http://localhost:9090/health       # Should return {"status":"ok"}
+```
+→ Start the agent following Step 4.
+
+**TSD/LSI panels empty after 5 minutes**
+- Check agent terminal for Python errors
+- Verify `BACKTRACK_TARGET` exactly matches your deployment/container name
+- Run `curl http://localhost:9090/metrics` to confirm data is flowing
+
+**Metrics all zero (CPU/Memory show 0)**
+- Prometheus labels may not match — test PromQL queries directly in Prometheus UI
+- Adjust label selectors in `src/app/api/dashboard/overview/route.ts`
+
+**Rollback not triggering automatically**
+- Both TSD drift AND LSI anomaly must be active simultaneously for 3 cycles
+- Check `BACKTRACK_ROLLBACK_ENABLED` is not `false`
+- View rollback history: `curl http://localhost:9090/rollback/history`
+
+**Terminal scrollbar visible**
+- Hard-refresh the page (Ctrl+Shift+R) to clear cached xterm CSS
+
+---
 
 ## API Reference
 
-### GET /api/connections
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/connections` | List all saved connections |
+| `POST` | `/api/connections` | Test or connect (body: `action: test\|connect`) |
+| `GET` | `/api/dashboard/overview` | Aggregated service health + anomaly list |
+| `GET` | `/api/deployments/history` | Rollout history from kubectl |
+| `POST` | `/api/rollback` | Trigger rollback for a service + revision |
+| `GET` | `/api/agent?path=<endpoint>` | Proxy to backtrack-agent (health, metrics, lsi, versions) |
+| `GET` | `/api/prometheus/query` | Proxy PromQL query with Bearer auth |
+| `POST` | `/api/terminal` | Execute shell command, returns stdout/stderr |
 
-Response:
-
-- list of normalized connection records.
-
-### POST /api/connections
-
-Request body fields:
-
-- action: test | connect
-- appName
-- platform: kubernetes | docker
-- architecture: monolith | microservices
-- clusterName
-- namespace
-- apiServerEndpoint
-- prometheusUrl
-- authToken (optional)
-
-Behavior:
-
-- test: only discovers services.
-- connect: discovers and persists connection.
-
-### GET /api/dashboard/overview
-
-Response:
-
-- generatedAt
-- services array
-- anomalies array
-
-### GET /api/prometheus/query
-
-Query params:
-
-- connectionId
-- query
-
-Returns upstream response wrapper including connectionId, upstream status, and data.
-
-### POST /api/terminal
-
-Request body:
-
-- command
-
-Returns:
-
-- output
-- error
-
-## Customization Guide
-
-Use this section to adapt BackTrack to your own environment and style.
-
-### 1) Branding and visual theme
-
-Edit:
-
-- src/app/globals.css
-- src/app/components/Nav.tsx
-- src/app/page.tsx
-
-Recommended customizations:
-
-- app title text and cluster status line,
-- color palette,
-- widget spacing and layout proportions,
-- iconography (lucide-react).
-
-### 2) Dashboard layout composition
-
-Edit:
-
-- src/app/page.tsx
-- src/app/components/ContainerHealth.tsx
-- src/app/components/ActiveContainers.tsx
-- src/app/components/AnomalyDetection.tsx
-
-Examples:
-
-- change card ordering,
-- add status chips for running/down/unknown counts,
-- add sortable columns in active containers table.
-
-### 3) Discovery logic tuning
-
-Edit:
-
-- src/app/api/connections/route.ts
-
-You can tune:
-
-- monolith filtering strategy,
-- label matching rules,
-- service-to-pod relationship mapping.
-
-### 4) PromQL and health model
-
-Edit:
-
-- src/app/api/dashboard/overview/route.ts
-
-You can tune:
-
-- metric queries for your label schema,
-- health priority between pod-level and blackbox signals,
-- anomaly thresholds and severity mapping.
-
-### 5) Persistence strategy
-
-Edit:
-
-- src/lib/monitoring-store.ts
-
-You can replace local file storage with:
-
-- SQLite,
-- PostgreSQL,
-- Redis,
-- external config service.
-
-### 6) Connection form UX
-
-Edit:
-
-- src/app/components/Nav.tsx
-
-You can add:
-
-- form presets per environment,
-- extra validation,
-- required-field checks before API call,
-- hidden advanced options toggles.
+---
 
 ## Security Notes
 
-Before production use, review these points:
+BackTrack is designed for **local or internal operator use only**.
 
-- The terminal API currently executes arbitrary commands from request input.
-- Prometheus token is stored with connection data.
-- Connection persistence is local file based and not encrypted by default.
+- `/api/terminal` executes arbitrary shell commands — do not expose publicly
+- Prometheus auth token stored in `.backtrack/connections.json` (plain text)
+- No authentication or role-based access control by default
+- Add authentication middleware before deploying to shared environments
 
-Minimum hardening recommendations:
-
-1. Disable or protect terminal API with authentication.
-2. Store secrets in a dedicated secret manager, not plain file.
-3. Add server-side validation and endpoint allowlists.
-4. Restrict network access to trusted operator segment.
-
-## Known Limitations
-
-- No rollback route implementation yet (folder exists, route is empty).
-- No built-in authentication/authorization.
-- No role-based access model.
-- No migration/versioning for local connection store.
-- Prometheus query model assumes specific label keys and metric names.
-
-## Roadmap Suggestions
-
-If you want to evolve this project, prioritize:
-
-1. Add authentication and role-based access.
-2. Implement safe command execution with allowlists.
-3. Add environment-based configuration file support.
-4. Add rollback API and audited action history.
-5. Add test suite for API routes and query adapters.
+---
 
 ## License
 
-Add your preferred license in this repository once legal requirements are finalized.
+MIT — see LICENSE file.
