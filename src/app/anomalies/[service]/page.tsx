@@ -1,21 +1,54 @@
-"use client";
+  "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import {
   Activity,
   ArrowLeft,
   CheckCircle2,
   RefreshCw,
+  RotateCcw,
   Search,
   ShieldAlert,
+  History,
+  CircleDot,
   BarChart2,
   Cpu,
   HardDrive,
   Wifi,
   TrendingUp,
+  TerminalSquare,
+  ChevronDown,
+  Maximize2,
 } from "lucide-react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import AnomalyModal from "./AnomalyModal";
+import { useLongPress } from "./useLongPress";
+
+const AnomalyTerminal = dynamic(() => import("../KubernetesTerminal"), { ssr: false });
+
+type ResidualMetric = "cpu" | "memory" | "latency" | "error_rate";
+type HistoryMetric = "memory" | "latency";
+type ActiveModal =
+  | null
+  | { kind: "tsd-live" }
+  | { kind: "residual"; metric: ResidualMetric }
+  | { kind: "tsd-history"; metric: HistoryMetric }
+  | { kind: "lsi-scores" }
+  | { kind: "lsi-history" }
+  | { kind: "lsi-window" }
+  | { kind: "root-cause" }
+  | { kind: "diagnostic" }
+  | { kind: "agent-status" }
+  | { kind: "version-history" };
+
+const RESIDUAL_META: Record<ResidualMetric, { label: string; color: string; unit: string }> = {
+  cpu: { label: "CPU Residuals", color: "#6ee7b7", unit: "%" },
+  memory: { label: "Memory Residuals", color: "#7dd3fc", unit: "MB" },
+  latency: { label: "Latency Residuals", color: "#c4b5fd", unit: "ms" },
+  error_rate: { label: "Error Rate Residuals", color: "#fca5a5", unit: "%" },
+};
 
 // --- Types ---
 
@@ -51,6 +84,54 @@ function severityTone(severity: string) {
 }
 
 function decode(value: string | null) { return value ? decodeURIComponent(value) : "unknown"; }
+
+function versionStatusMeta(status: string) {
+  switch (status) {
+    case "STABLE":
+      return {
+        label: "Stable",
+        border: "border-emerald-500/25",
+        bg: "bg-emerald-500/[0.05]",
+        textColor: "text-emerald-300",
+        iconColor: "text-emerald-400",
+      };
+    case "PENDING":
+      return {
+        label: "Pending",
+        border: "border-cyan-500/25",
+        bg: "bg-cyan-500/[0.05]",
+        textColor: "text-cyan-300",
+        iconColor: "text-cyan-400",
+      };
+    case "ROLLED_BACK":
+      return {
+        label: "Rolled back",
+        border: "border-amber-500/30",
+        bg: "bg-amber-500/[0.06]",
+        textColor: "text-amber-300",
+        iconColor: "text-amber-400",
+      };
+    default:
+      return {
+        label: status || "unknown",
+        border: "border-white/10",
+        bg: "bg-white/[0.03]",
+        textColor: "text-white/60",
+        iconColor: "text-white/40",
+      };
+  }
+}
+
+function formatRelTimestamp(value?: string) {
+  if (!value) return "unknown";
+  const t = new Date(value).getTime();
+  if (Number.isNaN(t)) return "unknown";
+  const delta = Math.floor((Date.now() - t) / 1000);
+  if (delta < 60) return `${delta}s ago`;
+  if (delta < 3600) return `${Math.floor(delta / 60)}m ago`;
+  if (delta < 86400) return `${Math.floor(delta / 3600)}h ago`;
+  return `${Math.floor(delta / 86400)}d ago`;
+}
 
 function estimateIQR(values: number[]): number {
   if (values.length < 4) return 1;
@@ -295,6 +376,53 @@ function ResidualSparkline({
   );
 }
 
+function ResidualTile({
+  metric,
+  label,
+  values,
+  last,
+  thr,
+  lineColor,
+  id,
+  onExpand,
+}: {
+  metric: ResidualMetric;
+  label: string;
+  values: number[];
+  last: number;
+  thr: number;
+  lineColor: string;
+  id: string;
+  onExpand: (metric: ResidualMetric) => void;
+}) {
+  const longPress = useLongPress(() => onExpand(metric));
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={(e) => {
+        e.stopPropagation();
+        onExpand(metric);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onExpand(metric);
+        }
+      }}
+      {...longPress}
+      className="cursor-pointer rounded-xl transition border border-transparent hover:border-[rgba(94,234,212,0.35)] active:border-[rgba(94,234,212,0.6)] p-0.5"
+      title="Click or long-press to expand"
+    >
+      <div className="mb-1 flex items-center justify-between text-[9px]">
+        <span className="text-white/35">{label}</span>
+        <span className="font-mono text-white/35">{(last > 0 ? "+" : "") + last.toFixed(3)}</span>
+      </div>
+      <ResidualSparkline values={values} threshold={thr} lineColor={lineColor} id={id} height={80} />
+    </div>
+  );
+}
+
 // --- Main page ---
 
 export default function ServiceDiagnosticsPage() {
@@ -316,6 +444,61 @@ export default function ServiceDiagnosticsPage() {
   const [agentOnline, setAgentOnline] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>("");
   const [leftTab, setLeftTab] = useState<"tsd" | "lsi">("tsd");
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [activeModal, setActiveModal] = useState<ActiveModal>(null);
+  const [rollingBack, setRollingBack] = useState(false);
+  const [rollbackMessage, setRollbackMessage] = useState<{ kind: "info" | "error"; text: string } | null>(null);
+  const prevVersionsRef = useRef<VersionSnapshot[]>([]);
+  const anomalyDetectedAtRef = useRef<string | null>(null);
+  const anomalyTypeRef = useRef<"TSD" | "LSI" | "BOTH" | "MANUAL">("MANUAL");
+
+  // Auto-detect agent-driven rollback: a new ROLLED_BACK entry appearing.
+  useEffect(() => {
+    const prev = prevVersionsRef.current;
+    if (prev.length > 0 && versions.length > prev.length) {
+      const fresh = versions.find(
+        (v) => v.status === "ROLLED_BACK" && !prev.some((p) => p.id === v.id),
+      );
+      if (fresh) {
+        setRollingBack(false);
+        setRollbackMessage({ kind: "info", text: `Auto-rollback complete · reverted to ${fresh.image_tag}` });
+        setTimeout(() => setRollbackMessage(null), 6000);
+      }
+    }
+    prevVersionsRef.current = versions;
+  }, [versions]);
+
+  const triggerRollback = async () => {
+    if (rollingBack) return;
+    setRollbackMessage(null);
+    setRollingBack(true);
+    try {
+      const res = await fetch("/api/rollback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service: serviceName,
+          namespace,
+          anomaly_detected_at: anomalyDetectedAtRef.current ?? new Date().toISOString(),
+          anomaly_type: anomalyTypeRef.current,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRollingBack(false);
+        setRollbackMessage({ kind: "error", text: data?.error || "Rollback request failed." });
+        setTimeout(() => setRollbackMessage(null), 6000);
+        return;
+      }
+      setRollbackMessage({ kind: "info", text: data?.message || "Rollback initiated." });
+      // Stop spinner once next poll lands a new version, OR after a 30s safety timeout.
+      setTimeout(() => setRollingBack(false), 30000);
+    } catch (err: any) {
+      setRollingBack(false);
+      setRollbackMessage({ kind: "error", text: err?.message || "Rollback request failed." });
+      setTimeout(() => setRollbackMessage(null), 6000);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -328,8 +511,30 @@ export default function ServiceDiagnosticsPage() {
           fetch("/api/agent?path=versions", { cache: "no-store" }),
         ]);
         if (!active) return;
-        if (metricsRes.ok) { const d = await metricsRes.json(); if (!d.error) setTsd(d); }
-        if (lsiRes.ok) { const d = await lsiRes.json(); if (!d.error) setLsi(d); }
+        if (metricsRes.ok) {
+          const d = await metricsRes.json();
+          if (!d.error) {
+            setTsd(d);
+            const tsdDrift = d.is_drifting === true || (d.drifting_metrics && d.drifting_metrics.length > 0);
+            if (tsdDrift && !anomalyDetectedAtRef.current) {
+              anomalyDetectedAtRef.current = new Date().toISOString();
+              anomalyTypeRef.current = "TSD";
+            }
+          }
+        }
+        if (lsiRes.ok) {
+          const d = await lsiRes.json();
+          if (!d.error) {
+            setLsi(d);
+            const lsiAnomaly = d.anomaly_score !== undefined && d.anomaly_score > 0.5;
+            if (lsiAnomaly && !anomalyDetectedAtRef.current) {
+              anomalyDetectedAtRef.current = new Date().toISOString();
+              anomalyTypeRef.current = "LSI";
+            } else if (lsiAnomaly && anomalyTypeRef.current === "TSD") {
+              anomalyTypeRef.current = "BOTH";
+            }
+          }
+        }
         if (versionsRes.ok) { const d = await versionsRes.json(); if (!d.error) setVersions(Array.isArray(d) ? d : []); }
         setAgentOnline(metricsRes.ok || lsiRes.ok);
         setLastUpdate(new Date().toLocaleTimeString());
@@ -400,11 +605,24 @@ export default function ServiceDiagnosticsPage() {
         </div>
       )}
 
+      {/* Reverting banner */}
+      {rollingBack && (
+        <div className="flex shrink-0 items-center gap-3 border-b border-amber-500/30 bg-amber-500/[0.06] px-5 py-2">
+          <RefreshCw size={13} className="text-amber-300 animate-spin shrink-0" />
+          <p className="text-[11px] text-amber-200">
+            <span className="font-semibold">Self-rollback in progress</span>{" — "}reverting{" "}
+            <span className="font-mono">{currentVersion?.image_tag ?? serviceName}</span>
+            {stableVersion && <> to <span className="font-mono">{stableVersion.image_tag}</span></>}
+            . Awaiting agent confirmation…
+          </p>
+        </div>
+      )}
+
       {/* Body — 3 columns */}
       <div className="flex flex-1 min-h-0 overflow-hidden gap-3 p-3">
 
         {/* ── LEFT PANEL: tabbed TSD / LSI ── */}
-        <div className="w-[400px] shrink-0 flex flex-col gap-2 min-h-0">
+        <div className="w-[800px] shrink-0 flex flex-col gap-2 min-h-0">
 
           {/* Status + version row */}
           <div className="grid grid-cols-2 gap-2 shrink-0">
@@ -458,10 +676,24 @@ export default function ServiceDiagnosticsPage() {
             {leftTab === "tsd" && (
               <>
                 {/* Current metrics */}
-                <div className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setActiveModal({ kind: "tsd-live" })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setActiveModal({ kind: "tsd-live" });
+                    }
+                  }}
+                  className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3 cursor-pointer hover:border-white/15 transition"
+                >
                   <div className="flex items-center justify-between mb-2.5">
                     <span className="text-[10px] font-semibold uppercase tracking-widest text-white/40">Live Metrics</span>
-                    <span className="text-[10px] text-white/25">{tsd?.readings_count ?? 0} readings</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-white/25">{tsd?.readings_count ?? 0} readings</span>
+                      <Maximize2 size={11} className="text-white/30" />
+                    </div>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5">
                     {[
@@ -500,39 +732,51 @@ export default function ServiceDiagnosticsPage() {
                     })}
                   </div>
 
-                  {/* 4 residual sparklines */}
+                  {/* 4 residual sparklines — click or long-press to expand */}
                   <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { label: "CPU Residuals", values: cpuResiduals, last: lastCpuResidual, thr: 3 * estimateIQR(cpuResiduals), lineColor: "#6ee7b7", id: "cpu-res" },
-                      { label: "Memory Residuals", values: memResiduals, last: lastMemResidual, thr: 3 * estimateIQR(memResiduals), lineColor: "#7dd3fc", id: "mem-res" },
-                      { label: "Latency Residuals", values: latResiduals, last: lastLatResidual, thr: 3 * estimateIQR(latResiduals), lineColor: "#c4b5fd", id: "lat-res" },
-                      { label: "Error Rate Residuals", values: errResiduals, last: lastErrResidual, thr: 3 * estimateIQR(errResiduals), lineColor: "#fca5a5", id: "err-res" },
-                    ].map((c) => (
-                      <div key={c.label}>
-                        <div className="mb-1 flex items-center justify-between text-[9px]">
-                          <span className="text-white/35">{c.label}</span>
-                          <span className="font-mono text-white/35">{(c.last > 0 ? "+" : "") + c.last.toFixed(3)}</span>
-                        </div>
-                        <ResidualSparkline
-                          values={c.values}
-                          threshold={c.thr}
-                          lineColor={c.lineColor}
-                          id={c.id}
-                          height={80}
-                        />
-                      </div>
+                    {([
+                      { metric: "cpu" as const, label: "CPU Residuals", values: cpuResiduals, last: lastCpuResidual, thr: 3 * estimateIQR(cpuResiduals), lineColor: "#6ee7b7", id: "cpu-res" },
+                      { metric: "memory" as const, label: "Memory Residuals", values: memResiduals, last: lastMemResidual, thr: 3 * estimateIQR(memResiduals), lineColor: "#7dd3fc", id: "mem-res" },
+                      { metric: "latency" as const, label: "Latency Residuals", values: latResiduals, last: lastLatResidual, thr: 3 * estimateIQR(latResiduals), lineColor: "#c4b5fd", id: "lat-res" },
+                      { metric: "error_rate" as const, label: "Error Rate Residuals", values: errResiduals, last: lastErrResidual, thr: 3 * estimateIQR(errResiduals), lineColor: "#fca5a5", id: "err-res" },
+                    ]).map((c) => (
+                      <ResidualTile
+                        key={c.label}
+                        metric={c.metric}
+                        label={c.label}
+                        values={c.values}
+                        last={c.last}
+                        thr={c.thr}
+                        lineColor={c.lineColor}
+                        id={c.id}
+                        onExpand={(metric) => setActiveModal({ kind: "residual", metric })}
+                      />
                     ))}
                   </div>
                 </div>
 
                 {/* Memory History */}
-                <div className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setActiveModal({ kind: "tsd-history", metric: "memory" })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setActiveModal({ kind: "tsd-history", metric: "memory" });
+                    }
+                  }}
+                  className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3 cursor-pointer hover:border-white/15 transition"
+                >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/40">
                       <HardDrive size={11} className="text-sky-400" />
                       Memory History
                     </div>
-                    <span className="text-[10px] font-mono text-sky-400">{tsd?.history.memory.at(-1)?.toFixed(1) ?? "—"} MB</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-sky-400">{tsd?.history.memory.at(-1)?.toFixed(1) ?? "—"} MB</span>
+                      <Maximize2 size={11} className="text-white/30" />
+                    </div>
                   </div>
                   <SparkLine
                     values={tsd?.history.memory ?? []}
@@ -544,13 +788,27 @@ export default function ServiceDiagnosticsPage() {
                 </div>
 
                 {/* Latency History */}
-                <div className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setActiveModal({ kind: "tsd-history", metric: "latency" })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setActiveModal({ kind: "tsd-history", metric: "latency" });
+                    }
+                  }}
+                  className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3 cursor-pointer hover:border-white/15 transition"
+                >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/40">
                       <Wifi size={11} className="text-violet-400" />
                       Latency History
                     </div>
-                    <span className="text-[10px] font-mono text-violet-400">{tsd?.history.latency.at(-1)?.toFixed(0) ?? "—"} ms</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-violet-400">{tsd?.history.latency.at(-1)?.toFixed(0) ?? "—"} ms</span>
+                      <Maximize2 size={11} className="text-white/30" />
+                    </div>
                   </div>
                   <SparkLine
                     values={tsd?.history.latency ?? []}
@@ -579,10 +837,24 @@ export default function ServiceDiagnosticsPage() {
             {leftTab === "lsi" && (
               <>
                 {/* Score + Baseline */}
-                <div className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setActiveModal({ kind: "lsi-scores" })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setActiveModal({ kind: "lsi-scores" });
+                    }
+                  }}
+                  className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3 cursor-pointer hover:border-white/15 transition"
+                >
                   <div className="flex items-center justify-between mb-2.5">
                     <span className="text-[10px] font-semibold uppercase tracking-widest text-white/40">LSI Scores</span>
-                    <span className="text-[10px] text-white/25">{lsi?.fitted ? "Model Active" : `Corpus ${lsi?.corpus_size ?? 0} lines`}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-white/25">{lsi?.fitted ? "Model Active" : `Corpus ${lsi?.corpus_size ?? 0} lines`}</span>
+                      <Maximize2 size={11} className="text-white/30" />
+                    </div>
                   </div>
                   <div className="grid grid-cols-3 gap-1.5 mb-3">
                     <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
@@ -617,7 +889,18 @@ export default function ServiceDiagnosticsPage() {
                 </div>
 
                 {/* Score History */}
-                <div className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setActiveModal({ kind: "lsi-history" })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setActiveModal({ kind: "lsi-history" });
+                    }
+                  }}
+                  className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3 cursor-pointer hover:border-white/15 transition"
+                >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/40">
                       <TrendingUp size={11} className="text-cyan-400" />
@@ -627,6 +910,7 @@ export default function ServiceDiagnosticsPage() {
                       <span className="text-white/30">Baseline</span>
                       <span className="font-mono text-white/50">{lsi?.baseline_mean.toFixed(3) ?? "—"}</span>
                       <span className="text-red-400/60">Threshold {lsi?.threshold.toFixed(3) ?? "—"}</span>
+                      <Maximize2 size={11} className="text-white/30" />
                     </div>
                   </div>
                   <SparkLine
@@ -646,8 +930,22 @@ export default function ServiceDiagnosticsPage() {
 
                 {/* Recent lines */}
                 {lsi && lsi.recent_lines.length > 0 && (
-                  <div className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3">
-                    <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-white/40">Recent Window Lines</div>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setActiveModal({ kind: "lsi-window" })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setActiveModal({ kind: "lsi-window" });
+                      }
+                    }}
+                    className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3 cursor-pointer hover:border-white/15 transition"
+                  >
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-white/40">Recent Window Lines</span>
+                      <Maximize2 size={11} className="text-white/30" />
+                    </div>
                     <div className="space-y-0.5 font-mono text-[10px] max-h-[160px] overflow-y-auto scrollbar-hide">
                       {lsi.recent_lines.slice(-30).map((entry, i) => {
                         const colors: Record<string, string> = { INFO: "text-emerald-400", WARN: "text-yellow-400", ERROR: "text-red-400", NOVEL: "text-purple-400" };
@@ -682,7 +980,7 @@ export default function ServiceDiagnosticsPage() {
         <div className="flex-1 min-w-0 flex flex-col min-h-0 gap-3">
 
           {/* ── Log Stream ── */}
-          <div className="flex-1 min-h-0 rounded-2xl border border-white/[0.06] bg-[#161b22] overflow-hidden flex flex-col">
+          <div className={`${terminalOpen ? "h-1/2" : "flex-1"} min-h-0 rounded-2xl border border-white/[0.06] bg-[#161b22] overflow-hidden flex flex-col`}>
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] shrink-0">
               <span className="text-[9px] font-semibold uppercase tracking-widest text-white/40">Classified Log Stream</span>
               <div className="flex items-center gap-3 text-[9px] text-white/25">
@@ -737,19 +1035,67 @@ export default function ServiceDiagnosticsPage() {
               )}
             </div>
           </div>
+
+          {/* ── Terminal pane ── */}
+          {terminalOpen && (
+            <div className="h-1/2 min-h-0 rounded-2xl border border-white/[0.06] bg-[#0d1117] overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] shrink-0">
+                <div className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-widest text-white/40">
+                  <TerminalSquare size={12} className="text-[var(--accent-teal)]" />
+                  Terminal
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTerminalOpen(false)}
+                  className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] text-white/40 hover:bg-white/[0.05] hover:text-white/70 transition"
+                  aria-label="Close terminal"
+                >
+                  <ChevronDown size={12} />
+                  Close
+                </button>
+              </div>
+              <div className="flex-1 min-h-0">
+                <AnomalyTerminal />
+              </div>
+            </div>
+          )}
+
+          {/* ── Toggle button ── */}
+          {!terminalOpen && (
+            <button
+              type="button"
+              onClick={() => setTerminalOpen(true)}
+              className="shrink-0 flex items-center justify-center gap-2 rounded-xl border border-white/[0.06] bg-[#161b22] px-3 py-2 text-[11px] text-white/55 hover:border-[rgba(94,234,212,0.35)] hover:bg-[rgba(94,234,212,0.06)] hover:text-[var(--accent-teal)] transition"
+            >
+              <TerminalSquare size={13} />
+              Open Terminal
+            </button>
+          )}
         </div>
 
         {/* ── RIGHT SIDEBAR ── */}
-        <aside className="w-[256px] shrink-0 flex flex-col gap-3 overflow-y-auto scrollbar-hide">
+        <aside className="w-[440px] shrink-0 flex flex-col gap-3 overflow-y-auto scrollbar-hide">
 
           {/* Root Cause Analysis */}
-          <div className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-4">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setActiveModal({ kind: "root-cause" })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setActiveModal({ kind: "root-cause" });
+              }
+            }}
+            className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-4 cursor-pointer hover:border-white/15 transition"
+          >
             <div className="flex items-center gap-2 mb-3">
               <Search size={14} className="text-white/50" />
               <span className="font-semibold text-sm text-white">Root Cause</span>
               {insight.driver !== "NONE" && (
                 <span className="ml-auto rounded-full border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-[9px] text-orange-300">ACTIVE</span>
               )}
+              <Maximize2 size={12} className={`text-white/30 ${insight.driver !== "NONE" ? "" : "ml-auto"}`} />
             </div>
             <div className="rounded-xl border border-white/[0.05] bg-[#0d1117] p-2.5 mb-2.5">
               <div className="text-[9px] uppercase tracking-wide text-white/30 mb-1">Analysis</div>
@@ -792,10 +1138,22 @@ export default function ServiceDiagnosticsPage() {
           </div>
 
           {/* Diagnostic Summary */}
-          <div className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-4">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setActiveModal({ kind: "diagnostic" })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setActiveModal({ kind: "diagnostic" });
+              }
+            }}
+            className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-4 cursor-pointer hover:border-white/15 transition"
+          >
             <div className="flex items-center gap-2 mb-3">
               <Activity size={14} className="text-white/50" />
               <span className="font-semibold text-sm text-white">Diagnostic Summary</span>
+              <Maximize2 size={12} className="text-white/30 ml-auto" />
             </div>
             <div className="space-y-2 text-[11px]">
               {[
@@ -813,10 +1171,22 @@ export default function ServiceDiagnosticsPage() {
           </div>
 
           {/* Agent Status */}
-          <div className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-4">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setActiveModal({ kind: "agent-status" })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setActiveModal({ kind: "agent-status" });
+              }
+            }}
+            className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-4 cursor-pointer hover:border-white/15 transition"
+          >
             <div className="flex items-center gap-2 mb-3">
               <ShieldAlert size={14} className="text-white/50" />
               <span className="font-semibold text-sm text-white">Agent Status</span>
+              <Maximize2 size={12} className="text-white/30 ml-auto" />
             </div>
             <div className="space-y-1.5 text-[11px]">
               {[
@@ -835,9 +1205,88 @@ export default function ServiceDiagnosticsPage() {
           </div>
 
           {/* Actions */}
+          {/* Version History */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setActiveModal({ kind: "version-history" })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setActiveModal({ kind: "version-history" });
+              }
+            }}
+            className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-4 cursor-pointer hover:border-white/15 transition"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <History size={14} className="text-white/50" />
+              <span className="font-semibold text-sm text-white">Version History</span>
+              <span className="ml-auto text-[10px] text-white/35">{versions.length} total</span>
+              <Maximize2 size={12} className="text-white/30" />
+            </div>
+            <div className="space-y-1.5">
+              {rollingBack && (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-2.5 py-1.5">
+                  <RefreshCw size={11} className="text-amber-300 animate-spin" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-semibold text-amber-200">Reverting…</div>
+                    <div className="text-[9px] text-white/40 truncate">Awaiting agent confirmation</div>
+                  </div>
+                </div>
+              )}
+              {versions.length === 0 && !rollingBack && (
+                <div className="text-[10px] text-white/30 px-1">No version snapshots yet.</div>
+              )}
+              {versions.slice(0, 4).map((v) => {
+                const meta = versionStatusMeta(v.status);
+                return (
+                  <div key={v.id} className={`flex items-center gap-2 rounded-lg border ${meta.border} ${meta.bg} px-2.5 py-1.5`}>
+                    <CircleDot size={9} className={meta.iconColor} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-mono text-white/80 truncate">{v.image_tag}</div>
+                      <div className="text-[9px] text-white/35">{formatRelTimestamp(v.created_at)}</div>
+                    </div>
+                    <span className={`text-[9px] font-semibold uppercase tracking-wide ${meta.textColor}`}>{meta.label}</span>
+                  </div>
+                );
+              })}
+              {versions.length > 4 && (
+                <div className="text-[9.5px] text-white/35 px-1">+{versions.length - 4} more · click to expand</div>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
           <div className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-4">
             <h3 className="text-sm font-semibold text-white mb-3">Actions</h3>
             <div className="space-y-2">
+              <button
+                type="button"
+                disabled={rollingBack || !stableVersion}
+                onClick={triggerRollback}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500/35 bg-amber-500/[0.08] px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/[0.14] transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {rollingBack ? (
+                  <>
+                    <RefreshCw size={12} className="animate-spin" />
+                    Reverting…
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw size={12} />
+                    Rollback to Stable
+                  </>
+                )}
+              </button>
+              {rollbackMessage && (
+                <div className={`rounded-lg border px-2.5 py-1.5 text-[10.5px] ${
+                  rollbackMessage.kind === "error"
+                    ? "border-red-500/30 bg-red-500/[0.07] text-red-300"
+                    : "border-emerald-500/25 bg-emerald-500/[0.06] text-emerald-300"
+                }`}>
+                  {rollbackMessage.text}
+                </div>
+              )}
               <Link
                 href="/anomalies"
                 className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/70 hover:bg-white/[0.08] transition"
@@ -845,7 +1294,7 @@ export default function ServiceDiagnosticsPage() {
                 <ArrowLeft size={12} />
                 Back to Terminal
               </Link>
-              {stableVersion && (
+              {stableVersion && !rollingBack && (
                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] p-3">
                   <div className="flex items-center gap-1.5 text-[11px] text-emerald-400">
                     <CheckCircle2 size={12} />
@@ -859,6 +1308,380 @@ export default function ServiceDiagnosticsPage() {
 
         </aside>
       </div>
+
+      {/* ── Detail Modals ── */}
+      <AnomalyModal
+        open={activeModal?.kind === "tsd-live"}
+        onClose={() => setActiveModal(null)}
+        title="Live Metrics"
+        subtitle={`${tsd?.readings_count ?? 0} readings · STL decomposition residuals`}
+        size="lg"
+      >
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          {[
+            { label: "CPU", value: `${tsd?.current.cpu_percent.toFixed(1) ?? "—"}%`, color: "text-emerald-400" },
+            { label: "Memory", value: `${tsd?.current.memory_mb.toFixed(1) ?? "—"} MB`, color: "text-sky-400" },
+            { label: "Latency", value: `${tsd?.current.latency_ms.toFixed(0) ?? "—"} ms`, color: "text-violet-400" },
+            { label: "Error Rate", value: `${tsd?.current.error_rate_percent.toFixed(2) ?? "—"}%`, color: "text-rose-400" },
+          ].map((s) => (
+            <div key={s.label} className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
+              <div className="text-[11px] uppercase tracking-wide text-white/40">{s.label}</div>
+              <div className={`mt-1 text-2xl font-bold ${s.color}`}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+        <div className="space-y-3">
+          {[
+            { label: "CPU history", values: tsd?.history.cpu ?? [], color: "#6ee7b7", id: "m-cpu" },
+            { label: "Memory history", values: tsd?.history.memory ?? [], color: "#7dd3fc", id: "m-mem" },
+            { label: "Latency history", values: tsd?.history.latency ?? [], color: "#c4b5fd", id: "m-lat" },
+            { label: "Error rate history", values: tsd?.history.error_rate ?? [], color: "#fca5a5", id: "m-err" },
+          ].map((h) => (
+            <div key={h.id} className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
+              <div className="mb-2 flex items-center justify-between text-[11px]">
+                <span className="text-white/55">{h.label}</span>
+                <span className="font-mono text-white/40">{h.values.at(-1)?.toFixed(2) ?? "—"}</span>
+              </div>
+              <SparkLine values={h.values} lineColor={h.color} id={h.id} height={140} />
+            </div>
+          ))}
+        </div>
+      </AnomalyModal>
+
+      <AnomalyModal
+        open={activeModal?.kind === "residual"}
+        onClose={() => setActiveModal(null)}
+        title={activeModal?.kind === "residual" ? RESIDUAL_META[activeModal.metric].label : ""}
+        subtitle="STL residuals · 3×IQR drift threshold"
+        size="lg"
+      >
+        {activeModal?.kind === "residual" && (() => {
+          const m = activeModal.metric;
+          const values = tsd?.residuals[m] ?? [];
+          const meta = RESIDUAL_META[m];
+          const last = values.at(-1) ?? 0;
+          const thr = 3 * estimateIQR(values);
+          const ratio = thr > 0 ? Math.abs(last) / thr : 0;
+          const hot = ratio > 1.0;
+          const stats = values.length
+            ? {
+                min: Math.min(...values),
+                max: Math.max(...values),
+                avg: values.reduce((a, b) => a + b, 0) / values.length,
+              }
+            : { min: 0, max: 0, avg: 0 };
+          return (
+            <>
+              <div className="grid grid-cols-4 gap-2 mb-4">
+                <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-white/40">Last</div>
+                  <div className={`mt-1 text-lg font-bold ${hot ? "text-red-400" : "text-emerald-400"}`}>
+                    {(last > 0 ? "+" : "") + last.toFixed(3)}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-white/40">3×IQR threshold</div>
+                  <div className="mt-1 text-lg font-bold text-white/75">±{thr.toFixed(3)}</div>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-white/40">Drift ratio</div>
+                  <div className={`mt-1 text-lg font-bold ${hot ? "text-red-400" : "text-emerald-400"}`}>
+                    {ratio.toFixed(2)}×
+                  </div>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-white/40">Verdict</div>
+                  <div className={`mt-1 text-sm font-bold ${hot ? "text-red-400" : "text-emerald-400"}`}>
+                    {hot ? "DRIFTING" : "NORMAL"}
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3 mb-4">
+                <ResidualSparkline values={values} threshold={thr} lineColor={meta.color} id={`big-${m}`} height={320} />
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-[11px]">
+                <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] px-3 py-2">
+                  <span className="text-white/40">Min</span>{" "}
+                  <span className="font-mono text-white/80">{stats.min.toFixed(3)}</span>
+                </div>
+                <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] px-3 py-2">
+                  <span className="text-white/40">Avg</span>{" "}
+                  <span className="font-mono text-white/80">{stats.avg.toFixed(3)}</span>
+                </div>
+                <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] px-3 py-2">
+                  <span className="text-white/40">Max</span>{" "}
+                  <span className="font-mono text-white/80">{stats.max.toFixed(3)}</span>
+                </div>
+              </div>
+            </>
+          );
+        })()}
+      </AnomalyModal>
+
+      <AnomalyModal
+        open={activeModal?.kind === "tsd-history"}
+        onClose={() => setActiveModal(null)}
+        title={activeModal?.kind === "tsd-history" ? `${activeModal.metric === "memory" ? "Memory" : "Latency"} History` : ""}
+        size="lg"
+      >
+        {activeModal?.kind === "tsd-history" && (() => {
+          const m = activeModal.metric;
+          const values = tsd?.history[m] ?? [];
+          const color = m === "memory" ? "#7dd3fc" : "#c4b5fd";
+          const unit = m === "memory" ? "MB" : "ms";
+          const stats = values.length
+            ? {
+                min: Math.min(...values),
+                max: Math.max(...values),
+                avg: values.reduce((a, b) => a + b, 0) / values.length,
+                cur: values.at(-1) ?? 0,
+              }
+            : { min: 0, max: 0, avg: 0, cur: 0 };
+          return (
+            <>
+              <div className="grid grid-cols-4 gap-2 mb-4">
+                {[
+                  { l: "Current", v: stats.cur },
+                  { l: "Min", v: stats.min },
+                  { l: "Avg", v: stats.avg },
+                  { l: "Max", v: stats.max },
+                ].map((s) => (
+                  <div key={s.l} className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
+                    <div className="text-[10px] uppercase tracking-wide text-white/40">{s.l}</div>
+                    <div className="mt-1 text-lg font-bold" style={{ color }}>
+                      {s.v.toFixed(m === "memory" ? 1 : 0)} {unit}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
+                <SparkLine values={values} lineColor={color} id={`big-${m}-hist`} height={300} unit={unit} />
+              </div>
+            </>
+          );
+        })()}
+      </AnomalyModal>
+
+      <AnomalyModal
+        open={activeModal?.kind === "lsi-scores"}
+        onClose={() => setActiveModal(null)}
+        title="LSI Scores"
+        subtitle={lsi?.fitted ? "Model fitted · cosine similarity to baseline centroids" : `Corpus warming up: ${lsi?.corpus_size ?? 0} lines`}
+        size="lg"
+      >
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
+            <div className="text-[11px] uppercase tracking-wide text-white/40">Current Score</div>
+            <div className={`mt-1 text-2xl font-bold ${lsi?.is_anomalous ? "text-red-400" : "text-cyan-300"}`}>
+              {lsi?.current_score.toFixed(4) ?? "—"}
+            </div>
+          </div>
+          <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
+            <div className="text-[11px] uppercase tracking-wide text-white/40">Baseline Mean</div>
+            <div className="mt-1 text-2xl font-bold text-white/80">{lsi?.baseline_mean.toFixed(4) ?? "—"}</div>
+          </div>
+          <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
+            <div className="text-[11px] uppercase tracking-wide text-white/40">Threshold</div>
+            <div className="mt-1 text-2xl font-bold text-red-300/80">{lsi?.threshold.toFixed(4) ?? "—"}</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {(["INFO", "WARN", "ERROR", "NOVEL"] as const).map((label) => {
+            const colors: Record<string, string> = { INFO: "text-emerald-400", WARN: "text-yellow-400", ERROR: "text-red-400", NOVEL: "text-purple-400" };
+            return (
+              <div key={label} className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3 text-center">
+                <div className="text-[10px] uppercase tracking-wide text-white/40">{label}</div>
+                <div className={`mt-1 text-2xl font-bold ${colors[label]}`}>{lsi?.window_counts[label] ?? 0}</div>
+              </div>
+            );
+          })}
+        </div>
+      </AnomalyModal>
+
+      <AnomalyModal
+        open={activeModal?.kind === "lsi-history"}
+        onClose={() => setActiveModal(null)}
+        title="LSI Score History"
+        subtitle="Cosine-similarity score per window · baseline + threshold overlaid"
+        size="lg"
+      >
+        <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
+          <SparkLine values={scoreHistory} threshold={lsi?.threshold} baseline={lsi?.baseline_mean} lineColor="#67e8f9" id="big-lsi-score" height={300} />
+        </div>
+        <div className="mt-3 flex items-center gap-4 text-[11px] text-white/40">
+          <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t border-dashed border-red-400/60" /> Threshold {lsi?.threshold.toFixed(4) ?? "—"}</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t border-dashed border-white/25" /> Baseline mean {lsi?.baseline_mean.toFixed(4) ?? "—"}</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-cyan-400" /> Current {lsi?.current_score.toFixed(4) ?? "—"}</span>
+        </div>
+      </AnomalyModal>
+
+      <AnomalyModal
+        open={activeModal?.kind === "lsi-window"}
+        onClose={() => setActiveModal(null)}
+        title="Recent Window Lines"
+        subtitle={`${lsi?.recent_lines.length ?? 0} lines · classified by trained SVD model`}
+        size="xl"
+      >
+        <div className="space-y-0.5 font-mono text-[12px] leading-6">
+          {(lsi?.recent_lines ?? []).map((entry, i) => {
+            const colors: Record<string, string> = { INFO: "text-emerald-400", WARN: "text-yellow-400", ERROR: "text-red-400", NOVEL: "text-purple-400" };
+            return (
+              <div key={i} className="flex gap-3 px-2 py-1 rounded hover:bg-white/[0.03]">
+                <span className={`shrink-0 w-14 text-right font-bold ${colors[entry.label] ?? "text-white/40"}`}>{entry.label}</span>
+                <span className="text-white/70 break-all">{entry.line}</span>
+              </div>
+            );
+          })}
+        </div>
+      </AnomalyModal>
+
+      <AnomalyModal
+        open={activeModal?.kind === "root-cause"}
+        onClose={() => setActiveModal(null)}
+        title="Root Cause Analysis"
+        subtitle={insight.headline}
+        size="lg"
+      >
+        <p className="text-[13px] leading-7 text-white/70 mb-4">{insight.explanation}</p>
+        {insight.driftingMetrics.length > 0 && (
+          <div className="mb-4">
+            <div className="text-[11px] uppercase tracking-wide text-white/40 mb-2">Drifting Metrics</div>
+            <div className="space-y-1.5">
+              {insight.driftingMetrics.map((m) => (
+                <div key={m.name} className="flex items-center justify-between rounded-xl border border-red-500/20 bg-red-500/[0.05] px-3 py-2.5">
+                  <div>
+                    <div className="text-[12px] text-white/80">{m.name}</div>
+                    <div className="text-[10px] text-white/40 font-mono">last residual {(m.lastResidual > 0 ? "+" : "") + m.lastResidual.toFixed(3)} · 3×IQR ±{m.iqrThreshold.toFixed(3)}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[16px] font-bold text-red-400">{m.ratio.toFixed(1)}×</div>
+                    <div className="text-[10px] text-white/35">over threshold</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {lsi?.is_anomalous && (
+          <div className="mb-4 rounded-xl border border-purple-500/20 bg-purple-500/[0.05] px-3 py-2.5">
+            <div className="text-[11px] uppercase tracking-wide text-white/40 mb-1">Log Anomaly</div>
+            <div className="text-[12px] text-white/80">
+              LSI score {lsi.current_score.toFixed(4)} is {(insight.scoreRatio).toFixed(2)}× the threshold ({lsi.threshold.toFixed(4)}).
+              NOVEL ratio {(insight.novelRatio * 100).toFixed(0)}% · ERROR ratio {(insight.errorRatio * 100).toFixed(0)}%.
+            </div>
+          </div>
+        )}
+        {insight.novelLines.length > 0 && (
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-white/40 mb-2">Unknown Patterns</div>
+            <div className="space-y-1 rounded-xl border border-white/[0.05] bg-[#0d1117] p-3 font-mono text-[12px]">
+              {insight.novelLines.map((e, i) => (
+                <div key={i} className="flex gap-2 text-purple-300/80 leading-6">
+                  <span className="shrink-0 text-purple-500/60">▸</span>
+                  <span className="break-all">{e.line}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </AnomalyModal>
+
+      <AnomalyModal
+        open={activeModal?.kind === "diagnostic"}
+        onClose={() => setActiveModal(null)}
+        title="Diagnostic Summary"
+        size="md"
+      >
+        <div className="space-y-2">
+          {[
+            { label: "Detected Issue", value: message, color: tones.accent },
+            { label: "Current vs Baseline", value: `${current} vs ${baseline}`, color: "text-white/80" },
+            { label: "Metric", value: metric, color: "text-white/80" },
+            { label: "Namespace", value: namespace, color: "text-white/80" },
+            { label: "Service", value: serviceName, color: "text-white/80" },
+            { label: "Severity", value: severity, color: tones.accent },
+          ].map((row) => (
+            <div key={row.label} className="rounded-xl border border-white/[0.06] bg-[#0d1117] px-4 py-3">
+              <div className="text-[11px] uppercase tracking-wide text-white/40">{row.label}</div>
+              <div className={`mt-1 text-[14px] font-semibold ${row.color}`}>{row.value}</div>
+            </div>
+          ))}
+        </div>
+      </AnomalyModal>
+
+      <AnomalyModal
+        open={activeModal?.kind === "agent-status"}
+        onClose={() => setActiveModal(null)}
+        title="Agent Status"
+        subtitle={agentOnline ? "backtrack-agent online · port 9090" : "backtrack-agent offline"}
+        size="md"
+      >
+        <div className="space-y-2">
+          {[
+            { label: "TSD Drift", value: tsd?.is_drifting ? "DRIFTING" : "Normal", hot: !!tsd?.is_drifting },
+            { label: "LSI Anomaly", value: lsi?.is_anomalous ? "ANOMALOUS" : "Normal", hot: !!lsi?.is_anomalous },
+            { label: "LSI Model", value: lsi?.fitted ? "Fitted" : "Training", hot: !lsi?.fitted },
+            { label: "TSD Readings", value: String(tsd?.readings_count ?? 0), hot: false },
+            { label: "LSI Corpus", value: String(lsi?.corpus_size ?? 0), hot: false },
+            { label: "Versions", value: String(versions.length), hot: false },
+            { label: "Last Update", value: lastUpdate || "—", hot: false },
+          ].map((row) => (
+            <div key={row.label} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-[#0d1117] px-4 py-3">
+              <span className="text-[12px] text-white/55">{row.label}</span>
+              <span className={`text-[13px] font-semibold ${row.hot ? "text-red-400" : "text-emerald-400"}`}>{row.value}</span>
+            </div>
+          ))}
+        </div>
+      </AnomalyModal>
+
+      <AnomalyModal
+        open={activeModal?.kind === "version-history"}
+        onClose={() => setActiveModal(null)}
+        title="Version History"
+        subtitle={`${versions.length} snapshots tracked by backtrack-agent`}
+        size="lg"
+      >
+        {rollingBack && (
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] px-4 py-3">
+            <RefreshCw size={16} className="text-amber-300 animate-spin shrink-0" />
+            <div>
+              <div className="text-[13px] font-semibold text-amber-200">Reverting…</div>
+              <div className="text-[11px] text-white/50">
+                Rolling back{" "}
+                <span className="font-mono">{currentVersion?.image_tag ?? serviceName}</span>
+                {stableVersion && <> to <span className="font-mono">{stableVersion.image_tag}</span></>}
+                . Awaiting agent confirmation.
+              </div>
+            </div>
+          </div>
+        )}
+        {versions.length === 0 && !rollingBack && (
+          <div className="text-center text-[12px] text-white/40 py-6">No version snapshots yet.</div>
+        )}
+        <div className="space-y-2">
+          {versions.map((v, idx) => {
+            const meta = versionStatusMeta(v.status);
+            const isLatest = idx === 0;
+            return (
+              <div key={v.id} className={`flex items-center gap-3 rounded-xl border ${meta.border} ${meta.bg} px-4 py-3`}>
+                <CircleDot size={12} className={meta.iconColor} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-mono text-white/90 truncate">{v.image_tag}</span>
+                    {isLatest && (
+                      <span className="rounded-full border border-cyan-500/30 bg-cyan-500/[0.08] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-cyan-300">Latest</span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-white/40 font-mono mt-0.5">
+                    {formatRelTimestamp(v.created_at)} · {v.id.slice(0, 8)}
+                  </div>
+                </div>
+                <span className={`text-[11px] font-semibold uppercase tracking-wide ${meta.textColor}`}>{meta.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </AnomalyModal>
     </div>
   );
 }

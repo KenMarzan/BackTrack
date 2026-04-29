@@ -109,6 +109,15 @@ export function getConnection(id: string) {
 	return readConnections().find((connection) => connection.id === id) ?? null;
 }
 
+export function findConnectionByNamespace(namespace: string): AppConnection | null {
+	const connections = readConnections();
+	return (
+		connections.find((c) => (c.namespace || "default") === namespace) ??
+		connections[0] ??
+		null
+	);
+}
+
 export function registerConnection(input: AppConnectionInput) {
 	const connections = readConnections();
 	const existingIndex = connections.findIndex(

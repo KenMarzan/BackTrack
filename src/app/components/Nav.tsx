@@ -128,6 +128,8 @@ function Nav({ healthSummary }: NavProps) {
             {([
               { href: "/", label: "Dashboard" },
               { href: "/anomalies", label: "Anomalies" },
+              { href: "/metrics", label: "Metrics" },
+              { href: "/evaluate", label: "Evaluate" },
             ] as const).map(({ href, label }) => {
               const isActive =
                 href === "/"

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const allowed = ["health", "config", "metrics", "lsi", "versions", "services", "rollback/history"];
+  const allowed = ["health", "config", "metrics", "lsi", "versions", "services", "rollback/history", "fault/status"];
   if (!allowed.includes(agentPath)) {
     return NextResponse.json(
       { error: `Invalid path. Allowed: ${allowed.join(", ")}` },
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const allowed = ["rollback/trigger"];
+  const allowed = ["rollback/trigger", "fault/inject/crash", "fault/inject/latency", "fault/inject/logs", "fault/reset"];
   if (!allowed.includes(agentPath)) {
     return NextResponse.json(
       { error: `Invalid POST path. Allowed: ${allowed.join(", ")}` },
