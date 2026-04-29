@@ -18,7 +18,8 @@ from src.versions import Snapshot, VersionStore
 
 logger = logging.getLogger("backtrack.rollback")
 
-ROLLBACK_LOG_FILE = "/data/rollback_log.json"
+_DATA_DIR = os.getenv("BACKTRACK_DATA_DIR", "/data")
+ROLLBACK_LOG_FILE = os.path.join(_DATA_DIR, "rollback_log.json")
 
 
 class RollbackExecutor:
@@ -120,7 +121,9 @@ class RollbackExecutor:
 
     def _append_log(self, reason: str, from_tag: str, to_tag: str, success: bool) -> None:
         """Append a rollback event to the log file."""
-        os.makedirs(os.path.dirname(ROLLBACK_LOG_FILE), exist_ok=True)
+        log_dir = os.path.dirname(ROLLBACK_LOG_FILE)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
         log_entry = {
             "id": str(uuid.uuid4()),
             "timestamp": datetime.now(timezone.utc).isoformat(),

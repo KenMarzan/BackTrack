@@ -306,11 +306,24 @@ export async function GET() {
 		}
 	}
 
+	// Fetch agent anomaly signals (LSI + TSD)
+	const agentUrl = process.env.BACKTRACK_AGENT_URL || "http://localhost:9090";
+	type AgentService = { name: string; is_drifting: boolean; is_anomalous: boolean };
+	let agentServices: AgentService[] = [];
+	try {
+		const res = await fetch(`${agentUrl}/services`, { cache: "no-store", signal: AbortSignal.timeout(3000) });
+		if (res.ok) agentServices = (await res.json()) as AgentService[];
+	} catch { /* agent unavailable */ }
+
+	const agentAnomalyMap = new Map<string, AgentService>(
+		agentServices.filter((s) => s.is_drifting || s.is_anomalous).map((s) => [s.name, s])
+	);
+
 	const anomalies: DashboardAnomaly[] = services
 		.flatMap((service) => {
 			const issues: DashboardAnomaly[] = [];
-
 			const now = new Date().toISOString();
+
 			if (service.status === "down") {
 				issues.push({
 					id: `${service.id}-down`,
@@ -340,9 +353,49 @@ export async function GET() {
 				});
 			}
 
+			const agentSvc = agentAnomalyMap.get(service.name);
+			if (agentSvc) {
+				const signals = [agentSvc.is_drifting ? "TSD drift" : "", agentSvc.is_anomalous ? "LSI log anomaly" : ""]
+					.filter(Boolean).join(" + ");
+				issues.push({
+					id: `${service.id}-agent`,
+					service: service.name,
+					namespace: service.namespace,
+					severity: agentSvc.is_drifting && agentSvc.is_anomalous ? "critical" : "high",
+					message: `BackTrack agent detected: ${signals}`,
+					metric: agentSvc.is_drifting ? "cpu" : "logs",
+					baseline: "nominal",
+					current: signals,
+					detectedAt: now,
+					autoRollback: true,
+				});
+			}
+
 			return issues;
 		})
 		.slice(0, 20);
+
+	// Also surface agent anomalies for services the dashboard doesn't know about
+	const dashboardServiceNames = new Set(services.map((s) => s.name));
+	const now = new Date().toISOString();
+	for (const agentSvc of agentServices) {
+		if (!agentSvc.is_drifting && !agentSvc.is_anomalous) continue;
+		if (dashboardServiceNames.has(agentSvc.name)) continue;
+		const signals = [agentSvc.is_drifting ? "TSD drift" : "", agentSvc.is_anomalous ? "LSI log anomaly" : ""]
+			.filter(Boolean).join(" + ");
+		anomalies.push({
+			id: `agent-${agentSvc.name}`,
+			service: agentSvc.name,
+			namespace: "default",
+			severity: agentSvc.is_drifting && agentSvc.is_anomalous ? "critical" : "high",
+			message: `BackTrack agent detected: ${signals}`,
+			metric: agentSvc.is_drifting ? "cpu" : "logs",
+			baseline: "nominal",
+			current: signals,
+			detectedAt: now,
+			autoRollback: true,
+		});
+	}
 
 	return NextResponse.json({
 		generatedAt: new Date().toISOString(),

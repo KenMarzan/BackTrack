@@ -238,8 +238,21 @@ class LSICollector:
         except Exception:
             logger.exception("LSI fit failed")
 
+    def _keyword_classify(self, line: str) -> Optional[str]:
+        """Fast-path: return ERROR/WARN if seed keywords hit, else None for SVD path."""
+        lower = line.lower()
+        for label in ("ERROR", "WARN"):
+            if any(kw in lower for kw in SEED_KEYWORDS[label]):
+                return label
+        return None
+
     def _classify(self, line: str) -> str:
-        """Classify a single log line using cosine similarity to seed centroids."""
+        """Classify a single log line. Keyword pre-check, then SVD cosine similarity."""
+        # Fast path: keyword match catches OOV tokens the SVD model would miss
+        kw = self._keyword_classify(line)
+        if kw:
+            return kw
+
         if not self.vectorizer or not self.svd or not self.centroids:
             return "INFO"
 
@@ -255,7 +268,7 @@ class LSICollector:
             best_label = max(scores, key=scores.get)  # type: ignore[arg-type]
             best_score = scores[best_label]
 
-            return best_label if best_score > 0.25 else "NOVEL"
+            return best_label if best_score > 0.10 else "NOVEL"
 
         except Exception:
             return "INFO"
@@ -284,15 +297,18 @@ class LSICollector:
         self.window_total = 0
 
     def is_anomalous(self) -> bool:
-        """Returns True if current LSI score > 2× baseline mean."""
+        """Returns True if LSI score exceeds relative or absolute threshold."""
         if not self.baseline_locked or not self.score_history:
             return False
         baseline_mean = float(np.mean(self.baseline_scores))
         current_score = self.score_history[-1] if self.score_history else 0.0
-        threshold = config.lsi_score_multiplier * baseline_mean
-        if threshold <= 0:
+        # Absolute floor so a high-error rate is always caught even with inflated baseline
+        ABS_FLOOR = 1.5
+        if current_score > ABS_FLOOR:
+            return True
+        if baseline_mean <= 0:
             return False
-        return current_score > threshold
+        return current_score > config.lsi_score_multiplier * baseline_mean
 
     def get_lsi(self) -> dict:
         """Return LSI status for the /lsi endpoint."""
@@ -304,7 +320,7 @@ class LSICollector:
             "corpus_size": len(self.corpus),
             "current_score": round(current_score, 4),
             "baseline_mean": round(baseline_mean, 4),
-            "threshold": round(config.lsi_score_multiplier * baseline_mean, 4),
+            "threshold": round(max(1.5, config.lsi_score_multiplier * baseline_mean), 4),
             "is_anomalous": self.is_anomalous(),
             "window_counts": dict(self.window_counts),
             "score_history": [round(s, 4) for s in self.score_history[-20:]],

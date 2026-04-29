@@ -4,7 +4,7 @@ services:
   backtrack-dashboard:
     image: zeritzuu/backtrack-dashboard:latest
     build:
-      context: .
+      context: ./backtrack-dashboard
       dockerfile: Dockerfile
     ports:
       - "3000:3000"

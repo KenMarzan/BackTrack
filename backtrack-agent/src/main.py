@@ -44,11 +44,18 @@ rollback_executor: Optional[RollbackExecutor] = None
 STABLE_THRESHOLD_SECONDS = int(os.getenv("BACKTRACK_STABLE_SECONDS", "600"))
 consecutive_anomaly_counts: dict[str, int] = {}
 clean_seconds_map: dict[str, int] = {}
+rollback_cooldown_until: dict[str, float] = {}
 
 
 async def _discover_services() -> list[tuple[str, str]]:
     """Returns list of (service_name, label_selector) tuples."""
     if config.mode == "docker":
+        if not config.target:
+            logger.warning(
+                "BACKTRACK_TARGET is not set — no services to monitor. "
+                "Set BACKTRACK_TARGET=<container_name> and restart."
+            )
+            return []
         return [(config.target, "")]
 
     # If a specific target is set, monitor only that deployment
@@ -75,8 +82,11 @@ async def _discover_services() -> list[tuple[str, str]]:
         return []
 
 
+ROLLBACK_COOLDOWN_SECONDS = int(os.getenv("BACKTRACK_ROLLBACK_COOLDOWN", "120"))
+
+
 async def polling_loop() -> None:
-    global consecutive_anomaly_counts, clean_seconds_map, version_store, rollback_executor
+    global consecutive_anomaly_counts, clean_seconds_map, rollback_cooldown_until, version_store, rollback_executor
 
     while True:
         await asyncio.sleep(config.scrape_interval)
@@ -88,14 +98,20 @@ async def polling_loop() -> None:
                 count = consecutive_anomaly_counts.get(svc_name, 0)
                 clean = clean_seconds_map.get(svc_name, 0)
 
-                if drifting and anomalous:
-                    count += 1
-                    clean = 0
-                    logger.warning("Anomaly [%s] cycle %d/3", svc_name, count)
-                    if count >= 3 and rollback_executor:
-                        logger.critical("ROLLBACK for %s — 3 consecutive anomaly cycles.", svc_name)
-                        rollback_executor.trigger(reason=f"TSD+LSI anomaly on {svc_name} for 3 cycles")
-                        count = 0
+                in_cooldown = time.time() < rollback_cooldown_until.get(svc_name, 0)
+                if drifting or anomalous:
+                    if in_cooldown:
+                        logger.info("Anomaly [%s] suppressed — rollback cooldown active.", svc_name)
+                    else:
+                        count += 1
+                        clean = 0
+                        signals = "+".join(filter(None, ["TSD" if drifting else "", "LSI" if anomalous else ""]))
+                        logger.warning("Anomaly [%s] signals=%s cycle %d/3", svc_name, signals, count)
+                        if count >= 3 and rollback_executor:
+                            logger.critical("ROLLBACK for %s — 3 consecutive anomaly cycles (%s).", svc_name, signals)
+                            rollback_executor.trigger(reason=f"{signals} anomaly on {svc_name} for 3 cycles")
+                            rollback_cooldown_until[svc_name] = time.time() + ROLLBACK_COOLDOWN_SECONDS
+                            count = 0
                 else:
                     count = 0
                     clean += config.scrape_interval

@@ -2,7 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Repo Structure
+
+```
+BackTrack/
+├── backtrack-dashboard/   # Next.js frontend
+├── backtrack-agent/       # Python backend agent
+├── docker-compose.yml     # Root orchestration
+└── docs/
+```
+
 ## Commands
+
+Run from `backtrack-dashboard/`:
 
 ```bash
 npm run dev       # Start dev server (http://localhost:3000)
@@ -20,21 +32,21 @@ BackTrack is a **local-first Kubernetes/Docker observability dashboard** built w
 ### Data Flow
 
 1. **Connection Setup**: User configures cluster via the Nav modal → `POST /api/connections` → discovers services via `kubectl`/`docker` CLI → persists to `.backtrack/connections.json`
-2. **Dashboard Polling**: `src/app/page.tsx` polls `GET /api/dashboard/overview` every 10 seconds
+2. **Dashboard Polling**: `backtrack-dashboard/src/app/page.tsx` polls `GET /api/dashboard/overview` every 10 seconds
 3. **Metrics Aggregation**: Overview route queries Prometheus PromQL → falls back to `kubectl top pods` → falls back to 0 if unavailable
-4. **Anomaly View**: `src/app/anomalies/page.tsx` displays anomalies with an integrated xterm.js terminal that forwards commands to `POST /api/terminal`
+4. **Anomaly View**: `backtrack-dashboard/src/app/anomalies/page.tsx` displays anomalies with an integrated xterm.js terminal that forwards commands to `POST /api/terminal`
 5. **Cross-component refresh**: `Nav.tsx` dispatches custom DOM event `backtrack:connection-updated` after a connection change; `page.tsx` subscribes to trigger re-fetch
 
 ### Key Modules
 
 | Path | Role |
 |------|------|
-| `src/lib/monitoring-store.ts` | File-based + in-memory (Node global) store for connections; reads/writes `.backtrack/connections.json` |
-| `src/lib/monitoring-types.ts` | All shared TypeScript types (`AppConnection`, `DiscoveredService`, `DashboardService`, `DashboardAnomaly`) |
-| `src/app/api/connections/route.ts` | Service discovery via `child_process.spawn` (kubectl/docker); deduplicates by `(appName, namespace, platform)` |
-| `src/app/api/dashboard/overview/route.ts` | Aggregates health + metrics across all connections; hardcoded thresholds: down → critical, memory > 120 MiB → warning |
-| `src/app/api/prometheus/query/route.ts` | PromQL proxy — forwards queries with Bearer token auth |
-| `src/app/api/terminal/route.tsx` | Executes arbitrary shell commands via `child_process.exec` (10 MB buffer); no allowlist |
+| `backtrack-dashboard/src/lib/monitoring-store.ts` | File-based + in-memory (Node global) store for connections; reads/writes `.backtrack/connections.json` |
+| `backtrack-dashboard/src/lib/monitoring-types.ts` | All shared TypeScript types (`AppConnection`, `DiscoveredService`, `DashboardService`, `DashboardAnomaly`) |
+| `backtrack-dashboard/src/app/api/connections/route.ts` | Service discovery via `child_process.spawn` (kubectl/docker); deduplicates by `(appName, namespace, platform)` |
+| `backtrack-dashboard/src/app/api/dashboard/overview/route.ts` | Aggregates health + metrics across all connections; hardcoded thresholds: down → critical, memory > 120 MiB → warning |
+| `backtrack-dashboard/src/app/api/prometheus/query/route.ts` | PromQL proxy — forwards queries with Bearer token auth |
+| `backtrack-dashboard/src/app/api/terminal/route.tsx` | Executes arbitrary shell commands via `child_process.exec` (10 MB buffer); no allowlist |
 
 ### Health Evaluation (Kubernetes)
 

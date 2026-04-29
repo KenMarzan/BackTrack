@@ -342,14 +342,17 @@ function Nav({ healthSummary }: NavProps) {
                         Enable LSI · TSD · Auto-rollback
                       </p>
                       <p className="text-[11px] text-[var(--text-secondary)]">
-                        The backtrack-agent must be running locally at{" "}
+                        The backtrack-agent must be running at{" "}
                         <code className="bt-mono text-[var(--accent-violet)]">
                           http://localhost:9090
                         </code>{" "}
                         for anomaly detection and auto-rollback features.
                       </p>
+                      <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                        Using Docker Hub? It&apos;s already included — just run:
+                      </p>
                       <code className="block mt-2 bt-mono text-[11px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2 whitespace-pre-wrap break-all">
-                        cd backtrack-agent && pip install -r requirements.txt{"\n"}BACKTRACK_TARGET=&lt;your-app&gt; python3 -m uvicorn src.main:app --port 9090
+                        docker compose up
                       </code>
                     </div>
                   </div>

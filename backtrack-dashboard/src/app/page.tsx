@@ -129,11 +129,11 @@ export default function Home() {
   }, [services]);
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-transparent">
+    <div className="h-screen overflow-hidden w-full flex flex-col bg-transparent">
       <RollbackToastStack toasts={rollbackToasts} onDismiss={handleDismissToast} />
       <Nav healthSummary={healthSummary} />
 
-      <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-6 lg:py-8 flex flex-col gap-5 lg:gap-6">
+      <main className="flex-1 min-h-0 w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-4 lg:py-5 flex flex-col gap-3 lg:gap-4 overflow-hidden">
         {/* Status strip */}
         <section className="bt-rise flex flex-col sm:flex-row sm:items-center justify-between gap-3" style={{ animationDelay: "0ms" }}>
           <div className="flex items-center gap-3">
@@ -163,39 +163,42 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Empty state — no connections configured */}
+        {/* Empty state — compact banner */}
         {services.length === 0 && syncState !== "syncing" && lastSync !== null && (
-          <section className="bt-rise">
-            <div className="bt-panel bt-panel-accent rounded-2xl p-8 flex flex-col items-center text-center gap-4">
-              <div className="h-14 w-14 rounded-2xl border border-[var(--border-mid)] bg-[rgba(94,234,212,0.08)] flex items-center justify-center">
-                <Server size={24} className="text-[var(--accent-teal)]" />
-              </div>
-              <div>
-                <p className="text-[var(--text-primary)] font-semibold text-base">
-                  No clusters connected
-                </p>
-                <p className="text-[var(--text-secondary)] text-sm mt-1 max-w-sm mx-auto">
-                  Connect a Kubernetes cluster or Docker daemon to start monitoring services, streaming metrics, and enabling one-click rollback.
-                </p>
-              </div>
+          <section className="bt-rise flex-shrink-0">
+            <div className="rounded-xl border border-[rgba(94,234,212,0.18)] bg-[rgba(94,234,212,0.04)] px-4 py-3 flex items-center gap-3">
+              <Server size={15} className="text-[var(--accent-teal)] flex-shrink-0" />
+              <span className="text-[13px] text-[var(--text-secondary)] flex-1">
+                No clusters connected — connect a Kubernetes cluster or Docker daemon to start monitoring.
+              </span>
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new Event("backtrack:open-configure"))}
-                className="inline-flex items-center gap-2 rounded-full border border-[rgba(94,234,212,0.45)] bg-[rgba(94,234,212,0.10)] px-5 py-2.5 text-sm text-[#c6f5e8] hover:bg-[rgba(94,234,212,0.18)] transition"
+                className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(94,234,212,0.45)] bg-[rgba(94,234,212,0.10)] px-3 py-1.5 text-[12px] text-[#c6f5e8] hover:bg-[rgba(94,234,212,0.18)] transition flex-shrink-0"
               >
-                <Plug size={14} className="text-[var(--accent-teal)]" />
-                Configure Cluster
+                <Plug size={12} className="text-[var(--accent-teal)]" />
+                Configure
               </button>
             </div>
           </section>
         )}
 
+        {/* Loading state */}
+        {syncState === "syncing" && lastSync === null && (
+          <section className="bt-rise flex-shrink-0">
+            <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] px-4 py-3 flex items-center gap-3">
+              <RefreshCw size={13} className="text-[var(--accent-teal)] animate-spin flex-shrink-0" />
+              <span className="text-[13px] text-[var(--text-muted)]">Connecting to cluster…</span>
+            </div>
+          </section>
+        )}
+
         {/* Primary grid: health + deployments */}
-        <section className="bt-rise grid grid-cols-1 xl:grid-cols-3 gap-5 lg:gap-6" style={{ animationDelay: "80ms" }}>
-          <div className="xl:col-span-2 h-[640px]">
+        <section className="bt-rise flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-3 gap-3 lg:gap-4" style={{ animationDelay: "80ms" }}>
+          <div className="xl:col-span-2 min-h-0 h-full">
             <ContainerHealth services={services} />
           </div>
-          <div className="xl:col-span-1 h-[640px]">
+          <div className="xl:col-span-1 min-h-0 h-full">
             <RecentDeployment
               rollbackEvents={rollbackEvents}
               onDismissRollback={handleDismissRollback}
@@ -204,11 +207,11 @@ export default function Home() {
         </section>
 
         {/* Secondary grid: anomalies + containers */}
-        <section className="bt-rise grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6" style={{ animationDelay: "160ms" }}>
-          <div className="min-h-[360px]">
+        <section className="bt-rise h-[380px] grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4" style={{ animationDelay: "160ms" }}>
+          <div className="min-h-0 h-full">
             <AnomalyDetection anomalies={anomalies} onAnomalyRollback={handleAnomalyRollback} />
           </div>
-          <div className="min-h-[360px]">
+          <div className="min-h-0 h-full">
             <ActiveContainers services={services} />
           </div>
         </section>
