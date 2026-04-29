@@ -43,14 +43,6 @@ type HistoryResponse = {
   deployments?: DeploymentItem[];
 };
 
-type DiscoveredService = {
-  id: string;
-  name: string;
-  namespace: string;
-  platform: string;
-  status: string;
-};
-
 function RecentDeployment({
   rollbackEvents = [],
   onDismissRollback,
@@ -68,9 +60,7 @@ function RecentDeployment({
   const [rollingBackKey, setRollingBackKey] = useState<string>("");
   const hasLoadedRef = useRef(false);
 
-  const [allServices, setAllServices] = useState<DiscoveredService[]>([]);
-
-  const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
+const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
   const [agentOnline, setAgentOnline] = useState(false);
   const [agentRollingBack, setAgentRollingBack] = useState(false);
   const [agentMessage, setAgentMessage] = useState<string>("");
@@ -79,10 +69,7 @@ function RecentDeployment({
     if (!hasLoadedRef.current) setIsLoading(true);
 
     try {
-      const [historyRes, overviewRes] = await Promise.all([
-        fetch("/api/deployments/history", { cache: "no-store" }),
-        fetch("/api/dashboard/overview", { cache: "no-store" }),
-      ]);
+      const historyRes = await fetch("/api/deployments/history", { cache: "no-store" });
 
       if (!historyRes.ok) throw new Error("Unable to fetch deployment history.");
 
@@ -92,17 +79,6 @@ function RecentDeployment({
       setMessage("");
       hasLoadedRef.current = true;
 
-      if (overviewRes.ok) {
-        const overview = await overviewRes.json();
-        const svcs: DiscoveredService[] = (overview.services ?? []).map((s: any) => ({
-          id: s.id,
-          name: s.name,
-          namespace: s.namespace,
-          platform: s.platform,
-          status: s.status,
-        }));
-        setAllServices(svcs);
-      }
     } catch (error: any) {
       setDeployments([]);
       setMessage(error.message || "Failed to load deployment history.");
@@ -345,32 +321,7 @@ function RecentDeployment({
             </div>
           )}
 
-          {/* All containers strip */}
-          {allServices.length > 0 && (
-            <div className="mb-3 shrink-0">
-              <p className="bt-mono text-[9px] uppercase tracking-[0.2em] text-[var(--text-muted)] mb-1.5">All Containers</p>
-              <div className="flex flex-wrap gap-1.5">
-                {allServices.map((svc) => {
-                  const isRunning = svc.status === "running";
-                  const isDown = svc.status === "down";
-                  return (
-                    <button
-                      key={svc.id}
-                      type="button"
-                      onClick={() => router.push(`/anomalies/${encodeURIComponent(svc.name)}?namespace=${encodeURIComponent(svc.namespace)}&severity=warning&metric=general&current=—&baseline=—&message=Inspecting+service`)}
-                      className={`bt-chip transition hover:opacity-80 ${isRunning ? "bt-chip-green" : isDown ? "bt-chip-critical" : ""}`}
-                    >
-                      <span className={`h-1.5 w-1.5 rounded-full ${isRunning ? "bg-[var(--accent-green)]" : isDown ? "bg-[var(--accent-rose)]" : "bg-[var(--border-mid)]"}`} />
-                      {svc.name}
-                      <Search size={9} className="opacity-50" />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-1.5 overflow-y-auto scrollbar-hide flex-1 min-h-0">
+<div className="space-y-1.5 overflow-y-auto scrollbar-hide flex-1 min-h-0">
             {isLoading && (
               <div className="text-[12px] text-[var(--text-muted)] px-1">Loading deployment history…</div>
             )}
@@ -382,10 +333,17 @@ function RecentDeployment({
 
             {deployments.map((deployment, index) => (
               <div key={`${deployment.name}-${index}`}>
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => toggleExpand(index)}
-                  className="w-full rounded-xl border border-[var(--border-mid)] bg-white/[0.02] hover:bg-white/[0.035] transition-colors p-3 text-left"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleExpand(index);
+                    }
+                  }}
+                  className="w-full rounded-xl border border-[var(--border-mid)] bg-white/[0.02] hover:bg-white/[0.035] transition-colors p-3 text-left cursor-pointer"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex flex-col gap-1.5 min-w-0">
@@ -422,7 +380,7 @@ function RecentDeployment({
                       />
                     </div>
                   </div>
-                </button>
+                </div>
 
                 {expandedIndex === index && (
                   <div className="mt-1 rounded-xl border border-[var(--border-soft)] bg-white/[0.01] p-3">

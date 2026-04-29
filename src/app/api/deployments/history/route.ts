@@ -108,39 +108,168 @@ async function fetchGitHubCommits(repo: string, branch: string) {
   return allCommits;
 }
 
+function extractImageTag(image: string): string {
+  if (!image) return "<none>";
+  const lastSlash = image.lastIndexOf("/");
+  const tail = lastSlash >= 0 ? image.slice(lastSlash + 1) : image;
+  const atIdx = tail.indexOf("@");
+  if (atIdx >= 0) {
+    const digest = tail.slice(atIdx + 1);
+    const shortDigest = digest.startsWith("sha256:") ? digest.slice(7, 14) : digest.slice(0, 7);
+    return `${tail.slice(0, atIdx)}@${shortDigest}`;
+  }
+  const colonIdx = tail.indexOf(":");
+  if (colonIdx >= 0) return tail.slice(colonIdx + 1);
+  return tail;
+}
+
+async function fetchReplicaSetImages(
+  serviceName: string,
+  namespace: string,
+): Promise<Map<number, string>> {
+  const result = await runCommand("kubectl", [
+    "get",
+    "rs",
+    "-n",
+    namespace,
+    "-l",
+    `app=${serviceName}`,
+    "-o",
+    "json",
+  ]);
+
+  const map = new Map<number, string>();
+  if (result.code !== 0) {
+    const fallback = await runCommand("kubectl", [
+      "get",
+      "rs",
+      "-n",
+      namespace,
+      "-o",
+      "json",
+    ]);
+    if (fallback.code !== 0) return map;
+    try {
+      const parsed = JSON.parse(fallback.stdout) as {
+        items: Array<{
+          metadata?: {
+            annotations?: Record<string, string>;
+            ownerReferences?: Array<{ kind?: string; name?: string }>;
+          };
+          spec?: {
+            template?: {
+              spec?: { containers?: Array<{ image?: string }> };
+            };
+          };
+        }>;
+      };
+      for (const item of parsed.items || []) {
+        const owner = item.metadata?.ownerReferences?.find((o) => o.kind === "Deployment");
+        if (owner?.name !== serviceName) continue;
+        const rev = Number(item.metadata?.annotations?.["deployment.kubernetes.io/revision"] || "0");
+        const image = item.spec?.template?.spec?.containers?.[0]?.image || "";
+        if (rev && image) map.set(rev, image);
+      }
+    } catch {
+      // ignore
+    }
+    return map;
+  }
+
+  try {
+    const parsed = JSON.parse(result.stdout) as {
+      items: Array<{
+        metadata?: {
+          annotations?: Record<string, string>;
+          ownerReferences?: Array<{ kind?: string; name?: string }>;
+        };
+        spec?: {
+          template?: {
+            spec?: { containers?: Array<{ image?: string }> };
+          };
+        };
+      }>;
+    };
+    for (const item of parsed.items || []) {
+      const owner = item.metadata?.ownerReferences?.find((o) => o.kind === "Deployment");
+      if (owner && owner.name !== serviceName) continue;
+      const rev = Number(item.metadata?.annotations?.["deployment.kubernetes.io/revision"] || "0");
+      const image = item.spec?.template?.spec?.containers?.[0]?.image || "";
+      if (rev && image) map.set(rev, image);
+    }
+  } catch {
+    // ignore
+  }
+  return map;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const connectionId = searchParams.get("connectionId");
 
-  const chosenConnection = connectionId
-    ? getConnection(connectionId)
-    : listConnections().find((connection) => connection.platform === "kubernetes") ?? null;
+  const allConnections = listConnections();
+  const k8sConnections = connectionId
+    ? [getConnection(connectionId)].filter((c): c is NonNullable<typeof c> => Boolean(c))
+    : allConnections.filter((c) => c.platform === "kubernetes");
 
-  if (!chosenConnection) {
+  if (k8sConnections.length === 0) {
     return NextResponse.json({ deployments: [], warning: "No connection available." });
   }
 
-  const namespace = chosenConnection.namespace || "default";
-  const services = chosenConnection.discoveredServices || [];
-  const repo = chosenConnection.githubRepo || "";
-  const branch = chosenConnection.githubBranch || "main";
+  type ServiceCtx = {
+    serviceName: string;
+    namespace: string;
+    repo: string;
+    branch: string;
+    connectionId: string;
+  };
 
-  const commits = repo ? await fetchGitHubCommits(repo, branch) : [];
+  const serviceCtxs: ServiceCtx[] = [];
+  const seen = new Set<string>();
+  for (const conn of k8sConnections) {
+    const ns = conn.namespace || "default";
+    const repo = conn.githubRepo || "";
+    const branch = conn.githubBranch || "main";
+    for (const svc of conn.discoveredServices || []) {
+      const key = `${svc.name}::${ns}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      serviceCtxs.push({
+        serviceName: svc.name,
+        namespace: ns,
+        repo,
+        branch,
+        connectionId: conn.id,
+      });
+    }
+  }
+
+  const repoCommitCache = new Map<string, GitHubCommit[]>();
+  async function commitsFor(repo: string, branch: string) {
+    if (!repo) return [];
+    const key = `${repo}@${branch}`;
+    const cached = repoCommitCache.get(key);
+    if (cached) return cached;
+    const commits = await fetchGitHubCommits(repo, branch);
+    repoCommitCache.set(key, commits);
+    return commits;
+  }
 
   const settled = await Promise.all(
-    services.map(async (service) => {
-      const serviceName = service.name;
-      const [deploymentJsonResult, historyResult] = await Promise.all([
-        runCommand("kubectl", ["get", "deployment", serviceName, "-n", namespace, "-o", "json"]),
-        runCommand("kubectl", ["rollout", "history", `deployment/${serviceName}`, "-n", namespace]),
+    serviceCtxs.map(async (ctx) => {
+      const [deploymentJsonResult, historyResult, rsImages, commits] = await Promise.all([
+        runCommand("kubectl", ["get", "deployment", ctx.serviceName, "-n", ctx.namespace, "-o", "json"]),
+        runCommand("kubectl", ["rollout", "history", `deployment/${ctx.serviceName}`, "-n", ctx.namespace]),
+        fetchReplicaSetImages(ctx.serviceName, ctx.namespace),
+        commitsFor(ctx.repo, ctx.branch),
       ]);
-      return { serviceName, deploymentJsonResult, historyResult };
+      return { ctx, deploymentJsonResult, historyResult, rsImages, commits };
     }),
   );
 
   const deployments: DeploymentHistoryItem[] = [];
 
-  for (const { serviceName, deploymentJsonResult, historyResult } of settled) {
+  for (const { ctx, deploymentJsonResult, historyResult, rsImages, commits } of settled) {
     if (deploymentJsonResult.code !== 0) {
       continue;
     }
@@ -148,12 +277,18 @@ export async function GET(request: NextRequest) {
     let currentRevision = 0;
     let replicas = "0/0";
     let deployedTime = "unknown";
+    let currentImage = "";
 
     try {
       const parsed = JSON.parse(deploymentJsonResult.stdout) as {
         metadata?: {
           creationTimestamp?: string;
           annotations?: Record<string, string>;
+        };
+        spec?: {
+          template?: {
+            spec?: { containers?: Array<{ image?: string }> };
+          };
         };
         status?: {
           availableReplicas?: number;
@@ -168,6 +303,7 @@ export async function GET(request: NextRequest) {
       const total = parsed.status?.replicas ?? 0;
       replicas = `${available}/${total}`;
       deployedTime = formatRelativeTime(parsed.metadata?.creationTimestamp);
+      currentImage = parsed.spec?.template?.spec?.containers?.[0]?.image || "";
     } catch {
       currentRevision = 0;
     }
@@ -176,16 +312,21 @@ export async function GET(request: NextRequest) {
 
     const k8sVersions: RolloutVersion[] = revisions
       .sort((a, b) => b.revision - a.revision)
-      .map((row) => ({
-        version: `rev-${row.revision}`,
-        revision: row.revision,
-        status: row.revision === currentRevision ? "Current" : "Available",
-        source: "kubernetes" as const,
-        time: "k8s rollout",
-        message: row.cause,
-      }));
+      .map((row) => {
+        const image =
+          rsImages.get(row.revision) || (row.revision === currentRevision ? currentImage : "");
+        const tag = extractImageTag(image);
+        return {
+          version: tag !== "<none>" ? tag : `rev-${row.revision}`,
+          revision: row.revision,
+          status: row.revision === currentRevision ? "Current" : "Available",
+          source: "kubernetes" as const,
+          time: image ? `rev-${row.revision} · ${image}` : `rev-${row.revision} · k8s rollout`,
+          message: row.cause,
+        };
+      });
 
-    const serviceNeedle = serviceName.toLowerCase().replaceAll("-", "");
+    const serviceNeedle = ctx.serviceName.toLowerCase().replaceAll("-", "");
     const githubVersions: RolloutVersion[] = commits
       .filter((commit) => {
         const message = (commit.commit?.message || "").toLowerCase().replaceAll("-", "");
@@ -201,15 +342,16 @@ export async function GET(request: NextRequest) {
       }));
 
     const merged = [...k8sVersions, ...githubVersions];
+    const currentTag = extractImageTag(currentImage);
 
     deployments.push({
-      name: serviceName,
-      namespace,
+      name: ctx.serviceName,
+      namespace: ctx.namespace,
       status: "Success",
       deployment: replicas,
-      currentVersion: currentRevision > 0 ? `rev-${currentRevision}` : "unknown",
+      currentVersion: currentTag !== "<none>" ? currentTag : (currentRevision > 0 ? `rev-${currentRevision}` : "unknown"),
       deployedTime,
-      source: repo ? `github/${repo}` : "kubernetes",
+      source: ctx.repo ? `github/${ctx.repo}` : "kubernetes",
       versions: merged,
       versionCount: k8sVersions.length,
       commitCount: githubVersions.length,
@@ -217,9 +359,9 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({
-    connectionId: chosenConnection.id,
-    namespace,
-    githubRepo: repo || null,
+    connectionId: k8sConnections[0].id,
+    namespace: k8sConnections[0].namespace || "default",
+    githubRepo: k8sConnections[0].githubRepo || null,
     deployments,
   });
 }

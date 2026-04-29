@@ -192,10 +192,10 @@ export default function Home() {
 
         {/* Primary grid: health + deployments */}
         <section className="bt-rise grid grid-cols-1 xl:grid-cols-3 gap-5 lg:gap-6" style={{ animationDelay: "80ms" }}>
-          <div className="xl:col-span-2 min-h-[460px]">
+          <div className="xl:col-span-2 h-[640px]">
             <ContainerHealth services={services} />
           </div>
-          <div className="xl:col-span-1 min-h-[460px]">
+          <div className="xl:col-span-1 h-[640px]">
             <RecentDeployment
               rollbackEvents={rollbackEvents}
               onDismissRollback={handleDismissRollback}

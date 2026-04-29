@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import LineChart from "./LineChart";
+import CustomSelect from "./CustomSelect";
 import type { DashboardService } from "@/lib/monitoring-types";
 import { Activity, Cpu, HardDrive, TrendingUp, Wifi, Layers } from "lucide-react";
 
@@ -95,13 +96,22 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
   const chartConfig = useMemo(() => {
     const labels = trendPoints.map((p) => p.at);
     if (activeView === "overview") {
+      const cpuArr = trendPoints.map((p) => p.cpu);
+      const memArr = trendPoints.map((p) => p.memory);
+      const reqArr = trendPoints.map((p) => p.request);
+      const netArr = trendPoints.map((p) => p.network);
+      const norm = (arr: number[]) => {
+        const max = Math.max(...arr, 0);
+        if (max <= 0) return arr.map(() => 0);
+        return arr.map((v) => +((v / max) * 100).toFixed(2));
+      };
       return {
-        labels, yAxisLabel: "Utilization",
+        labels, yAxisLabel: "Utilization %",
         datasets: [
-          { label: "CPU",     data: trendPoints.map((p) => +p.cpu.toFixed(3)),     borderColor: "#7CFC00" },
-          { label: "Memory",  data: trendPoints.map((p) => +p.memory.toFixed(1)),  borderColor: "#38BDF8" },
-          { label: "Request", data: trendPoints.map((p) => +p.request.toFixed(2)), borderColor: "#A855F7" },
-          { label: "Network", data: trendPoints.map((p) => +p.network.toFixed(2)), borderColor: "#2563EB" },
+          { label: "CPU",     data: norm(cpuArr), borderColor: "#7CFC00" },
+          { label: "Memory",  data: norm(memArr), borderColor: "#38BDF8" },
+          { label: "Request", data: norm(reqArr), borderColor: "#A855F7" },
+          { label: "Network", data: norm(netArr), borderColor: "#2563EB" },
         ],
       };
     }
@@ -131,16 +141,15 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
           <span className="bt-label">Container Health</span>
         </div>
 
-        <select
-          className="rounded-full border border-[var(--border-soft)] bg-[rgba(148,163,184,0.04)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)] focus:outline-none focus:border-[var(--accent-teal)] transition"
+        <CustomSelect
+          variant="pill"
           value={selectedServiceId}
-          onChange={(e) => setSelectedServiceId(e.target.value)}
-        >
-          <option value="all">All Services</option>
-          {serviceOptions.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
+          onChange={setSelectedServiceId}
+          options={[
+            { value: "all", label: "All Services" },
+            ...serviceOptions.map((s) => ({ value: s.id, label: s.name })),
+          ]}
+        />
       </div>
 
       {/* Divider */}

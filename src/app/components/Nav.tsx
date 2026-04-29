@@ -3,6 +3,7 @@ import { Boxes, CircuitBoard, Cloud, Info, Plug, Settings2, X } from "lucide-rea
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
+import CustomSelect from "./CustomSelect";
 
 type ConnectionForm = {
   appName: string;
@@ -227,24 +228,24 @@ function Nav({ healthSummary }: NavProps) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Platform" hint="Runtime BackTrack will query.">
-                    <select
+                    <CustomSelect
                       value={form.platform}
-                      onChange={(e) => updateField("platform", e.target.value)}
-                      className="bt-input"
-                    >
-                      <option value="kubernetes">Kubernetes</option>
-                      <option value="docker">Docker</option>
-                    </select>
+                      onChange={(v) => updateField("platform", v)}
+                      options={[
+                        { value: "kubernetes", label: "Kubernetes" },
+                        { value: "docker", label: "Docker" },
+                      ]}
+                    />
                   </Field>
                   <Field label="Architecture" hint="Controls discovery breadth.">
-                    <select
+                    <CustomSelect
                       value={form.architecture}
-                      onChange={(e) => updateField("architecture", e.target.value)}
-                      className="bt-input"
-                    >
-                      <option value="microservices">Microservices — discover all</option>
-                      <option value="monolith">Monolith — focused discovery</option>
-                    </select>
+                      onChange={(v) => updateField("architecture", v)}
+                      options={[
+                        { value: "microservices", label: "Microservices — discover all" },
+                        { value: "monolith", label: "Monolith — focused discovery" },
+                      ]}
+                    />
                   </Field>
                 </div>
 
