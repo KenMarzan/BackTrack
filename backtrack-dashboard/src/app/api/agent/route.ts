@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const allowed = ["rollback/trigger", "fault/inject/crash", "fault/inject/latency", "fault/inject/logs", "fault/reset"];
+  const allowed = ["rollback/trigger", "reconfigure", "fault/inject/crash", "fault/inject/latency", "fault/inject/logs", "fault/reset"];
   if (!allowed.includes(agentPath)) {
     return NextResponse.json(
       { error: `Invalid POST path. Allowed: ${allowed.join(", ")}` },
