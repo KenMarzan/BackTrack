@@ -233,3 +233,60 @@ async def rollback_trigger() -> dict:
     if rollback_executor is None:
         return {"success": False, "message": "Rollback executor not initialised."}
     return rollback_executor.trigger(reason="Manual trigger via dashboard")
+
+
+@app.post("/reconfigure")
+async def reconfigure(body: dict) -> dict:
+    """
+    Hot-reload agent target/mode/namespace without restart.
+    Accepts: { target, mode, namespace, image_tag }
+    Stops existing monitors, applies new config, starts new monitors.
+    """
+    target = body.get("target", "").strip()
+    mode = body.get("mode", "").strip().lower()
+    namespace = body.get("namespace", "default").strip()
+    image_tag = body.get("image_tag", "").strip()
+
+    if not target:
+        return {"ok": False, "message": "target is required"}
+
+    # Update config singleton fields in-place
+    config.target = target
+    config.k8s_namespace = namespace
+    if image_tag:
+        config.image_tag = image_tag
+    if mode in ("kubernetes", "k8s", "docker"):
+        os.environ["BACKTRACK_MODE"] = "kubernetes" if mode in ("kubernetes", "k8s") else "docker"
+
+    # Stop and remove all existing monitors
+    old_services = list(service_monitors.keys())
+    for svc_name in old_services:
+        tsd, lsi = service_monitors.pop(svc_name)
+        await tsd.stop()
+        await lsi.stop()
+
+    # Reset anomaly tracking state
+    for d in (consecutive_anomaly_counts, clean_seconds_map, rollback_cooldown_until):
+        d.clear()
+
+    # Discover and start new monitors
+    services = await _discover_services()
+    for svc_name, label_sel in services:
+        tsd = TSDCollector(service_name=svc_name, label_selector=label_sel)
+        lsi = LSICollector(service_name=svc_name, label_selector=label_sel)
+        await tsd.start()
+        await lsi.start()
+        service_monitors[svc_name] = (tsd, lsi)
+
+    logger.info(
+        "Reconfigured: target=%s mode=%s namespace=%s → monitoring %s",
+        target, config.mode, namespace, list(service_monitors.keys()),
+    )
+
+    return {
+        "ok": True,
+        "target": target,
+        "mode": config.mode,
+        "namespace": namespace,
+        "monitoring": list(service_monitors.keys()),
+    }

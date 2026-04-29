@@ -1,0 +1,36 @@
+[
+  {
+    "id": "997c5422-d632-4714-9819-26481cad068d",
+    "status": "connected",
+    "createdAt": "2026-04-29T14:54:35.779Z",
+    "appName": "backtrack-test",
+    "platform": "kubernetes",
+    "architecture": "microservices",
+    "clusterName": "desktop",
+    "namespace": "default",
+    "apiServerEndpoint": "",
+    "prometheusUrl": "",
+    "githubBranch": "main",
+    "discoveredServices": [
+      {
+        "name": "memstress",
+        "namespace": "default",
+        "status": "running",
+        "ports": [
+          "80:80"
+        ],
+        "source": "kubernetes"
+      },
+      {
+        "name": "podinfo",
+        "namespace": "default",
+        "status": "unknown",
+        "ports": [
+          "9898:http",
+          "9999:grpc"
+        ],
+        "source": "kubernetes"
+      }
+    ]
+  }
+]

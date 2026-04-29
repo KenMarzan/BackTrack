@@ -85,6 +85,28 @@ function Nav({ healthSummary }: NavProps) {
       setStatusMessage(payload.message || "Connection completed.");
 
       if (action === "connect") {
+        // Live-reconfigure agent without restart
+        fetch("/api/agent?path=reconfigure", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            target: form.appName,
+            mode: form.platform,
+            namespace: form.namespace,
+          }),
+        }).catch(() => {/* agent unavailable — non-fatal */});
+
+        // Also write backtrack-agent/.env so next startup picks up the same values
+        fetch("/api/agent/env", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            platform: form.platform,
+            appName: form.appName,
+            namespace: form.namespace,
+          }),
+        }).catch(() => {/* non-fatal */});
+
         window.dispatchEvent(new Event("backtrack:connection-updated"));
       }
     } catch (error: any) {
@@ -339,17 +361,19 @@ function Nav({ healthSummary }: NavProps) {
                     <Info size={15} className="text-[var(--accent-violet)] mt-0.5 shrink-0" />
                     <div className="space-y-1">
                       <p className="text-[12px] font-medium text-[var(--text-primary)]">
-                        Enable LSI · TSD · Auto-rollback
+                        Agent configured — LSI · TSD · Auto-rollback active
                       </p>
                       <p className="text-[11px] text-[var(--text-secondary)]">
-                        The backtrack-agent must be running at{" "}
+                        BackTrack agent at{" "}
                         <code className="bt-mono text-[var(--accent-violet)]">
                           http://localhost:9090
                         </code>{" "}
-                        for anomaly detection and auto-rollback features.
+                        has been reconfigured to monitor{" "}
+                        <code className="bt-mono text-[var(--accent-teal)]">{form.appName || "your app"}</code>.
+                        No restart needed.
                       </p>
                       <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-                        Using Docker Hub? It&apos;s already included — just run:
+                        Agent not running yet? Start it with:
                       </p>
                       <code className="block mt-2 bt-mono text-[11px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2 whitespace-pre-wrap break-all">
                         docker compose up
