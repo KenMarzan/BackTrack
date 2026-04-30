@@ -75,221 +75,35 @@ BackTrack watches your containerized services in real time, detects metric drift
 
 ## Compatibility
 
-BackTrack monitors apps running as **Docker containers** or **Kubernetes pods**.
+| Your app is running as… | Supported? |
+|---|---|
+| Docker container | ✅ Yes |
+| Kubernetes pod / deployment | ✅ Yes |
+| Bare process / systemd / VM | ❌ Containerize it first |
+| Serverless (Lambda, Cloud Run) | ❌ Out of scope |
 
-| Your app is running as… | Supported? | What to do |
-|---|---|---|
-| Docker container | ✅ Yes | Use **Docker** mode in the connection modal |
-| Kubernetes pod / deployment | ✅ Yes | Use **Kubernetes** mode in the connection modal |
-| Bare process / systemd / VM | ❌ Not directly | Containerize it first — see below |
-| Serverless (Lambda, Cloud Run) | ❌ Not directly | Out of scope — BackTrack targets long-running workloads |
-
-### Containerizing a Non-Containerized App
-
-**Add a `Dockerfile`:**
-
-```dockerfile
-# Node.js
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
-COPY . .
-EXPOSE 3000
-CMD ["node", "server.js"]
-```
-
-```dockerfile
-# Python
-FROM python:3.12-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-CMD ["python", "app.py"]
-```
-
-**Build and run:**
-
-```bash
-docker build -t my-app:latest .
-docker run -d --name my-app -p 3000:3000 my-app:latest
-```
-
-Then connect from BackTrack using **Docker** mode with `App Name: my-app`.
 
 ---
 
-## Quick Start — Docker Hub
+## Getting Started
 
-No source code, no Node, no Python. Just Docker.
+**→ [Full Setup Guide](docs/SETUP.md)**
 
-**What you need:**
+Covers Docker Hub quickstart, Kubernetes mode, Docker mode, from-source setup, configuration reference, Prometheus integration, and troubleshooting.
 
-| Mode | Requirements |
-|------|-------------|
-| Docker | Docker Desktop (or Engine + Compose), a running container to monitor |
-| Kubernetes | Same, plus kubeconfig — see [Kubernetes Setup](#setup--kubernetes-mode) below |
-
-### Step 1 — Download and configure
+**Shortest path:**
 
 ```bash
 mkdir backtrack && cd backtrack
-
 curl -O https://raw.githubusercontent.com/KenMarzan/BackTrack/main/docker-compose.yml
 curl -o .env https://raw.githubusercontent.com/KenMarzan/BackTrack/main/.env.example
-```
-
-Edit `.env`:
-
-```env
-BACKTRACK_TARGET=my-app        # Docker container name or K8s deployment name
-BACKTRACK_IMAGE_TAG=latest     # Your current image tag
-GITHUB_TOKEN=                  # Optional — for deployment history panel
-```
-
-### Step 2 — Start BackTrack
-
-```bash
 docker compose up -d
 ```
 
-Pulls two images from Docker Hub:
-- `zeritzuu/backtrack-dashboard` → web UI on **http://localhost:3000**
-- `zeritzuu/backtrack-agent` → anomaly engine on port **9091**
-
-### Step 3 — Connect your app
-
-1. Open **http://localhost:3000**
-2. Click **Configure Cluster** (top-right)
-3. Choose **Docker** or **Kubernetes**, enter your container/deployment name, click **Connect**
-
-BackTrack discovers all services in your cluster and starts monitoring each one individually.
-
-> **Prometheus URL:** leave blank — BackTrack falls back to `docker stats` / `kubectl top` automatically.
+Open **http://localhost:3000** → click **Configure Cluster** → connect your app.
 
 ---
 
-## Setup — Kubernetes Mode
-
-For Kubernetes, mount your kubeconfig into both containers:
-
-```yaml
-# Add to docker-compose.yml under each service's volumes:
-volumes:
-  - ~/.kube:/root/.kube:ro
-  - /var/run/docker.sock:/var/run/docker.sock
-  - backtrack-data:/.backtrack
-```
-
-Full example:
-
-```yaml
-services:
-  backtrack-dashboard:
-    image: zeritzuu/backtrack-dashboard:latest
-    volumes:
-      - ~/.kube:/root/.kube:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-      - backtrack-data:/.backtrack
-
-  backtrack-agent:
-    image: zeritzuu/backtrack-agent:latest
-    environment:
-      - BACKTRACK_MODE=kubernetes
-      - BACKTRACK_K8S_NAMESPACE=default
-    volumes:
-      - ~/.kube:/root/.kube:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-      - backtrack-data:/data
-```
-
-Then:
-
-```bash
-docker compose down && docker compose up -d
-```
-
-Connect in the dashboard: **Platform → Kubernetes**, enter your cluster name and namespace, click **Connect**.
-
-BackTrack auto-discovers all deployments in the namespace and creates individual TSD + LSI collectors for each service.
-
----
-
-## Setup — From Source
-
-### Prerequisites
-
-| Requirement | Version |
-|---|---|
-| Node.js | 20+ |
-| npm | 10+ |
-| Python | 3.10+ |
-| kubectl | any |
-| Docker CLI | any |
-
-### 1. Clone
-
-```bash
-git clone https://github.com/KenMarzan/BackTrack.git
-cd BackTrack
-```
-
-### 2. Start the dashboard
-
-```bash
-cd backtrack-dashboard
-npm install
-npm run dev
-```
-
-Open **http://localhost:3000**
-
-### 3. Start the agent
-
-```bash
-cd backtrack-agent
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 9090
-```
-
-### 4. Connect your cluster
-
-Click **Configure Cluster** in the dashboard → fill in the form → Connect.
-
----
-
-## Configuration
-
-### Agent — environment variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `BACKTRACK_TARGET` | _(optional)_ | Deployment name (K8s) or container name (Docker). If blank, auto-discovers all. |
-| `BACKTRACK_IMAGE_TAG` | `unknown` | Current image tag for version snapshot tracking |
-| `BACKTRACK_MODE` | auto-detected | `kubernetes` or `docker` |
-| `BACKTRACK_K8S_NAMESPACE` | `default` | Kubernetes namespace to watch |
-| `BACKTRACK_ROLLBACK_ENABLED` | `true` | Set `false` to disable automatic rollback |
-| `BACKTRACK_ROLLBACK_COOLDOWN` | `120` | Seconds between consecutive rollbacks |
-| `BACKTRACK_SCRAPE_INTERVAL` | `10` | Seconds between metric scrapes |
-| `BACKTRACK_STABLE_SECONDS` | `600` | Clean seconds before marking a version STABLE |
-| `BACKTRACK_TSD_IQR_MULTIPLIER` | `3.0` | Drift sensitivity — lower = more sensitive |
-| `BACKTRACK_LSI_SCORE_MULTIPLIER` | `2.0` | Log anomaly sensitivity — lower = more sensitive |
-| `BACKTRACK_SVD_SIMILARITY_THRESHOLD` | `0.55` | SVD cosine similarity cutoff — raise to reduce LSI false positives |
-| `BACKTRACK_CORPUS_SIZE` | `200` | Log lines to collect before fitting the LSI model |
-| `BACKTRACK_BASELINE_WINDOWS` | `10` | Scoring windows before locking the LSI baseline |
-| `BACKTRACK_WINDOW_SECONDS` | `30` | LSI scoring window duration |
-| `BACKTRACK_DATA_DIR` | `/data` | Directory for rollback log and version snapshots |
-
-### Dashboard — `backtrack-dashboard/.env.local`
-
-| Variable | Default | Description |
-|---|---|---|
-| `BACKTRACK_AGENT_URL` | `http://127.0.0.1:9090` | URL of the running backtrack-agent |
-| `GITHUB_TOKEN` | _(optional)_ | GitHub PAT for the deployment history panel |
-
----
 
 ## How TSD Works
 
