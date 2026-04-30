@@ -11,3 +11,16 @@ yarn-error.log*
 
 # backtrack runtime data
 /.backtrack/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+/data/
+
+# Node
+node_modules/
+.next/
