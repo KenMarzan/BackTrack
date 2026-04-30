@@ -176,7 +176,8 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
         throw new Error(payload.error || "Rollback failed.");
       }
 
-      setMessage(`Rollback completed for ${serviceName}.`);
+      const accessNote = payload.accessUrl ? ` App accessible at ${payload.accessUrl}` : "";
+      setMessage(`Rollback completed for ${serviceName}.${accessNote}`);
       loadHistory();
     } catch (error: any) {
       setMessage(error.message || "Rollback failed.");

@@ -1,33 +1,122 @@
 [
   {
-    "id": "997c5422-d632-4714-9819-26481cad068d",
+    "id": "413a7771-1416-4874-bf95-fbdcf06dd756",
     "status": "connected",
-    "createdAt": "2026-04-29T14:54:35.779Z",
-    "appName": "backtrack-test",
+    "createdAt": "2026-04-30T11:53:44.391Z",
+    "appName": "microservice-demo",
     "platform": "kubernetes",
     "architecture": "microservices",
-    "clusterName": "desktop",
+    "clusterName": "production-ph",
     "namespace": "default",
-    "apiServerEndpoint": "",
-    "prometheusUrl": "",
+    "apiServerEndpoint": "https://127.0.0.1:37183",
+    "prometheusUrl": "http://localhost:9090",
     "githubBranch": "main",
     "discoveredServices": [
       {
-        "name": "memstress",
+        "name": "adservice",
         "namespace": "default",
         "status": "running",
         "ports": [
-          "80:80"
+          "9555:9555"
         ],
         "source": "kubernetes"
       },
       {
-        "name": "podinfo",
+        "name": "cartservice",
         "namespace": "default",
-        "status": "unknown",
+        "status": "running",
         "ports": [
-          "9898:http",
-          "9999:grpc"
+          "7070:7070"
+        ],
+        "source": "kubernetes"
+      },
+      {
+        "name": "checkoutservice",
+        "namespace": "default",
+        "status": "running",
+        "ports": [
+          "5050:5050"
+        ],
+        "source": "kubernetes"
+      },
+      {
+        "name": "currencyservice",
+        "namespace": "default",
+        "status": "running",
+        "ports": [
+          "7000:7000"
+        ],
+        "source": "kubernetes"
+      },
+      {
+        "name": "emailservice",
+        "namespace": "default",
+        "status": "running",
+        "ports": [
+          "5000:8080"
+        ],
+        "source": "kubernetes"
+      },
+      {
+        "name": "frontend",
+        "namespace": "default",
+        "status": "running",
+        "ports": [
+          "80:8080"
+        ],
+        "source": "kubernetes"
+      },
+      {
+        "name": "frontend-external",
+        "namespace": "default",
+        "status": "running",
+        "ports": [
+          "80:8080"
+        ],
+        "source": "kubernetes"
+      },
+      {
+        "name": "paymentservice",
+        "namespace": "default",
+        "status": "running",
+        "ports": [
+          "50051:50051"
+        ],
+        "source": "kubernetes"
+      },
+      {
+        "name": "productcatalogservice",
+        "namespace": "default",
+        "status": "running",
+        "ports": [
+          "3550:3550"
+        ],
+        "source": "kubernetes"
+      },
+      {
+        "name": "recommendationservice",
+        "namespace": "default",
+        "status": "running",
+        "ports": [
+          "8080:8080"
+        ],
+        "source": "kubernetes"
+      },
+      {
+        "name": "redis-cart",
+        "namespace": "default",
+        "status": "running",
+        "ports": [
+          "6379:6379"
+        ],
+        "source": "kubernetes"
+      },
+      {
+        "name": "shippingservice",
+        "namespace": "default",
+        "status": "running",
+        "ports": [
+          "50051:50051"
         ],
         "source": "kubernetes"
       }

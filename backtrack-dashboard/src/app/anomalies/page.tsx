@@ -24,10 +24,13 @@ type TSDSummary = {
     error_rate_percent: number;
   };
   decomposition?: {
-    cpu_percent: TSDDecompComponent;
-    memory_mb:   TSDDecompComponent;
-    latency_ms:  TSDDecompComponent;
-    error_rate_percent: TSDDecompComponent;
+    cpu_percent?:        TSDDecompComponent;
+    memory_mb?:          TSDDecompComponent;
+    latency_ms?:         TSDDecompComponent;
+    error_rate_percent?: TSDDecompComponent;
+  };
+  residuals?: {
+    cpu: number[]; memory: number[]; latency: number[]; error_rate: number[];
   };
   readings_count: number;
   is_drifting: boolean;

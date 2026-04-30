@@ -110,6 +110,7 @@ export default function MetricsPage() {
   const [mttrForm, setMttrForm] = useState<{ service: string; anomaly_type: MttrAnomalyType; anomaly_detected_at: string; rollback_triggered_at: string; rollback_completed_at: string; success: boolean }>({ service: "", anomaly_type: "MANUAL", anomaly_detected_at: "", rollback_triggered_at: "", rollback_completed_at: "", success: true });
   const [detectionEntries, setDetectionEntries] = useState<DetectionEntry[]>([]);
   const [matrix, setMatrix] = useState<{ tsd: MatrixCell; lsi: MatrixCell } | null>(null);
+  const [matrixSource, setMatrixSource] = useState<"manual" | "agent" | "none">("none");
   const [showTestForm, setShowTestForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [testForm, setTestForm] = useState<TestForm>({
@@ -138,6 +139,7 @@ export default function MetricsPage() {
     const data = await res.json();
     setDetectionEntries(data.entries ?? []);
     setMatrix(data.matrix ?? null);
+    setMatrixSource(data.source ?? "none");
   }, []);
 
   useEffect(() => {
@@ -448,6 +450,20 @@ export default function MetricsPage() {
           </div>
         )}
 
+        {matrixSource !== "none" && (
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[11px] text-[var(--text-muted)]">Data source:</span>
+            {matrixSource === "agent" ? (
+              <span className="bt-chip bt-chip-teal">Live agent evaluation</span>
+            ) : (
+              <span className="bt-chip bt-chip-violet">Manual test runs</span>
+            )}
+            {matrixSource === "agent" && (
+              <span className="text-[11px] text-[var(--text-muted)]">— TSD uses sustained vs spike drift · LSI uses ERROR+NOVEL keyword-vs-SVD comparison</span>
+            )}
+          </div>
+        )}
+
         {matrix ? (
           <div className="grid grid-cols-2 gap-4">
             <MatrixBlock label="TSD — Time Series Decomposition" cell={matrix.tsd} color="#5eead4" />
@@ -455,7 +471,9 @@ export default function MetricsPage() {
           </div>
         ) : (
           <div className="bt-panel p-8 text-center text-[var(--text-muted)] text-[13px]">
-            No test runs recorded yet. Add test runs above to compute precision, recall, and F1.
+            {matrixSource === "none"
+              ? "Agent not running or no data yet. Start monitoring to auto-populate, or add manual test runs above."
+              : "No test runs recorded yet. Add test runs above to compute precision, recall, and F1."}
           </div>
         )}
 

@@ -60,6 +60,31 @@ function parseMemoryToMiB(raw: string) {
 }
 
 
+async function getKubectlStatusByService(namespace: string, serviceNames: string[]) {
+	const result = await runCommand("kubectl", [
+		"get", "pods", "-n", namespace, "--no-headers",
+		"-o", "custom-columns=NAME:.metadata.name,STATUS:.status.phase",
+	]);
+
+	const statusMap = new Map<string, "running" | "down">();
+	if (result.code !== 0) return statusMap;
+
+	const lines = result.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+
+	for (const svcName of serviceNames) {
+		const needle = serviceNameRegex(svcName);
+		const matched = lines.filter((line) => line.toLowerCase().includes(needle));
+		if (matched.length === 0) {
+			statusMap.set(svcName, "down");
+		} else {
+			const anyRunning = matched.some((line) => line.toLowerCase().includes("running"));
+			statusMap.set(svcName, anyRunning ? "running" : "down");
+		}
+	}
+
+	return statusMap;
+}
+
 async function getKubectlTopByService(namespace: string, services: string[]) {
 	const result = await runCommand("kubectl", [
 		"top",
@@ -193,6 +218,13 @@ export async function GET() {
 			)
 			: new Map<string, { cpuCores: number; memoryMiB: number }>();
 
+		const kubectlStatusByService = connectionPlatform === "kubernetes"
+			? await getKubectlStatusByService(
+				connectionNamespace,
+				normalizedServices.map((service) => service.name),
+			)
+			: new Map<string, "running" | "down">();
+
 		for (const service of normalizedServices) {
 			if (connectionPlatform === "docker") {
 				services.push({
@@ -217,13 +249,14 @@ export async function GET() {
 
 			if (!prometheusUrl) {
 				const fallbackUsageNoPrometheus = kubectlTopByService.get(service.name);
+				const liveStatus = kubectlStatusByService.get(service.name) ?? "unknown";
 				services.push({
 					id: `${connection.id}:${service.name}`,
 					connectionId: connection.id,
 					name: service.name,
 					namespace: ns,
 					platform: "kubernetes",
-					status: service.status === "running" ? "running" : "unknown",
+					status: liveStatus,
 					cpuCores: fallbackUsageNoPrometheus?.cpuCores ?? 0,
 					memoryMiB: fallbackUsageNoPrometheus?.memoryMiB ?? 0,
 					requestRate: 0,
@@ -306,18 +339,49 @@ export async function GET() {
 		}
 	}
 
-	// Fetch agent anomaly signals (LSI + TSD)
-	const agentUrl = process.env.BACKTRACK_AGENT_URL || "http://localhost:9090";
+	// Fetch agent anomaly signals (LSI + TSD) and per-service metrics
+	const agentUrl = process.env.BACKTRACK_AGENT_URL || "http://127.0.0.1:9090";
 	type AgentService = { name: string; is_drifting: boolean; is_anomalous: boolean };
+	type AgentMetrics = { current?: { cpu_percent?: number; memory_mb?: number; latency_ms?: number; error_rate_percent?: number } };
 	let agentServices: AgentService[] = [];
+	const agentMetricsMap = new Map<string, AgentMetrics>();
+
 	try {
 		const res = await fetch(`${agentUrl}/services`, { cache: "no-store", signal: AbortSignal.timeout(3000) });
-		if (res.ok) agentServices = (await res.json()) as AgentService[];
+		if (res.ok) {
+			agentServices = (await res.json()) as AgentService[];
+			// Fetch TSD metrics for each monitored service
+			await Promise.all(agentServices.map(async (svc) => {
+				try {
+					const mRes = await fetch(`${agentUrl}/metrics?service=${encodeURIComponent(svc.name)}`, {
+						cache: "no-store", signal: AbortSignal.timeout(2000),
+					});
+					if (mRes.ok) agentMetricsMap.set(svc.name, await mRes.json() as AgentMetrics);
+				} catch { /* non-fatal */ }
+			}));
+		}
 	} catch { /* agent unavailable */ }
 
 	const agentAnomalyMap = new Map<string, AgentService>(
 		agentServices.filter((s) => s.is_drifting || s.is_anomalous).map((s) => [s.name, s])
 	);
+
+	// Backfill agent TSD metrics into services that have no Prometheus data
+	for (const svc of services) {
+		const agentM = agentMetricsMap.get(svc.name);
+		if (!agentM?.current) continue;
+		if (svc.cpuCores === 0 && (agentM.current.cpu_percent ?? 0) > 0) {
+			svc.cpuCores = parseFloat(((agentM.current.cpu_percent ?? 0) / 100).toFixed(4));
+		}
+		if (svc.memoryMiB === 0 && (agentM.current.memory_mb ?? 0) > 0) {
+			svc.memoryMiB = agentM.current.memory_mb ?? 0;
+		}
+		// latency_ms > 0 means agent is actively probing the service — use as request signal
+		if (svc.requestRate === 0 && (agentM.current.latency_ms ?? 0) > 0) {
+			// 1 probe per scrape_interval seconds — express as req/s
+			svc.requestRate = parseFloat((1 / 10).toFixed(3));
+		}
+	}
 
 	const anomalies: DashboardAnomaly[] = services
 		.flatMap((service) => {

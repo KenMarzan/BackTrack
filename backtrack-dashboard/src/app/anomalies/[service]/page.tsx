@@ -526,7 +526,7 @@ export default function ServiceDiagnosticsPage() {
           const d = await lsiRes.json();
           if (!d.error) {
             setLsi(d);
-            const lsiAnomaly = d.anomaly_score !== undefined && d.anomaly_score > 0.5;
+            const lsiAnomaly = d.is_anomalous === true;
             if (lsiAnomaly && !anomalyDetectedAtRef.current) {
               anomalyDetectedAtRef.current = new Date().toISOString();
               anomalyTypeRef.current = "LSI";

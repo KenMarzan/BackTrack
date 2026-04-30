@@ -239,13 +239,16 @@ async def rollback_trigger() -> dict:
 async def reconfigure(body: dict) -> dict:
     """
     Hot-reload agent target/mode/namespace without restart.
-    Accepts: { target, mode, namespace, image_tag }
-    Stops existing monitors, applies new config, starts new monitors.
+    Accepts: { target, mode, namespace, image_tag, services?: string[] }
+    If services list provided, creates per-service collectors for each.
     """
     target = body.get("target", "").strip()
     mode = body.get("mode", "").strip().lower()
     namespace = body.get("namespace", "default").strip()
     image_tag = body.get("image_tag", "").strip()
+    explicit_services: list[str] = [
+        s.strip() for s in (body.get("services") or []) if isinstance(s, str) and s.strip()
+    ]
 
     if not target:
         return {"ok": False, "message": "target is required"}
@@ -269,8 +272,13 @@ async def reconfigure(body: dict) -> dict:
     for d in (consecutive_anomaly_counts, clean_seconds_map, rollback_cooldown_until):
         d.clear()
 
-    # Discover and start new monitors
-    services = await _discover_services()
+    # Build service list — prefer explicit list from dashboard (one entry per service)
+    if explicit_services and config.mode != "docker":
+        services = [(svc, f"app={svc}") for svc in explicit_services]
+        logger.info("Using %d explicit services from dashboard: %s", len(services), explicit_services)
+    else:
+        services = await _discover_services()
+
     for svc_name, label_sel in services:
         tsd = TSDCollector(service_name=svc_name, label_selector=label_sel)
         lsi = LSICollector(service_name=svc_name, label_selector=label_sel)

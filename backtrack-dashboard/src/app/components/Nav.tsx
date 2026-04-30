@@ -16,6 +16,7 @@ type ConnectionForm = {
   authToken: string;
   githubRepo: string;
   githubBranch: string;
+  githubToken: string;
 };
 
 type NavProps = {
@@ -45,6 +46,7 @@ function Nav({ healthSummary }: NavProps) {
     authToken: "",
     githubRepo: "",
     githubBranch: "main",
+    githubToken: "",
   });
 
   const formattedDate = useMemo(
@@ -85,6 +87,11 @@ function Nav({ healthSummary }: NavProps) {
       setStatusMessage(payload.message || "Connection completed.");
 
       if (action === "connect") {
+        // Send all discovered service names so agent creates per-service collectors
+        const discoveredNames: string[] = Array.isArray(payload.discoveredServices)
+          ? payload.discoveredServices.map((s: { name: string }) => s.name).filter(Boolean)
+          : [];
+
         // Live-reconfigure agent without restart
         fetch("/api/agent?path=reconfigure", {
           method: "POST",
@@ -93,6 +100,7 @@ function Nav({ healthSummary }: NavProps) {
             target: form.appName,
             mode: form.platform,
             namespace: form.namespace,
+            services: discoveredNames,
           }),
         }).catch(() => {/* agent unavailable — non-fatal */});
 
@@ -115,6 +123,8 @@ function Nav({ healthSummary }: NavProps) {
       setIsSubmitting(false);
     }
   };
+
+  const isDocker = form.platform === "docker";
 
   const pathname = usePathname();
   const total = healthSummary?.total ?? 0;
@@ -230,8 +240,9 @@ function Nav({ healthSummary }: NavProps) {
                     Connect a <span className="italic text-[var(--accent-teal)]">cluster</span>
                   </h2>
                   <p className="text-xs text-[var(--text-secondary)] mt-1">
-                    Point BackTrack at your Kubernetes cluster or Docker daemon to discover
-                    services, stream metrics, and enable one-click rollback.
+                    {isDocker
+                      ? "Enter your Docker container name — BackTrack will start monitoring it immediately."
+                      : "Point BackTrack at your Kubernetes cluster to discover services, stream metrics, and enable one-click rollback."}
                   </p>
                 </div>
               </div>
@@ -239,14 +250,14 @@ function Nav({ healthSummary }: NavProps) {
               <div className="mt-6 space-y-4 pb-6">
                 <Field
                   label="Application name"
-                  hint="Logical group for the discovered services (e.g. checkoutservice)."
+                  hint={isDocker ? "Docker container name to monitor (e.g. my-app)." : "Logical group for the discovered services (e.g. checkoutservice)."}
                 >
                   <input
                     type="text"
                     value={form.appName}
                     onChange={(e) => updateField("appName", e.target.value)}
                     className="bt-input"
-                    placeholder="checkoutservice"
+                    placeholder={isDocker ? "my-app" : "checkoutservice"}
                   />
                 </Field>
 
@@ -273,28 +284,32 @@ function Nav({ healthSummary }: NavProps) {
                   </Field>
                 </div>
 
-                <Field label="Cluster name" hint="Friendly label shown across the dashboard.">
-                  <input
-                    type="text"
-                    value={form.clusterName}
-                    onChange={(e) => updateField("clusterName", e.target.value)}
-                    className="bt-input"
-                    placeholder="production-us-east"
-                  />
-                </Field>
+                {!isDocker && (
+                  <Field label="Cluster name" hint="Friendly label shown across the dashboard.">
+                    <input
+                      type="text"
+                      value={form.clusterName}
+                      onChange={(e) => updateField("clusterName", e.target.value)}
+                      className="bt-input"
+                      placeholder="production-us-east"
+                    />
+                  </Field>
+                )}
 
-                <Field label="API server endpoint" hint="HTTPS URL of the kube-apiserver.">
-                  <input
-                    type="text"
-                    value={form.apiServerEndpoint}
-                    onChange={(e) => updateField("apiServerEndpoint", e.target.value)}
-                    className="bt-input"
-                    placeholder="https://kubernetes.default.svc"
-                  />
-                </Field>
+                {!isDocker && (
+                  <Field label="API server endpoint" hint="HTTPS URL of the kube-apiserver.">
+                    <input
+                      type="text"
+                      value={form.apiServerEndpoint}
+                      onChange={(e) => updateField("apiServerEndpoint", e.target.value)}
+                      className="bt-input"
+                      placeholder="https://kubernetes.default.svc"
+                    />
+                  </Field>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label="Prometheus URL (optional)" hint="PromQL endpoint. Leave blank to use kubectl top / Docker stats fallback.">
+                  <Field label="Prometheus URL (optional)" hint="PromQL endpoint. Leave blank to use Docker stats fallback.">
                     <input
                       type="text"
                       value={form.prometheusUrl}
@@ -303,26 +318,19 @@ function Nav({ healthSummary }: NavProps) {
                       placeholder="http://localhost:9090"
                     />
                   </Field>
-                  <Field label="Namespace" hint="Primary namespace to watch.">
-                    <input
-                      type="text"
-                      value={form.namespace}
-                      onChange={(e) => updateField("namespace", e.target.value)}
-                      className="bt-input"
-                      placeholder="default"
-                    />
-                  </Field>
+                  {!isDocker && (
+                    <Field label="Namespace" hint="Primary namespace to watch.">
+                      <input
+                        type="text"
+                        value={form.namespace}
+                        onChange={(e) => updateField("namespace", e.target.value)}
+                        className="bt-input"
+                        placeholder="default"
+                      />
+                    </Field>
+                  )}
                 </div>
 
-                <Field label="Service account token" hint="Bearer token with read access. Stored locally only.">
-                  <input
-                    type="password"
-                    value={form.authToken}
-                    onChange={(e) => updateField("authToken", e.target.value)}
-                    className="bt-input"
-                    placeholder="eyJhbGciOi…"
-                  />
-                </Field>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="GitHub repository" hint="Used for commit-aware rollbacks.">
@@ -344,6 +352,16 @@ function Nav({ healthSummary }: NavProps) {
                     />
                   </Field>
                 </div>
+
+                <Field label="GitHub token" hint="Personal access token with repo read access. Stored locally only.">
+                  <input
+                    type="password"
+                    value={form.githubToken}
+                    onChange={(e) => updateField("githubToken", e.target.value)}
+                    className="bt-input"
+                    placeholder="ghp_…"
+                  />
+                </Field>
 
                 {statusMessage ? (
                   <div className="rounded-xl border border-[var(--border-mid)] bg-[#0f1621] p-3">
@@ -382,26 +400,46 @@ function Nav({ healthSummary }: NavProps) {
                   </div>
                 ) : null}
 
-                <div className="rounded-xl border border-[var(--border-soft)] bg-[rgba(148,163,184,0.03)] p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Boxes size={14} className="text-[var(--accent-violet)]" />
-                    <h3 className="text-sm text-white">Getting credentials</h3>
+                {isDocker ? (
+                  <div className="rounded-xl border border-[var(--border-soft)] bg-[rgba(148,163,184,0.03)] p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Boxes size={14} className="text-[var(--accent-teal)]" />
+                      <h3 className="text-sm text-white">Docker setup</h3>
+                    </div>
+                    <ol className="space-y-3 text-xs text-[var(--text-secondary)] list-decimal list-inside">
+                      <li>
+                        Find your container name:
+                        <code className="block mt-1.5 bt-mono text-[11.5px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2">
+                          docker ps --format &quot;&#123;&#123;.Names&#125;&#125;&quot;
+                        </code>
+                      </li>
+                      <li>
+                        Enter that name in <strong>Application name</strong> above, then click Connect.
+                      </li>
+                    </ol>
                   </div>
-                  <ol className="space-y-3 text-xs text-[var(--text-secondary)] list-decimal list-inside">
-                    <li>
-                      Cluster API endpoint:
-                      <code className="block mt-1.5 bt-mono text-[11.5px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2">
-                        kubectl cluster-info
-                      </code>
-                    </li>
-                    <li>
-                      Service account token:
-                      <code className="block mt-1.5 bt-mono text-[11.5px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2 whitespace-pre-wrap break-all">
-                        kubectl create token default --duration=24h
-                      </code>
-                    </li>
-                  </ol>
-                </div>
+                ) : (
+                  <div className="rounded-xl border border-[var(--border-soft)] bg-[rgba(148,163,184,0.03)] p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Boxes size={14} className="text-[var(--accent-violet)]" />
+                      <h3 className="text-sm text-white">Getting credentials</h3>
+                    </div>
+                    <ol className="space-y-3 text-xs text-[var(--text-secondary)] list-decimal list-inside">
+                      <li>
+                        Cluster API endpoint:
+                        <code className="block mt-1.5 bt-mono text-[11.5px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2">
+                          kubectl cluster-info
+                        </code>
+                      </li>
+                      <li>
+                        Service account token:
+                        <code className="block mt-1.5 bt-mono text-[11.5px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2 whitespace-pre-wrap break-all">
+                          kubectl create token default --duration=24h
+                        </code>
+                      </li>
+                    </ol>
+                  </div>
+                )}
               </div>
             </div>
 

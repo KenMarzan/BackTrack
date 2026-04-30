@@ -26,6 +26,7 @@ logger = logging.getLogger("backtrack.lsi")
 CORPUS_SIZE = int(os.getenv("BACKTRACK_CORPUS_SIZE", "200"))
 WINDOW_SECONDS = int(os.getenv("BACKTRACK_WINDOW_SECONDS", "30"))
 BASELINE_WINDOWS = int(os.getenv("BACKTRACK_BASELINE_WINDOWS", "10"))
+SVD_SIMILARITY_THRESHOLD = float(os.getenv("BACKTRACK_SVD_SIMILARITY_THRESHOLD", "0.55"))
 
 # Seed keywords for each log class
 SEED_KEYWORDS = {
@@ -60,6 +61,15 @@ class LSICollector:
 
         # Recent classified lines for the /lsi endpoint
         self.recent_lines: collections.deque[dict] = collections.deque(maxlen=50)
+
+        # Confusion matrix: keyword label (reference) vs SVD label (predicted)
+        # Only populated for lines where keyword gave a definitive label AND SVD ran
+        # rows = reference class, cols = predicted class
+        _classes = ["INFO", "WARN", "ERROR", "NOVEL"]
+        self._confusion: dict[str, dict[str, int]] = {
+            ref: {pred: 0 for pred in _classes} for ref in _classes
+        }
+        self._svd_classified_count: int = 0  # lines that went through SVD path
 
         self._running = False
         self._task: Optional[asyncio.Task] = None
@@ -248,13 +258,10 @@ class LSICollector:
 
     def _classify(self, line: str) -> str:
         """Classify a single log line. Keyword pre-check, then SVD cosine similarity."""
-        # Fast path: keyword match catches OOV tokens the SVD model would miss
         kw = self._keyword_classify(line)
-        if kw:
-            return kw
 
         if not self.vectorizer or not self.svd or not self.centroids:
-            return "INFO"
+            return kw or "INFO"
 
         try:
             vec = self.vectorizer.transform([line])
@@ -267,11 +274,20 @@ class LSICollector:
 
             best_label = max(scores, key=scores.get)  # type: ignore[arg-type]
             best_score = scores[best_label]
+            svd_label = best_label if best_score > SVD_SIMILARITY_THRESHOLD else "NOVEL"
 
-            return best_label if best_score > 0.10 else "NOVEL"
+            self._svd_classified_count += 1
+
+            # Build confusion matrix: keyword = reference, SVD = predicted
+            # For lines with no keyword match, treat SVD result as INFO reference baseline
+            ref = kw if kw else "INFO"
+            self._confusion[ref][svd_label] += 1
+
+            # If keyword matched, return keyword (fast path takes priority)
+            return kw if kw else svd_label
 
         except Exception:
-            return "INFO"
+            return kw or "INFO"
 
     def _close_window(self) -> None:
         """Close the current 30-second scoring window."""
@@ -310,6 +326,41 @@ class LSICollector:
             return False
         return current_score > config.lsi_score_multiplier * baseline_mean
 
+    def get_evaluation(self) -> dict:
+        """Compute confusion matrix + precision/recall/F1 per class (keyword vs SVD)."""
+        classes = ["INFO", "WARN", "ERROR", "NOVEL"]
+        matrix = self._confusion
+        metrics: dict[str, dict] = {}
+
+        for cls in classes:
+            tp = matrix[cls][cls]
+            fp = sum(matrix[ref][cls] for ref in classes if ref != cls)
+            fn = sum(matrix[cls][pred] for pred in classes if pred != cls)
+            tn = sum(
+                matrix[ref][pred]
+                for ref in classes for pred in classes
+                if ref != cls and pred != cls
+            )
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            f1 = (2 * precision * recall / (precision + recall)
+                  if (precision + recall) > 0 else 0.0)
+            metrics[cls] = {
+                "precision": round(precision, 4),
+                "recall": round(recall, 4),
+                "f1": round(f1, 4),
+                "tp": tp, "fp": fp, "fn": fn, "tn": tn,
+            }
+
+        return {
+            "confusion_matrix": {
+                ref: dict(row) for ref, row in matrix.items()
+            },
+            "per_class": metrics,
+            "svd_classified_total": self._svd_classified_count,
+            "classes": classes,
+        }
+
     def get_lsi(self) -> dict:
         """Return LSI status for the /lsi endpoint."""
         current_score = self.score_history[-1] if self.score_history else 0.0
@@ -325,4 +376,5 @@ class LSICollector:
             "window_counts": dict(self.window_counts),
             "score_history": [round(s, 4) for s in self.score_history[-20:]],
             "recent_lines": list(self.recent_lines),
+            "evaluation": self.get_evaluation(),
         }

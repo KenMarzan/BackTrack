@@ -22,6 +22,7 @@ type LegacyConnection = {
 	authToken?: string;
 	githubRepo?: string;
 	githubBranch?: string;
+	githubToken?: string;
 	discoveredServices?: Array<{
 		name?: string;
 		namespace?: string;
@@ -75,6 +76,7 @@ function normalizeConnection(connection: LegacyConnection): AppConnection {
 		authToken: connection.authToken,
 		githubRepo: (connection.githubRepo || "").trim() || undefined,
 		githubBranch: (connection.githubBranch || "main").trim(),
+		githubToken: connection.githubToken,
 		discoveredServices,
 	};
 }
