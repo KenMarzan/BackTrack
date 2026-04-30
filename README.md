@@ -9,15 +9,15 @@ BackTrack watches your containerized services in real time, detects metric drift
 ## Screenshots
 
 ### Dashboard — Live Telemetry
-![Anomaly Detection panel showing all systems nominal](docs/screenshots/anomaly-detection-nominal.png)
+![Anomaly Detection panel showing all systems nominal](docs/screenshots/Dashboard.jpeg)
 > Main dashboard. Container Health chart, Recent Deployments, Anomaly Detection panel (Critical · High · Medium counters), and Active Containers table.
 
 ### Anomalies — TSD + LSI Live Panels
-![Anomalies page with TSD and LSI panels](docs/screenshots/anomalies-tsd-lsi.png)
-> Anomalies page with the agent online. Left: interactive kubectl terminal. Right: TSD Metrics and LSI Analysis.
+![Anomalies page with TSD and LSI panels](docs/screenshots/Terminal.jpeg)
+> Anomalies page with the agent online. Bottom: interactive kubectl terminal. Left: TSD Metrics and LSI Analysis.
 
 ### Anomalies — Full Live View
-![Anomalies page live view](docs/screenshots/anomalies-page.png)
+![Anomalies page live view](docs/screenshots/TSDAndLSI.jpeg)
 > Full anomalies page. TSD metrics update every 10 s. LSI score history chart fills as the corpus grows.
 
 ### Service Diagnostics — Per-Service Drill-Down
