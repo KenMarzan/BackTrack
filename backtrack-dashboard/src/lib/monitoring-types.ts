@@ -21,6 +21,7 @@ export interface AppConnectionInput {
   authToken?: string;
   githubRepo?: string;
   githubBranch?: string;
+  githubToken?: string;
   discoveredServices: DiscoveredService[];
 }
 

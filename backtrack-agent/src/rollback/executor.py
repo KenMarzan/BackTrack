@@ -107,9 +107,17 @@ class RollbackExecutor:
         logger.info("Docker rollback complete.")
 
     def _rollback_kubernetes(self) -> None:
-        """K8s mode: kubectl rollout undo."""
-        # Determine deployment name from label selector
+        """K8s mode: kubectl rollout undo, then restore replicas if scaled to 0."""
         name = config.target or config.k8s_label_selector.split("=")[-1]
+
+        # Check current replica count — scale-to-0 defeats rollout undo
+        rep_result = subprocess.run(
+            ["kubectl", "get", "deployment", name, "-n", config.k8s_namespace,
+             "-o", "jsonpath={.spec.replicas}"],
+            capture_output=True, text=True,
+        )
+        current_replicas = int(rep_result.stdout.strip() or "1")
+
         cmd = [
             "kubectl", "rollout", "undo",
             f"deployment/{name}",
@@ -118,6 +126,14 @@ class RollbackExecutor:
         logger.info("Running: %s", " ".join(cmd))
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
         logger.info("kubectl rollout undo output: %s", result.stdout.strip())
+
+        if current_replicas == 0:
+            logger.warning("Deployment was scaled to 0 — restoring to 1 replica.")
+            subprocess.run(
+                ["kubectl", "scale", "deployment", name,
+                 "--replicas=1", "-n", config.k8s_namespace],
+                check=True, capture_output=True, text=True,
+            )
 
     def _append_log(self, reason: str, from_tag: str, to_tag: str, success: bool) -> None:
         """Append a rollback event to the log file."""

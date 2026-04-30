@@ -19,6 +19,7 @@ type ConnectionPayload = {
 	authToken?: string;
 	githubRepo?: string;
 	githubBranch?: string;
+	githubToken?: string;
 };
 
 async function discoverKubernetesServices(
@@ -203,15 +204,16 @@ export async function POST(request: NextRequest) {
 		const appName = (payload.appName || "").trim();
 		const platform = (payload.platform || "kubernetes") as PlatformType;
 		const architecture = (payload.architecture || "microservices") as ArchitectureType;
-		const clusterName = (payload.clusterName || "").trim();
+		const clusterName = (payload.clusterName || (platform === "docker" ? "local-docker" : "")).trim();
 		const namespace = (payload.namespace || "default").trim();
 		const apiServerEndpoint = (payload.apiServerEndpoint || "").trim();
 		const prometheusUrl = (payload.prometheusUrl || "").trim();
 		const authToken = (payload.authToken || "").trim();
 		const githubRepo = (payload.githubRepo || "").trim();
 		const githubBranch = (payload.githubBranch || "main").trim();
+		const githubToken = (payload.githubToken || "").trim();
 
-		if (!appName || !clusterName) {
+		if (!appName || (platform !== "docker" && !clusterName)) {
 			return NextResponse.json(
 				{ error: "App name and cluster name are required." },
 				{ status: 400 },
@@ -249,6 +251,7 @@ export async function POST(request: NextRequest) {
 			authToken: authToken || undefined,
 			githubRepo: githubRepo || undefined,
 			githubBranch,
+			githubToken: githubToken || undefined,
 			discoveredServices,
 		});
 

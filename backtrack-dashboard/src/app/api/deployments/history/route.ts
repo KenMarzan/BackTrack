@@ -67,8 +67,8 @@ function parseRevisionRows(raw: string) {
   return rows;
 }
 
-async function fetchGitHubCommits(repo: string, branch: string) {
-  const token = process.env.GITHUB_TOKEN;
+async function fetchGitHubCommits(repo: string, branch: string, tokenOverride?: string) {
+  const token = tokenOverride || process.env.GITHUB_TOKEN;
   const allCommits: GitHubCommit[] = [];
 
   for (let page = 1; page <= 5; page += 1) {
@@ -244,13 +244,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  const repoTokenMap = new Map<string, string | undefined>();
+  for (const conn of k8sConnections) {
+    if (conn.githubRepo) repoTokenMap.set(conn.githubRepo, conn.githubToken);
+  }
+
   const repoCommitCache = new Map<string, GitHubCommit[]>();
   async function commitsFor(repo: string, branch: string) {
     if (!repo) return [];
     const key = `${repo}@${branch}`;
     const cached = repoCommitCache.get(key);
     if (cached) return cached;
-    const commits = await fetchGitHubCommits(repo, branch);
+    const commits = await fetchGitHubCommits(repo, branch, repoTokenMap.get(repo));
     repoCommitCache.set(key, commits);
     return commits;
   }

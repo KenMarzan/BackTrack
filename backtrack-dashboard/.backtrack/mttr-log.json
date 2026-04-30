@@ -1,11 +1,31 @@
 [
   {
-    "id": "f04edb6d-1c48-4c31-850b-b78733e232a4",
-    "service": "backtrack-test",
+    "id": "5db69918-df26-4684-81d1-7d89e85a3a3b",
+    "service": "frontend",
     "anomaly_type": "MANUAL",
-    "anomaly_detected_at": "2026-04-29T15:36:25.059Z",
-    "rollback_triggered_at": "2026-04-29T15:36:25.270Z",
-    "rollback_completed_at": "2026-04-29T15:36:26.794Z",
+    "anomaly_detected_at": "2026-04-30T03:58:17.650Z",
+    "rollback_triggered_at": "2026-04-30T03:58:17.650Z",
+    "rollback_completed_at": "2026-04-30T03:58:17.751Z",
+    "mttr_seconds": 0,
+    "success": true
+  },
+  {
+    "id": "0c2a6ad0-2e25-4597-a05b-850e56feb19f",
+    "service": "frontend",
+    "anomaly_type": "MANUAL",
+    "anomaly_detected_at": "2026-04-30T04:03:19.195Z",
+    "rollback_triggered_at": "2026-04-30T04:03:19.195Z",
+    "rollback_completed_at": "2026-04-30T04:03:31.503Z",
+    "mttr_seconds": 12,
+    "success": true
+  },
+  {
+    "id": "a9a89a6e-5c1f-4daa-bd85-a380745695a5",
+    "service": "checkoutservice",
+    "anomaly_type": "MANUAL",
+    "anomaly_detected_at": "2026-04-30T04:06:43.380Z",
+    "rollback_triggered_at": "2026-04-30T04:06:43.380Z",
+    "rollback_completed_at": "2026-04-30T04:06:44.917Z",
     "mttr_seconds": 2,
     "success": true
   }

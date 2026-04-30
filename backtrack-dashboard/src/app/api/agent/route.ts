@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const AGENT_URL = process.env.BACKTRACK_AGENT_URL || "http://localhost:9090";
+const AGENT_URL = process.env.BACKTRACK_AGENT_URL || "http://127.0.0.1:9090";
 
 /**
  * Proxy requests to the backtrack-agent sidecar.

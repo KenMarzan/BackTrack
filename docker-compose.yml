@@ -15,7 +15,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - backtrack-data:/.backtrack
     depends_on:
-      - backtrack-agent
+      backtrack-agent:
+        condition: service_healthy
 
   backtrack-agent:
     image: zeritzuu/backtrack-agent:latest
@@ -31,7 +32,13 @@ services:
       - backtrack-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - "9090:9090"
+      - "9091:9090"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   backtrack-data:

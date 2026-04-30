@@ -41,10 +41,23 @@ class TSDCollector:
         self.current_error_rate: float = 0.0
 
         self.residuals: dict[str, list[float]] = {
-            "cpu": [],
-            "memory": [],
-            "latency": [],
-            "error_rate": [],
+            "cpu": [], "memory": [], "latency": [], "error_rate": [],
+        }
+        self.seasonal: dict[str, list[float]] = {
+            "cpu": [], "memory": [], "latency": [], "error_rate": [],
+        }
+        self.trend: dict[str, list[float]] = {
+            "cpu": [], "memory": [], "latency": [], "error_rate": [],
+        }
+
+        # Drift event tracking for precision/recall estimation
+        # sustained_drift = drift that persisted 3+ consecutive cycles (confirmed signal)
+        # spike_drift = drift that appeared then resolved in <3 cycles (likely noise)
+        self._drift_events_total: int = 0
+        self._drift_sustained: int = 0   # confirmed: 3+ consecutive anomaly cycles
+        self._drift_consecutive: int = 0  # current run length
+        self._per_metric_drifts: dict[str, int] = {
+            "cpu": 0, "memory": 0, "latency": 0, "error_rate": 0
         }
 
         self._running = False
@@ -220,6 +233,8 @@ class TSDCollector:
             try:
                 result = STL(series, period=6, robust=True).fit()
                 self.residuals[name] = result.resid.tolist()
+                self.seasonal[name] = result.seasonal.tolist()
+                self.trend[name] = result.trend.tolist()
             except Exception:
                 logger.warning("STL decomposition failed for %s", name)
 
@@ -228,18 +243,15 @@ class TSDCollector:
         Returns True if residual > 3×IQR for 3 consecutive readings
         on ANY metric. This is the core anomaly signal from TSD.
         """
+        drifting_now = False
         for name, residuals in self.residuals.items():
             if len(residuals) < 6:
                 continue
-            # Baseline: all but last 3 readings
             baseline = residuals[:-3]
             if len(baseline) < 3:
                 continue
             q1, q3 = np.percentile(baseline, [25, 75])
             iqr = q3 - q1
-            # Skip metrics with near-zero variance — flat series produce
-            # floating-point noise residuals (~1e-16) that falsely exceed a
-            # zero threshold.
             if iqr < 1e-6:
                 continue
             threshold = config.tsd_iqr_multiplier * iqr
@@ -249,28 +261,87 @@ class TSDCollector:
                     "TSD DRIFT on %s: last 3 residuals %s exceed threshold %.4f",
                     name, [round(r, 4) for r in last_three], threshold,
                 )
-                return True
-        return False
+                self._per_metric_drifts[name] = self._per_metric_drifts.get(name, 0) + 1
+                drifting_now = True
+
+        if drifting_now:
+            self._drift_consecutive += 1
+            if self._drift_consecutive == 1:
+                self._drift_events_total += 1
+            if self._drift_consecutive >= 3:
+                self._drift_sustained += 1
+        else:
+            self._drift_consecutive = 0
+
+        return drifting_now
+
+    def get_evaluation(self) -> dict:
+        """Drift detection quality estimates (no ground truth — uses heuristics)."""
+        total = self._drift_events_total
+        sustained = self._drift_sustained
+        spikes = max(0, total - sustained)
+
+        # Estimated precision: sustained drifts / total drift events
+        # (sustained = confirmed signal, spikes = probable noise)
+        est_precision = sustained / total if total > 0 else 0.0
+
+        # Confusion matrix approximation (binary: drift / no-drift)
+        # TP = sustained drift events, FP = spike drift events
+        # TN/FN not directly observable without ground truth
+        tp = sustained
+        fp = spikes
+
+        return {
+            "drift_events_total": total,
+            "drift_sustained": sustained,
+            "drift_spikes": spikes,
+            "estimated_precision": round(est_precision, 4),
+            "per_metric_drifts": dict(self._per_metric_drifts),
+            "confusion_matrix": {
+                "TP_sustained": tp,
+                "FP_spikes": fp,
+                "note": "TN/FN require external ground truth (rollback feedback)",
+            },
+        }
 
     def get_metrics(self) -> dict:
-        """Return current readings, residuals, drift status for /metrics endpoint."""
+        """Return current readings, STL decomposition, drift status for /metrics endpoint."""
+        def _r(vals: list[float], n: int = 4) -> list[float]:
+            return [round(v, n) for v in vals]
+
+        # Map internal short keys → frontend field names
+        key_map = {
+            "cpu": "cpu_percent",
+            "memory": "memory_mb",
+            "latency": "latency_ms",
+            "error_rate": "error_rate_percent",
+        }
+
+        decomposition: dict = {}
+        for short, full in key_map.items():
+            if self.residuals.get(short):
+                decomposition[full] = {
+                    "seasonal": _r(self.seasonal.get(short, [])),
+                    "trend":    _r(self.trend.get(short, [])),
+                    "residual": _r(self.residuals.get(short, [])),
+                }
+
         return {
             "current": {
-                "cpu_percent": round(self.current_cpu, 3),
-                "memory_mb": round(self.current_memory, 2),
-                "latency_ms": round(self.current_latency, 2),
+                "cpu_percent":        round(self.current_cpu, 3),
+                "memory_mb":          round(self.current_memory, 2),
+                "latency_ms":         round(self.current_latency, 2),
                 "error_rate_percent": round(self.current_error_rate, 3),
             },
             "history": {
-                "cpu": [round(v, 3) for v in self.cpu_history],
-                "memory": [round(v, 2) for v in self.memory_history],
-                "latency": [round(v, 2) for v in self.latency_history],
-                "error_rate": [round(v, 3) for v in self.error_rate_history],
+                "cpu":        _r(list(self.cpu_history), 3),
+                "memory":     _r(list(self.memory_history), 2),
+                "latency":    _r(list(self.latency_history), 2),
+                "error_rate": _r(list(self.error_rate_history), 3),
             },
-            "residuals": {
-                name: [round(v, 4) for v in vals]
-                for name, vals in self.residuals.items()
-            },
+            "decomposition": decomposition,
+            "residuals": {k: _r(v) for k, v in self.residuals.items()},
             "readings_count": len(self.cpu_history),
             "is_drifting": self.is_drifting(),
+            "evaluation": self.get_evaluation(),
         }
