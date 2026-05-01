@@ -101,7 +101,10 @@ def test_get_metrics_structure():
     collector = make_collector_with_history(15)
     collector._decompose()
     result = collector.get_metrics()
-    assert set(result.keys()) == {"current", "history", "residuals", "readings_count", "is_drifting"}
+    assert set(result.keys()) == {
+        "current", "history", "decomposition", "residuals",
+        "readings_count", "is_drifting", "evaluation",
+    }
     assert set(result["current"].keys()) == {
         "cpu_percent", "memory_mb", "latency_ms", "error_rate_percent"
     }

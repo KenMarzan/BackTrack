@@ -25,12 +25,14 @@ def reset_state():
     main_module.service_monitors.clear()
     main_module.consecutive_anomaly_counts.clear()
     main_module.clean_seconds_map.clear()
+    main_module.rollback_cooldown_until.clear()
     main_module.version_store = None
     main_module.rollback_executor = None
     yield
     main_module.service_monitors.clear()
     main_module.consecutive_anomaly_counts.clear()
     main_module.clean_seconds_map.clear()
+    main_module.rollback_cooldown_until.clear()
     main_module.version_store = None
     main_module.rollback_executor = None
 
@@ -206,6 +208,7 @@ async def test_discover_docker_returns_target(mock_config):
 
 async def test_discover_kubernetes_parses_deployments(mock_config):
     mock_config.mode = "kubernetes"
+    mock_config.target = ""  # empty target → use kubectl for discovery
     mock_proc = MagicMock()
     mock_proc.communicate = AsyncMock(return_value=(b"api-service\nworker\n", b""))
     with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
@@ -214,22 +217,33 @@ async def test_discover_kubernetes_parses_deployments(mock_config):
     assert ("worker", "app=worker") in result
 
 
-async def test_discover_kubernetes_falls_back_on_empty_output(mock_config):
+async def test_discover_kubernetes_with_explicit_target(mock_config):
+    """When a target is set for kubernetes mode, return it directly without calling kubectl."""
     mock_config.mode = "kubernetes"
-    mock_config.target = "fallback-app"
+    mock_config.target = "my-service"
+    mock_config.k8s_label_selector = ""
+    result = await _discover_services()
+    assert result == [("my-service", "app=my-service")]
+
+
+async def test_discover_kubernetes_returns_empty_on_no_deployments(mock_config):
+    """No target + kubectl returns empty output → empty list (no fallback)."""
+    mock_config.mode = "kubernetes"
+    mock_config.target = ""
     mock_proc = MagicMock()
     mock_proc.communicate = AsyncMock(return_value=(b"", b""))
     with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
         result = await _discover_services()
-    assert result == [("fallback-app", "app=fallback-app")]
+    assert result == []
 
 
-async def test_discover_kubernetes_falls_back_on_exception(mock_config):
+async def test_discover_kubernetes_returns_empty_on_exception(mock_config):
+    """No target + kubectl raises → empty list."""
     mock_config.mode = "kubernetes"
-    mock_config.target = "fallback-app"
+    mock_config.target = ""
     with patch("asyncio.create_subprocess_exec", side_effect=Exception("kubectl not found")):
         result = await _discover_services()
-    assert result == [("fallback-app", "app=fallback-app")]
+    assert result == []
 
 
 # --- polling_loop ---

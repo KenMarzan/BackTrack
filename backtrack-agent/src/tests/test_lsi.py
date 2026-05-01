@@ -141,8 +141,9 @@ def test_is_anomalous_false_when_baseline_mean_is_zero():
     collector = make_fitted_collector()
     collector.baseline_scores = [0.0] * BASELINE_WINDOWS
     collector.baseline_locked = True
-    collector.score_history = [99.0]
-    # threshold = 2.0 * 0.0 = 0 → guard clause returns False
+    # Score must be below the absolute floor (1.5) so that floor doesn't fire first;
+    # the zero-guard (baseline_mean <= 0 → False) is what we're testing here.
+    collector.score_history = [0.5]
     assert not collector.is_anomalous()
 
 
