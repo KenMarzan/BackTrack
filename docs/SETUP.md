@@ -19,52 +19,11 @@ This guide covers every way to run BackTrack: Docker Hub (fastest), Kubernetes m
 
 ## Quick Start — Docker Hub
 
-No source code, no Node, no Python. Just Docker.
+**For Docker Hub users (pre-built images, no source code needed):**
 
-**Prerequisites:**
+→ **[See DOCKER_HUB.md](DOCKER_HUB.md)** for a step-by-step guide.
 
-| Mode | Requirements |
-|------|-------------|
-| Docker | Docker Desktop (or Engine + Compose), a running container to monitor |
-| Kubernetes | Same, plus kubeconfig accessible on your machine |
-
-### Step 1 — Download and configure
-
-```bash
-mkdir backtrack && cd backtrack
-
-curl -O https://raw.githubusercontent.com/KenMarzan/BackTrack/main/docker-compose.yml
-curl -o .env https://raw.githubusercontent.com/KenMarzan/BackTrack/main/.env.example
-```
-
-Edit `.env`:
-
-```env
-BACKTRACK_TARGET=my-app        # Docker container name or K8s deployment name
-BACKTRACK_IMAGE_TAG=latest     # Your current image tag
-GITHUB_TOKEN=                  # Optional — for deployment history panel
-```
-
-### Step 2 — Start BackTrack
-
-```bash
-docker compose up -d
-```
-
-This pulls two images from Docker Hub:
-- `zeritzuu/backtrack-dashboard` → web UI on **http://localhost:3847**
-- `zeritzuu/backtrack-agent` → anomaly engine on port **8847**
-
-### Step 3 — Connect your app
-
-1. Open **http://localhost:3847**
-2. Click **Configure Cluster** (top-right)
-3. Choose **Docker** or **Kubernetes**
-4. Enter your container/deployment name → click **Connect**
-
-BackTrack discovers all services in your cluster and starts monitoring each one individually with its own TSD + LSI collectors.
-
-> **Prometheus URL:** leave blank — BackTrack falls back to `docker stats` / `kubectl top` automatically.
+The rest of this document covers advanced setup, configuration, and building from source.
 
 ---
 
