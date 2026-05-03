@@ -14,8 +14,9 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - backtrack-data:/.backtrack
-      # Kubernetes mode: uncomment to mount kubeconfig for kubectl access
-      # - ~/.kube:/root/.kube:ro
+      # Kubernetes mode: mount a Docker-safe kubeconfig (127.0.0.1 → host.docker.internal).
+      # Run once: sed 's|https://127.0.0.1|https://host.docker.internal|g' ~/.kube/config > ~/.kube/config-docker
+      - ${KUBECONFIG_PATH:-~/.kube/config}:/root/.kube/config:ro
     depends_on:
       backtrack-agent:
         condition: service_healthy
@@ -45,8 +46,8 @@ services:
     volumes:
       - backtrack-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
-      # Kubernetes mode: uncomment to mount kubeconfig for kubectl access
-      # - ~/.kube:/root/.kube:ro
+      # Kubernetes mode: same Docker-safe kubeconfig as the dashboard.
+      - ${KUBECONFIG_PATH:-~/.kube/config}:/root/.kube/config:ro
     ports:
       - "8847:8847"
     healthcheck:
