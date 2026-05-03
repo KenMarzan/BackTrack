@@ -156,7 +156,10 @@ class TSDCollector:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+            if proc.returncode != 0:
+                err = stderr.decode("utf-8", errors="replace").strip() if stderr else "no output"
+                logger.warning("kubectl top failed for %s (rc=%d): %s", self.service_name, proc.returncode, err[:300])
             lines = stdout.decode().strip().splitlines()
 
             total_cpu = 0.0
