@@ -32,9 +32,9 @@ jobs:
         run: |
           echo "Waiting for Backtrack agent to become healthy..."
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:9090/health > /dev/null 2>&1; then
+            if curl -sf http://localhost:8847/health > /dev/null 2>&1; then
               echo "Backtrack agent is healthy!"
-              curl -s http://localhost:9090/health | python3 -m json.tool
+              curl -s http://localhost:8847/health | python3 -m json.tool
               exit 0
             fi
             echo "  Attempt $i/30 — waiting..."
@@ -52,5 +52,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🔍 **Backtrack** is monitoring deployment \`${{ inputs.image_tag }}\`\n\nAgent API: http://localhost:9090\nDashboard: http://localhost:3000`
+              body: `🔍 **Backtrack** is monitoring deployment \`${{ inputs.image_tag }}\`\n\nAgent API: http://localhost:8847\nDashboard: http://localhost:3847`
             })

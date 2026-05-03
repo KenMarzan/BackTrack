@@ -21,7 +21,7 @@ services:
       - backtrack-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - "9090:9090"
+      - "8847:8847"
     depends_on:
       - app
 

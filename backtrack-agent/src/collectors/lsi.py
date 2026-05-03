@@ -192,7 +192,7 @@ class LSICollector:
         # Phase 1: collect corpus
         if not self.fitted:
             self.corpus.append(line)
-            if len(self.corpus) >= CORPUS_SIZE:
+            if len(self.corpus) >= max(CORPUS_SIZE, 2):
                 self._fit()
             return
 
@@ -213,6 +213,12 @@ class LSICollector:
 
     def _fit(self) -> None:
         """Fit TF-IDF + SVD on the collected corpus and compute seed centroids."""
+        if len(self.corpus) < 2:
+            logger.warning(
+                "LSI corpus too small to fit (%d lines) — waiting for more logs",
+                len(self.corpus),
+            )
+            return
         logger.info("Fitting LSI model on %d log lines...", len(self.corpus))
         try:
             self.vectorizer = TfidfVectorizer(max_features=5000)
@@ -306,6 +312,13 @@ class LSICollector:
             self.baseline_scores = list(self.score_history[:BASELINE_WINDOWS])
             self.baseline_locked = True
             logger.info("LSI baseline locked: mean=%.4f", np.mean(self.baseline_scores))
+        elif self.baseline_locked and self.baseline_scores:
+            # Gradually update baseline using only non-anomalous windows so it adapts
+            # to normal log evolution without being corrupted by actual anomaly spikes
+            current_threshold = max(1.5, config.lsi_score_multiplier * float(np.mean(self.baseline_scores)))
+            if score <= current_threshold:
+                self.baseline_scores.append(score)
+                self.baseline_scores = self.baseline_scores[-BASELINE_WINDOWS:]
 
         # Reset window
         self.window_start = time.time()

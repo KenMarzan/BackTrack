@@ -90,6 +90,19 @@ export default function AnomaliesPage() {
   const [tsd, setTsd] = useState<TSDSummary | null>(null);
   const [lsi, setLsi] = useState<LSISummary | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
+  const [metricsError, setMetricsError] = useState(false);
+  const [clusterName, setClusterName] = useState<string>("local");
+
+  useEffect(() => {
+    fetch("/api/connections")
+      .then((r) => r.json())
+      .then((data) => {
+        const first = data?.connections?.[0];
+        if (first?.clusterName) setClusterName(first.clusterName);
+        else if (first?.appName) setClusterName(first.appName);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -106,7 +119,10 @@ export default function AnomaliesPage() {
 
         if (metricsRes.ok) {
           const data = await metricsRes.json();
-          if (!data.error) setTsd(data);
+          if (!data.error) { setTsd(data); setMetricsError(false); }
+          else setMetricsError(true);
+        } else {
+          setMetricsError(true);
         }
         if (lsiRes.ok) {
           const data = await lsiRes.json();
@@ -138,11 +154,11 @@ export default function AnomaliesPage() {
             <Server size={14} className="text-[var(--accent-teal)]" />
             <span className="bt-label">Terminal</span>
             <div className="bt-pulse-dot ml-auto" />
-            <span className="text-[10px] text-[var(--text-muted)] bt-mono">kubectl · production-us-east</span>
+            <span className="text-[10px] text-[var(--text-muted)] bt-mono">kubectl · {clusterName}</span>
           </div>
           <div className="bt-card-divider flex-shrink-0" />
           <div className="flex-1 min-h-0">
-            <KubernetesTerminal />
+            <KubernetesTerminal clusterName={clusterName} />
           </div>
         </div>
 
@@ -164,7 +180,7 @@ export default function AnomaliesPage() {
               <div className="w-full rounded-lg border border-[var(--border-soft)] bg-black/30 px-3 py-2 text-left">
                 <p className="text-[9px] uppercase tracking-widest text-[var(--text-muted)] mb-1">Start agent</p>
                 <code className="bt-mono text-[10px] text-[var(--accent-teal)] whitespace-pre-wrap break-all leading-relaxed">
-                  cd backtrack-agent{"\n"}pip install -r requirements.txt{"\n"}python3 -m uvicorn src.main:app --port 9090
+                  cd backtrack-agent{"\n"}pip install -r requirements.txt{"\n"}python3 -m uvicorn src.main:app --port 8847
                 </code>
               </div>
             </div>
@@ -246,7 +262,7 @@ export default function AnomaliesPage() {
               ) : (
                 <div className="flex-1 flex items-center justify-center">
                   <p className="text-[12px] text-[var(--text-muted)]">
-                    {agentOnline ? "Loading metrics…" : "Agent offline"}
+                    {!agentOnline ? "Agent offline" : metricsError ? "Metrics endpoint unavailable — agent online but /metrics returned an error" : "Loading metrics…"}
                   </p>
                 </div>
               )}

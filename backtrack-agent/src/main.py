@@ -30,7 +30,7 @@ app = FastAPI(title="Backtrack Agent", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "*"],
+    allow_origins=["http://localhost:3847", "*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -40,6 +40,7 @@ service_monitors: dict[str, tuple[TSDCollector, LSICollector]] = {}
 
 version_store: Optional[VersionStore] = None
 rollback_executor: Optional[RollbackExecutor] = None
+_polling_task: Optional[asyncio.Task] = None
 
 STABLE_THRESHOLD_SECONDS = int(os.getenv("BACKTRACK_STABLE_SECONDS", "600"))
 consecutive_anomaly_counts: dict[str, int] = {}
@@ -135,7 +136,7 @@ async def polling_loop() -> None:
 
 @app.on_event("startup")
 async def startup() -> None:
-    global version_store, rollback_executor
+    global version_store, rollback_executor, _polling_task
 
     config.log_startup_summary()
 
@@ -152,12 +153,28 @@ async def startup() -> None:
         await lsi.start()
         service_monitors[svc_name] = (tsd, lsi)
 
-    asyncio.create_task(polling_loop())
+    _polling_task = asyncio.create_task(polling_loop())
+
+    def _on_polling_done(task: asyncio.Task) -> None:
+        if not task.cancelled() and task.exception():
+            logger.critical(
+                "Polling loop crashed — monitoring has stopped! Error: %s",
+                task.exception(),
+            )
+
+    _polling_task.add_done_callback(_on_polling_done)
     logger.info("Backtrack agent started. Monitoring %d services.", len(service_monitors))
 
 
 @app.on_event("shutdown")
 async def shutdown() -> None:
+    global _polling_task
+    if _polling_task and not _polling_task.done():
+        _polling_task.cancel()
+        try:
+            await _polling_task
+        except asyncio.CancelledError:
+            pass
     for tsd, lsi in service_monitors.values():
         await tsd.stop()
         await lsi.stop()
@@ -259,7 +276,7 @@ async def reconfigure(body: dict) -> dict:
     if image_tag:
         config.image_tag = image_tag
     if mode in ("kubernetes", "k8s", "docker"):
-        os.environ["BACKTRACK_MODE"] = "kubernetes" if mode in ("kubernetes", "k8s") else "docker"
+        config._forced_mode = "kubernetes" if mode in ("kubernetes", "k8s") else "docker"
 
     # Stop and remove all existing monitors
     old_services = list(service_monitors.keys())

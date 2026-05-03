@@ -192,7 +192,7 @@ async function fetchReplicaSetImages(
     };
     for (const item of parsed.items || []) {
       const owner = item.metadata?.ownerReferences?.find((o) => o.kind === "Deployment");
-      if (owner && owner.name !== serviceName) continue;
+      if (!owner || owner.name !== serviceName) continue;
       const rev = Number(item.metadata?.annotations?.["deployment.kubernetes.io/revision"] || "0");
       const image = item.spec?.template?.spec?.containers?.[0]?.image || "";
       if (rev && image) map.set(rev, image);

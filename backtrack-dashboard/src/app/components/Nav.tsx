@@ -28,6 +28,8 @@ function Nav({ healthSummary }: NavProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [discoveredCount, setDiscoveredCount] = useState<number | null>(null);
+  const [discoveryWarning, setDiscoveryWarning] = useState<string | null>(null);
+  const [availableNames, setAvailableNames] = useState<string[] | null>(null);
   const [lastAction, setLastAction] = useState<"test" | "connect" | null>(null);
 
   useEffect(() => {
@@ -42,7 +44,7 @@ function Nav({ healthSummary }: NavProps) {
     clusterName: "",
     apiServerEndpoint: "",
     namespace: "default",
-    prometheusUrl: "http://localhost:9090",
+    prometheusUrl: "",
     authToken: "",
     githubRepo: "",
     githubBranch: "main",
@@ -66,6 +68,8 @@ function Nav({ healthSummary }: NavProps) {
   const submitConnection = async (action: "test" | "connect") => {
     setIsSubmitting(true);
     setStatusMessage(null);
+    setDiscoveryWarning(null);
+    setAvailableNames(null);
     setLastAction(action);
 
     try {
@@ -85,6 +89,11 @@ function Nav({ healthSummary }: NavProps) {
         Array.isArray(payload.discoveredServices) ? payload.discoveredServices.length : 0,
       );
       setStatusMessage(payload.message || "Connection completed.");
+      setDiscoveryWarning(payload.warning || null);
+      setAvailableNames(Array.isArray(payload.availableNames) && payload.availableNames.length > 0
+        ? payload.availableNames
+        : null,
+      );
 
       if (action === "connect") {
         // Send all discovered service names so agent creates per-service collectors
@@ -364,12 +373,38 @@ function Nav({ healthSummary }: NavProps) {
                 </Field>
 
                 {statusMessage ? (
-                  <div className="rounded-xl border border-[var(--border-mid)] bg-[#0f1621] p-3">
+                  <div className={`rounded-xl border p-3 ${
+                    discoveredCount === 0
+                      ? "border-red-500/30 bg-red-950/30"
+                      : discoveryWarning
+                        ? "border-yellow-500/30 bg-yellow-950/20"
+                        : "border-[var(--border-mid)] bg-[#0f1621]"
+                  }`}>
                     <p className="text-xs text-[var(--text-primary)]">{statusMessage}</p>
-                    {discoveredCount !== null ? (
+                    {discoveredCount !== null && discoveredCount > 0 ? (
                       <p className="text-xs text-[var(--accent-green)] mt-1 bt-mono">
                         ✓ discovered {discoveredCount} service{discoveredCount === 1 ? "" : "s"}
                       </p>
+                    ) : null}
+                    {discoveryWarning ? (
+                      <p className="text-xs text-yellow-400 mt-1">⚠ {discoveryWarning}</p>
+                    ) : null}
+                    {availableNames && availableNames.length > 0 ? (
+                      <div className="mt-2">
+                        <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider mb-1">
+                          Available names
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {availableNames.slice(0, 12).map((name) => (
+                            <code key={name} className="text-[10px] bt-mono text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded px-1.5 py-0.5">
+                              {name}
+                            </code>
+                          ))}
+                          {availableNames.length > 12 ? (
+                            <span className="text-[10px] text-[var(--text-muted)]">+{availableNames.length - 12} more</span>
+                          ) : null}
+                        </div>
+                      </div>
                     ) : null}
                   </div>
                 ) : null}
@@ -384,7 +419,7 @@ function Nav({ healthSummary }: NavProps) {
                       <p className="text-[11px] text-[var(--text-secondary)]">
                         BackTrack agent at{" "}
                         <code className="bt-mono text-[var(--accent-violet)]">
-                          http://localhost:9090
+                          http://localhost:8847
                         </code>{" "}
                         has been reconfigured to monitor{" "}
                         <code className="bt-mono text-[var(--accent-teal)]">{form.appName || "your app"}</code>.

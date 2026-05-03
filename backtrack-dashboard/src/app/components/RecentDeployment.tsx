@@ -129,6 +129,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
     loadAgentVersions();
 
     const refresh = () => {
+      hasLoadedRef.current = false;  // force loading indicator on reconnect
       loadHistory();
       loadAgentVersions();
     };
@@ -256,7 +257,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
           )}
           {!agentOnline ? (
             <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-3 text-[12px] text-[var(--text-muted)]">
-              Agent offline — start backtrack-agent on port 9090 to see version history.
+              Agent offline — start backtrack-agent on port 8847 to see version history.
             </div>
           ) : agentSnapshots.length === 0 ? (
             <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-3 text-[12px] text-[var(--text-muted)]">

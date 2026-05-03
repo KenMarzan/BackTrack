@@ -44,12 +44,12 @@ When **both TSD and LSI** detect anomalies for 3 consecutive cycles, Backtrack a
    ```
 3. Verify:
    ```bash
-   curl http://<pod-ip>:9090/health
+   curl http://<pod-ip>:8847/health
    ```
 
 ## Dashboard
 
-Open **http://localhost:3000** for the real-time dashboard with:
+Open **http://localhost:3847** for the real-time dashboard with:
 - `/dashboard` — TSD metric cards with residual sparklines
 - `/logs` — LSI score chart + live classified log feed
 - `/versions` — Snapshot history + rollback log

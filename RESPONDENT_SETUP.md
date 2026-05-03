@@ -17,7 +17,7 @@ npm install
 npm run dev
 ```
 
-Open **http://localhost:3000** in your browser.
+Open **http://localhost:3847** in your browser.
 
 ---
 
@@ -55,7 +55,7 @@ BACKTRACK_MODE=kubernetes \
 BACKTRACK_K8S_NAMESPACE=<your-namespace> \
 BACKTRACK_TARGET=<your-deployment-name> \
 BACKTRACK_IMAGE_TAG=<current-image-tag> \
-python3 -m uvicorn src.main:app --host 0.0.0.0 --port 9090
+python3 -m uvicorn src.main:app --host 0.0.0.0 --port 8847
 ```
 
 ### For Docker
@@ -67,7 +67,7 @@ pip install -r requirements.txt
 BACKTRACK_MODE=docker \
 BACKTRACK_TARGET=<your-container-name> \
 BACKTRACK_IMAGE_TAG=<current-image-tag> \
-python3 -m uvicorn src.main:app --host 0.0.0.0 --port 9090
+python3 -m uvicorn src.main:app --host 0.0.0.0 --port 8847
 ```
 
 **Keep this terminal open.** The agent must stay running while you use BackTrack.
@@ -123,7 +123,7 @@ After the agent starts:
 
 **Agent offline badge on Anomalies page**
 → Agent not running — follow Step 3
-→ Confirm agent is on port 9090: `curl http://localhost:9090/health`
+→ Confirm agent is on port 8847: `curl http://localhost:8847/health`
 
 **TSD/LSI panels empty after 5 minutes**
 → Check agent logs in the terminal where you ran `python3 -m uvicorn ...`
@@ -132,4 +132,4 @@ After the agent starts:
 **Rollback not triggering**
 → Both TSD drift AND LSI anomaly must be true for 3 consecutive cycles
 → Check `BACKTRACK_ROLLBACK_ENABLED` is not set to `false`
-→ View rollback history: `curl http://localhost:9090/rollback/history`
+→ View rollback history: `curl http://localhost:8847/rollback/history`

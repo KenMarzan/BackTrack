@@ -599,7 +599,7 @@ export default function ServiceDiagnosticsPage() {
           <p className="text-[11px] text-red-300">
             <span className="font-medium">Agent offline</span>{" — "}TSD · LSI · auto-rollback unavailable. Run{" "}
             <code className="font-mono text-[10px] text-red-200">
-              BACKTRACK_TARGET=&lt;app&gt; python3 -m uvicorn src.main:app --port 9090
+              BACKTRACK_TARGET=&lt;app&gt; python3 -m uvicorn src.main:app --port 8847
             </code>
           </p>
         </div>
@@ -1613,7 +1613,7 @@ export default function ServiceDiagnosticsPage() {
         open={activeModal?.kind === "agent-status"}
         onClose={() => setActiveModal(null)}
         title="Agent Status"
-        subtitle={agentOnline ? "backtrack-agent online · port 9090" : "backtrack-agent offline"}
+        subtitle={agentOnline ? "backtrack-agent online · port 8847" : "backtrack-agent offline"}
         size="md"
       >
         <div className="space-y-2">

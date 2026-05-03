@@ -21,8 +21,8 @@ services:
       - backtrack-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - "9090:9090"
-      - "3000:3000"
+      - "8847:8847"
+      - "3847:3847"
 
 volumes:
   backtrack-data:
