@@ -273,14 +273,14 @@
   {
     "id": "413a7771-1416-4874-bf95-fbdcf06dd756",
     "status": "connected",
-    "createdAt": "2026-04-30T11:53:44.391Z",
+    "createdAt": "2026-05-03T06:25:42.662Z",
     "appName": "microservice-demo",
     "platform": "kubernetes",
     "architecture": "microservices",
-    "clusterName": "production-ph",
+    "clusterName": "production=ph",
     "namespace": "default",
-    "apiServerEndpoint": "https://127.0.0.1:37183",
-    "prometheusUrl": "http://localhost:9090",
+    "apiServerEndpoint": "https://127.0.0.1:38375",
+    "prometheusUrl": "",
     "githubBranch": "main",
     "discoveredServices": [
       {

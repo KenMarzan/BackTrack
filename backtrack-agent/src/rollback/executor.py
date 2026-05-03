@@ -57,11 +57,16 @@ class RollbackExecutor:
             from_tag, to_tag, target, reason,
         )
 
+        rollback_triggered_at = datetime.now(timezone.utc).isoformat()
+        rollback_completed_at = rollback_triggered_at
+
         try:
             if config.mode == "docker":
                 self._rollback_docker(last_stable, target)
             else:
                 self._rollback_kubernetes(target)
+
+            rollback_completed_at = datetime.now(timezone.utc).isoformat()
 
             # Mark current pending as rolled back
             if current_pending:
@@ -75,6 +80,7 @@ class RollbackExecutor:
             }
 
         except Exception as exc:
+            rollback_completed_at = datetime.now(timezone.utc).isoformat()
             result = {
                 "success": False,
                 "message": f"Rollback failed: {exc}",
@@ -84,7 +90,15 @@ class RollbackExecutor:
             logger.exception("Rollback execution failed")
 
         # Log the rollback event
-        self._append_log(reason, from_tag, to_tag, result["success"])
+        self._append_log(
+            reason,
+            from_tag,
+            to_tag,
+            result["success"],
+            service_name=target,
+            rollback_triggered_at=rollback_triggered_at,
+            rollback_completed_at=rollback_completed_at,
+        )
 
         return result
 
@@ -159,7 +173,16 @@ class RollbackExecutor:
                 check=True, capture_output=True, text=True,
             )
 
-    def _append_log(self, reason: str, from_tag: str, to_tag: str, success: bool) -> None:
+    def _append_log(
+        self,
+        reason: str,
+        from_tag: str,
+        to_tag: str,
+        success: bool,
+        service_name: str = "",
+        rollback_triggered_at: str = "",
+        rollback_completed_at: str = "",
+    ) -> None:
         """Append a rollback event to the log file."""
         log_dir = os.path.dirname(ROLLBACK_LOG_FILE)
         if log_dir:
@@ -167,9 +190,12 @@ class RollbackExecutor:
         log_entry = {
             "id": str(uuid.uuid4()),
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "rollback_triggered_at": rollback_triggered_at or datetime.now(timezone.utc).isoformat(),
+            "rollback_completed_at": rollback_completed_at or datetime.now(timezone.utc).isoformat(),
             "reason": reason,
             "from_tag": from_tag,
             "to_tag": to_tag,
+            "service_name": service_name,
             "mode": config.mode,
             "success": success,
         }
