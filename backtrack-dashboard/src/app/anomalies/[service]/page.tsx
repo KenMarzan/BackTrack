@@ -824,7 +824,13 @@ export default function ServiceDiagnosticsPage() {
                   {tsd?.is_drifting ? (
                     <span className="text-red-400">Residual drift detected — anomalous readings exceed 3×IQR on {tsd.readings_count} readings.</span>
                   ) : tsd ? (
-                    <span className="text-emerald-400">All residuals within normal bounds.{tsd.readings_count < 12 && ` Warming up (${tsd.readings_count}/12 readings).`}</span>
+                    (() => {
+                      const allZero = tsd.readings_count >= 12 &&
+                        tsd.current.cpu_percent === 0 && tsd.current.memory_mb === 0 && tsd.current.latency_ms === 0;
+                      return allZero
+                        ? <span className="text-amber-400">All metrics are zero — kubectl top may not be returning data. Check that metrics-server is installed and pods have <code>app={"<service>"}</code> labels.</span>
+                        : <span className="text-emerald-400">All residuals within normal bounds.{tsd.readings_count < 12 && ` Warming up (${tsd.readings_count}/12 readings).`}</span>;
+                    })()
                   ) : (
                     <span className="text-white/30">Waiting for agent connection...</span>
                   )}
@@ -997,7 +1003,12 @@ export default function ServiceDiagnosticsPage() {
             <div className="flex-1 min-h-0 overflow-y-auto p-3 font-mono text-xs leading-5 bg-[#0d1117] scrollbar-hide">
               {recentLines.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-white/25 text-[11px]">
-                  {agentOnline ? "Waiting for classified log lines..." : "Connect backtrack-agent to see classified logs."}
+                  {!agentOnline
+                    ? "Connect backtrack-agent to see classified logs."
+                    : lsi && !lsi.fitted
+                      ? `Building log corpus — ${lsi.corpus_size} / 200 lines collected. Classification starts after corpus is full.`
+                      : "Waiting for classified log lines..."
+                  }
                 </div>
               ) : (
                 <>

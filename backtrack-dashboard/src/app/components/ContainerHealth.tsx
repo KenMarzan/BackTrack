@@ -107,13 +107,16 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
         if (max <= 0) return arr.map(() => 0);
         return arr.map((v) => +((v / max) * 100).toFixed(2));
       };
+      // Only show Request/Network lines if they have non-zero data
+      const hasRequest = reqArr.some((v) => v > 0);
+      const hasNetwork = netArr.some((v) => v > 0);
       return {
         labels, yAxisLabel: "Utilization %",
         datasets: [
           { label: "CPU",     data: norm(cpuArr), borderColor: "#7CFC00" },
           { label: "Memory",  data: norm(memArr), borderColor: "#38BDF8" },
-          { label: "Request", data: norm(reqArr), borderColor: "#A855F7" },
-          { label: "Network", data: norm(netArr), borderColor: "#2563EB" },
+          ...(hasRequest ? [{ label: "Request", data: norm(reqArr), borderColor: "#A855F7" }] : []),
+          ...(hasNetwork ? [{ label: "Network", data: norm(netArr), borderColor: "#2563EB" }]  : []),
         ],
       };
     }
@@ -202,7 +205,7 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
         {[
           { icon: <Cpu size={12} />, label: "CPU", value: totalCpu.toFixed(3), unit: "cores" },
           { icon: <HardDrive size={12} />, label: "MEM", value: totalMemory.toFixed(1), unit: "MiB" },
-          { icon: <TrendingUp size={12} />, label: "REQ", value: totalRate.toFixed(2), unit: "req/s" },
+          { icon: <TrendingUp size={12} />, label: "REQ", value: totalRate > 0 ? totalRate.toFixed(2) : "—", unit: totalRate > 0 ? "req/s" : "no prom" },
           { icon: <Activity size={12} />, label: "UP", value: `${running}/${services.length}`, unit: "svcs" },
         ].map((stat) => (
           <div key={stat.label} className="bt-tile flex flex-col items-center justify-center py-2 gap-0.5">
