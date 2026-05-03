@@ -23,7 +23,7 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     let errorCount = 0;
-    let timer: ReturnType<typeof window.setTimeout> | null = null;
+    let timer: number | null = null;
 
     const load = async () => {
       setSyncState("syncing");
