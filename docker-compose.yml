@@ -50,11 +50,11 @@ services:
     ports:
       - "8847:8847"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8847/health"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8847/health')"]
       interval: 15s
       timeout: 5s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 30s
 
 volumes:
   backtrack-data:
