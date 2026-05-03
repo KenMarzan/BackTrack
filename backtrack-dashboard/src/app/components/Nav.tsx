@@ -31,6 +31,7 @@ function Nav({ healthSummary }: NavProps) {
   const [discoveryWarning, setDiscoveryWarning] = useState<string | null>(null);
   const [availableNames, setAvailableNames] = useState<string[] | null>(null);
   const [lastAction, setLastAction] = useState<"test" | "connect" | null>(null);
+  const [successToast, setSuccessToast] = useState<{ appName: string; count: number } | null>(null);
 
   useEffect(() => {
     const open = () => setIsOpen(true);
@@ -126,11 +127,11 @@ function Nav({ healthSummary }: NavProps) {
 
         window.dispatchEvent(new Event("backtrack:connection-updated"));
 
-        // Auto-close modal after 2s on successful connect
-        const servicesFound = Array.isArray(payload.discoveredServices) && payload.discoveredServices.length > 0;
-        if (servicesFound) {
-          setTimeout(() => setIsOpen(false), 2000);
-        }
+        // Close modal immediately and show success toast for 2s
+        const count = Array.isArray(payload.discoveredServices) ? payload.discoveredServices.length : 0;
+        setIsOpen(false);
+        setSuccessToast({ appName: form.appName, count });
+        setTimeout(() => setSuccessToast(null), 2000);
       }
     } catch (error: unknown) {
       setStatusMessage(error instanceof Error ? error.message : "Connection request failed.");
@@ -534,6 +535,34 @@ function Nav({ healthSummary }: NavProps) {
           background: rgba(94, 234, 212, 0.04);
         }
       `}</style>
+
+      {/* Success toast */}
+      {successToast && (
+        <div
+          className="fixed bottom-6 right-6 z-[9999] flex items-start gap-3 rounded-2xl border px-5 py-4 shadow-2xl"
+          style={{
+            borderColor: "rgba(52,211,153,0.35)",
+            background: "rgba(7,14,11,0.97)",
+            boxShadow: "0 8px 40px rgba(52,211,153,0.18)",
+            minWidth: 300,
+            animation: "slideInRight 0.25s ease",
+          }}
+        >
+          <div className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center" style={{ background: "rgba(52,211,153,0.15)" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-[13px] font-semibold text-[#34d399]">Connected successfully</p>
+            <p className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+              <span className="font-mono text-white">{successToast.appName}</span>
+              {" · "}
+              {successToast.count} service{successToast.count !== 1 ? "s" : ""} discovered
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 }
