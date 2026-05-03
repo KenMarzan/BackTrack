@@ -110,7 +110,10 @@ async def polling_loop() -> None:
                         logger.warning("Anomaly [%s] signals=%s cycle %d/3", svc_name, signals, count)
                         if count >= 3 and rollback_executor:
                             logger.critical("ROLLBACK for %s — 3 consecutive anomaly cycles (%s).", svc_name, signals)
-                            rollback_executor.trigger(reason=f"{signals} anomaly on {svc_name} for 3 cycles")
+                            rollback_executor.trigger(
+                                reason=f"{signals} anomaly on {svc_name} for 3 cycles",
+                                service_name=svc_name,
+                            )
                             rollback_cooldown_until[svc_name] = time.time() + ROLLBACK_COOLDOWN_SECONDS
                             count = 0
                 else:
@@ -246,10 +249,11 @@ async def rollback_history() -> list[dict]:
 
 
 @app.post("/rollback/trigger")
-async def rollback_trigger() -> dict:
+async def rollback_trigger(body: dict = {}) -> dict:
     if rollback_executor is None:
         return {"success": False, "message": "Rollback executor not initialised."}
-    return rollback_executor.trigger(reason="Manual trigger via dashboard")
+    service_name = body.get("service", "") or body.get("service_name", "")
+    return rollback_executor.trigger(reason="Manual trigger via dashboard", service_name=service_name)
 
 
 @app.post("/reconfigure")
