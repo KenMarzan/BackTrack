@@ -88,6 +88,36 @@ async function getKubectlStatusByService(namespace: string, serviceNames: string
 	return statusMap;
 }
 
+async function getDockerStatsByService(containerNames: string[]) {
+	const metrics = new Map<string, { cpuCores: number; memoryMiB: number }>();
+	if (containerNames.length === 0) return metrics;
+
+	const result = await runCommand("docker", [
+		"stats", "--no-stream", "--format",
+		"{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}",
+		...containerNames,
+	]);
+	if (result.code !== 0) return metrics;
+
+	for (const line of result.stdout.split("\n").map((l) => l.trim()).filter(Boolean)) {
+		const parts = line.split("\t");
+		if (parts.length < 3) continue;
+
+		const name = parts[0].trim();
+		const cpuPercNum = parseFloat(parts[1].replace("%", "").trim());
+		const memUsed = parts[2].split("/")[0].trim()
+			.replace(/([KMGT]i)B$/i, "$1")
+			.replace(/kB$/i, "K")
+			.replace(/^(\d+(?:\.\d+)?)B$/, "$1");
+
+		metrics.set(name, {
+			cpuCores: Number.isFinite(cpuPercNum) ? cpuPercNum / 100 : 0,
+			memoryMiB: parseMemoryToMiB(memUsed),
+		});
+	}
+	return metrics;
+}
+
 async function getKubectlTopByService(namespace: string, services: string[]) {
 	const result = await runCommand("kubectl", [
 		"top",
@@ -214,6 +244,10 @@ export async function GET() {
 		const connectionPlatform = (connection.platform || connection.kind || "kubernetes") as "kubernetes" | "docker";
 		const connectionNamespace = connection.namespace || "default";
 		const normalizedServices = normalizeConnectionServices(connection);
+		const dockerStatsByService = connectionPlatform === "docker"
+			? await getDockerStatsByService(normalizedServices.map((service) => service.name))
+			: new Map<string, { cpuCores: number; memoryMiB: number }>();
+
 		const kubectlTopByService = connectionPlatform === "kubernetes"
 			? await getKubectlTopByService(
 				connectionNamespace,
@@ -230,6 +264,33 @@ export async function GET() {
 
 		for (const service of normalizedServices) {
 			if (connectionPlatform === "docker") {
+				const dockerStats = dockerStatsByService.get(service.name);
+				let cpuCores = dockerStats?.cpuCores ?? 0;
+				let memoryMiB = dockerStats?.memoryMiB ?? 0;
+				let requestRate = 0;
+
+				if (connection.prometheusUrl) {
+					const [promCpu, promMem, promReq] = await Promise.all([
+						queryFirstScalar(connection.prometheusUrl, [
+							`sum(rate(process_cpu_seconds_total{job="${service.name}"}[5m]))`,
+							`sum(rate(container_cpu_usage_seconds_total{name="${service.name}"}[5m]))`,
+							`sum(rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service="${service.name}"}[5m]))`,
+						], connection.authToken),
+						queryFirstScalar(connection.prometheusUrl, [
+							`sum(process_resident_memory_bytes{job="${service.name}"})`,
+							`sum(container_memory_usage_bytes{name="${service.name}"})`,
+							`sum(container_memory_usage_bytes{container_label_com_docker_compose_service="${service.name}"})`,
+						], connection.authToken),
+						queryFirstScalar(connection.prometheusUrl, [
+							`sum(rate(http_requests_total{job="${service.name}"}[5m]))`,
+							`sum(rate(http_server_requests_seconds_count{job="${service.name}"}[5m]))`,
+						], connection.authToken),
+					]);
+					if (promCpu > 0) cpuCores = promCpu;
+					if (promMem > 0) memoryMiB = promMem / 1024 / 1024;
+					if (promReq > 0) requestRate = promReq;
+				}
+
 				services.push({
 					id: `${connection.id}:${service.name}`,
 					connectionId: connection.id,
@@ -237,9 +298,9 @@ export async function GET() {
 					namespace: connectionNamespace,
 					platform: "docker",
 					status: service.status,
-					cpuCores: 0,
-					memoryMiB: 0,
-					requestRate: 0,
+					cpuCores,
+					memoryMiB,
+					requestRate,
 					ports: service.ports,
 				});
 				continue;
@@ -396,6 +457,7 @@ export async function GET() {
 					id: `${service.id}-down`,
 					service: service.name,
 					namespace: service.namespace,
+					platform: service.platform,
 					severity: "critical",
 					message: "Service scrape status is down.",
 					metric: "up",
@@ -411,6 +473,7 @@ export async function GET() {
 					id: `${service.id}-memory`,
 					service: service.name,
 					namespace: service.namespace,
+					platform: service.platform,
 					severity: "warning",
 					message: "Memory usage above baseline threshold.",
 					metric: "memory",
@@ -428,6 +491,7 @@ export async function GET() {
 					id: `${service.id}-agent`,
 					service: service.name,
 					namespace: service.namespace,
+					platform: service.platform,
 					severity: agentSvc.is_drifting && agentSvc.is_anomalous ? "critical" : "high",
 					message: `BackTrack agent detected: ${signals}`,
 					metric: agentSvc.is_drifting ? "cpu" : "logs",

@@ -121,17 +121,8 @@ export function findConnectionByNamespace(namespace: string): AppConnection | nu
 }
 
 export function registerConnection(input: AppConnectionInput) {
-	const connections = readConnections();
-	const existingIndex = connections.findIndex(
-		(connection) =>
-			(connection.appName || "").toLowerCase() === input.appName.toLowerCase() &&
-			(connection.namespace || "").toLowerCase() === input.namespace.toLowerCase() &&
-			connection.platform === input.platform,
-	);
-
-	if (existingIndex >= 0) {
-		connections.splice(existingIndex, 1);
-	}
+	// Replace all existing connections of the same platform — one active cluster per platform.
+	const surviving = readConnections().filter((c) => c.platform !== input.platform);
 
 	const connection: AppConnection = {
 		id: crypto.randomUUID(),
@@ -140,8 +131,8 @@ export function registerConnection(input: AppConnectionInput) {
 		...input,
 	};
 
-	connections.unshift(connection);
-	writeConnections(connections);
+	surviving.unshift(connection);
+	writeConnections(surviving);
 
 	return connection;
 }

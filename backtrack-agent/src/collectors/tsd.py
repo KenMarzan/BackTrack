@@ -22,6 +22,72 @@ logger = logging.getLogger("backtrack.tsd")
 DEQUE_SIZE = 36  # 6 minutes at 10s intervals
 MIN_READINGS_FOR_STL = 12  # Need at least 2×period readings
 
+# ── Shared Docker stats cache ────────────────────────────────────────────────
+# One `docker stats --no-stream` call serves all TSDCollectors instead of N calls.
+_stats_cache: dict[str, dict[str, float]] = {}  # name → {cpu, mem_mb}
+_stats_cache_at: float = 0.0
+_stats_refresh_lock: Optional[asyncio.Lock] = None
+
+
+def _get_stats_lock() -> asyncio.Lock:
+    global _stats_refresh_lock
+    if _stats_refresh_lock is None:
+        _stats_refresh_lock = asyncio.Lock()
+    return _stats_refresh_lock
+
+
+async def _refresh_docker_stats(max_age: float = 5.0) -> None:
+    """Refresh the shared stats cache (at most once per max_age seconds)."""
+    global _stats_cache, _stats_cache_at
+    now = time.monotonic()
+    if now - _stats_cache_at < max_age:
+        return
+    async with _get_stats_lock():
+        if time.monotonic() - _stats_cache_at < max_age:
+            return  # another coroutine refreshed while we waited
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "docker", "stats", "--no-stream", "--format",
+                "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+            if proc.returncode == 0:
+                cache: dict[str, dict[str, float]] = {}
+                for line in stdout.decode().strip().splitlines():
+                    parts = line.split("\t")
+                    if len(parts) < 3:
+                        continue
+                    name = parts[0].strip()
+                    try:
+                        cpu = float(parts[1].replace("%", "").strip())
+                    except ValueError:
+                        cpu = 0.0
+                    mem_str = parts[2].split("/")[0].strip()
+                    cache[name] = {"cpu": cpu, "mem_mb": _parse_mem_to_mb(mem_str)}
+                _stats_cache = cache
+                _stats_cache_at = time.monotonic()
+        except Exception:
+            logger.warning("docker stats refresh failed")
+
+
+def _parse_mem_to_mb(raw: str) -> float:
+    raw = raw.strip()
+    for suffix, factor in (
+        ("GiB", 1024.0), ("MiB", 1.0), ("kB", 1 / 1024.0),
+        ("MB", 1.0), ("GB", 1024.0), ("KB", 1 / 1024.0), ("B", 1 / 1048576.0),
+    ):
+        if raw.endswith(suffix):
+            try:
+                return float(raw[: -len(suffix)]) * factor
+            except ValueError:
+                return 0.0
+    try:
+        return float(raw) / 1048576.0
+    except ValueError:
+        return 0.0
+
 
 class TSDCollector:
     """Collects metrics and runs STL decomposition to detect anomalies."""
@@ -49,6 +115,8 @@ class TSDCollector:
         self.trend: dict[str, list[float]] = {
             "cpu": [], "memory": [], "latency": [], "error_rate": [],
         }
+
+        self._total_readings: int = 0  # unbounded scrape counter for TN estimation
 
         # Drift event tracking for precision/recall estimation
         # sustained_drift = drift that persisted 3+ consecutive cycles (confirmed signal)
@@ -99,6 +167,7 @@ class TSDCollector:
         while self._running:
             try:
                 await self._scrape()
+                self._total_readings += 1
                 if len(self.cpu_history) >= MIN_READINGS_FOR_STL:
                     self._decompose()
             except Exception:
@@ -113,45 +182,13 @@ class TSDCollector:
             await self._scrape_kubernetes()
 
     async def _scrape_docker(self) -> None:
-        """Scrape metrics using Docker SDK stats API."""
-        try:
-            import docker
-
-            if self._docker_client is None:
-                self._docker_client = docker.from_env()
-            client = self._docker_client
-            container = client.containers.get(config.target)
-            stats = container.stats(stream=False)
-
-            # CPU calculation
-            cpu_delta = (
-                stats["cpu_stats"]["cpu_usage"]["total_usage"]
-                - stats["precpu_stats"]["cpu_usage"]["total_usage"]
-            )
-            system_delta = (
-                stats["cpu_stats"]["system_cpu_usage"]
-                - stats["precpu_stats"]["system_cpu_usage"]
-            )
-            num_cpus = stats["cpu_stats"].get("online_cpus", 1)
-            self.current_cpu = (cpu_delta / max(system_delta, 1)) * num_cpus * 100.0
-
-            # Memory calculation (MB)
-            mem_usage = stats["memory_stats"].get("usage", 0)
-            mem_cache = stats["memory_stats"].get("stats", {}).get("cache", 0)
-            self.current_memory = (mem_usage - mem_cache) / (1024 * 1024)
-
-            # HTTP latency — time a request to app's health endpoint
-            self.current_latency = await self._probe_latency()
-
-            # Error rate defaults to 0 unless we can measure it
-            self.current_error_rate = 0.0
-
-        except Exception:
-            logger.warning("Docker stats scrape failed for target=%s", config.target)
-            self.current_cpu = 0.0
-            self.current_memory = 0.0
-            self.current_latency = 0.0
-            self.current_error_rate = 0.0
+        """Read from the shared docker stats cache (one CLI call serves all collectors)."""
+        await _refresh_docker_stats(max_age=config.scrape_interval * 0.8)
+        entry = _stats_cache.get(self.service_name, {})
+        self.current_cpu = entry.get("cpu", 0.0)
+        self.current_memory = entry.get("mem_mb", 0.0)
+        self.current_latency = await self._probe_latency()
+        self.current_error_rate = 0.0
 
         self.cpu_history.append(self.current_cpu)
         self.memory_history.append(self.current_memory)
@@ -375,27 +412,23 @@ class TSDCollector:
         total = self._drift_events_total
         sustained = self._drift_sustained
         spikes = max(0, total - sustained)
-
-        # Estimated precision: sustained drifts / total drift events
-        # (sustained = confirmed signal, spikes = probable noise)
         est_precision = sustained / total if total > 0 else 0.0
 
-        # Confusion matrix approximation (binary: drift / no-drift)
-        # TP = sustained drift events, FP = spike drift events
-        # TN/FN not directly observable without ground truth
-        tp = sustained
-        fp = spikes
+        # TN estimated as scrape cycles where no drift was detected at all
+        tn = max(0, self._total_readings - total)
 
         return {
             "drift_events_total": total,
             "drift_sustained": sustained,
             "drift_spikes": spikes,
+            "total_readings": self._total_readings,
             "estimated_precision": round(est_precision, 4),
             "per_metric_drifts": dict(self._per_metric_drifts),
             "confusion_matrix": {
-                "TP_sustained": tp,
-                "FP_spikes": fp,
-                "note": "TN/FN require external ground truth (rollback feedback)",
+                "TP_sustained": sustained,
+                "FP_spikes": spikes,
+                "TN_clean_cycles": tn,
+                "note": "FN unknown without fault injection ground truth",
             },
         }
 

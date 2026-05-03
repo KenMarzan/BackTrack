@@ -294,7 +294,7 @@ async def reconfigure(body: dict) -> dict:
         d.clear()
 
     # Build service list — prefer explicit list from dashboard (one entry per service)
-    if explicit_services and config.mode != "docker":
+    if explicit_services:
         services = [(svc, f"app={svc}") for svc in explicit_services]
         logger.info("Using %d explicit services from dashboard: %s", len(services), explicit_services)
     else:
