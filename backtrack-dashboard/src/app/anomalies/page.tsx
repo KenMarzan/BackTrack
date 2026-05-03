@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { Activity, AlertTriangle, BarChart2, Cpu, HardDrive, Server, TrendingUp, Wifi, Zap } from "lucide-react";
+import { Activity, AlertTriangle, BarChart2, BookOpen, Cpu, HardDrive, Minus, Server, TrendingDown, TrendingUp, Wifi, Zap } from "lucide-react";
 import Nav from "../components/Nav";
 
 const KubernetesTerminal = dynamic(() => import("./KubernetesTerminal"), {
@@ -34,12 +34,23 @@ type TSDSummary = {
   };
   readings_count: number;
   is_drifting: boolean;
+  z_scores?: Record<string, number>;
+  trend_directions?: Record<string, string>;
+  tsd_confidence?: number;
+  tsd_status?: Record<string, string>;
 };
 
 type LSILogLine = {
   line: string;
   label: "INFO" | "WARN" | "ERROR" | "NOVEL";
   timestamp: number;
+};
+
+type LSITopic = {
+  topic_id: number;
+  strength: number;
+  top_terms: string[];
+  label: string;
 };
 
 type LSISummary = {
@@ -51,6 +62,11 @@ type LSISummary = {
   is_anomalous: boolean;
   score_history: number[];
   recent_lines: LSILogLine[];
+  topics?: LSITopic[];
+  error_patterns?: string[];
+  dominant_themes?: string[];
+  log_diversity?: string;
+  interpretation?: string;
 };
 
 const LOG_LABEL_TOKENS: Record<string, { text: string; border: string; bg: string }> = {
@@ -60,11 +76,32 @@ const LOG_LABEL_TOKENS: Record<string, { text: string; border: string; bg: strin
   INFO:  { text: "rgba(255,255,255,0.35)", border: "rgba(148,163,184,0.15)", bg: "rgba(148,163,184,0.04)" },
 };
 
+const TSD_STATUS_COLOR: Record<string, string> = {
+  ANOMALY:           "#fb7185",
+  WARNING:           "#fcd34d",
+  STABLE:            "#4ade80",
+  INSUFFICIENT_DATA: "rgba(148,163,184,0.35)",
+};
+
+const LOG_DIVERSITY_COLOR: Record<string, string> = {
+  HIGH:         "#fb7185",
+  MODERATE:     "#fcd34d",
+  LOW:          "#4ade80",
+  INSUFFICIENT: "rgba(148,163,184,0.35)",
+};
+
+function TrendIcon({ direction, color }: { direction?: string; color: string }) {
+  if (direction === "INCREASING") return <TrendingUp  size={8} style={{ color }} />;
+  if (direction === "DECREASING") return <TrendingDown size={8} style={{ color }} />;
+  if (direction === "STABLE")     return <Minus        size={8} style={{ color, opacity: 0.5 }} />;
+  return null;
+}
+
 const TSD_METRICS = [
-  { key: "cpu_percent",        label: "CPU",        color: "var(--accent-green)",  Icon: Cpu,          fmt: (v: number) => `${v.toFixed(1)}%` },
-  { key: "memory_mb",          label: "Memory",     color: "var(--accent-cyan)",   Icon: HardDrive,    fmt: (v: number) => `${v.toFixed(1)} MB` },
-  { key: "latency_ms",         label: "Latency",    color: "var(--accent-violet)", Icon: Wifi,         fmt: (v: number) => `${v.toFixed(0)} ms` },
-  { key: "error_rate_percent", label: "Error Rate", color: "var(--accent-rose)",   Icon: AlertTriangle,fmt: (v: number) => `${v.toFixed(2)}%` },
+  { key: "cpu_percent",        shortKey: "cpu",        label: "CPU",        color: "var(--accent-green)",  Icon: Cpu,          fmt: (v: number) => `${v.toFixed(1)}%` },
+  { key: "memory_mb",          shortKey: "memory",     label: "Memory",     color: "var(--accent-cyan)",   Icon: HardDrive,    fmt: (v: number) => `${v.toFixed(1)} MB` },
+  { key: "latency_ms",         shortKey: "latency",    label: "Latency",    color: "var(--accent-violet)", Icon: Wifi,         fmt: (v: number) => `${v.toFixed(0)} ms` },
+  { key: "error_rate_percent", shortKey: "error_rate", label: "Error Rate", color: "var(--accent-rose)",   Icon: AlertTriangle,fmt: (v: number) => `${v.toFixed(2)}%` },
 ] as const;
 
 function MiniSparkline({ values, color }: { values: number[]; color: string }) {
@@ -204,10 +241,14 @@ export default function AnomaliesPage() {
                 <div className="flex-1 overflow-y-auto scrollbar-hide space-y-2.5">
                   {/* Metric tiles with icons + trend sparkline */}
                   {TSD_METRICS.map((m) => {
-                    const decomp = tsd.decomposition?.[m.key];
+                    const decomp       = tsd.decomposition?.[m.key];
                     const lastTrend    = decomp?.trend.at(-1);
                     const lastSeasonal = decomp?.seasonal.at(-1);
                     const lastResidual = decomp?.residual.at(-1);
+                    const zScore       = tsd.z_scores?.[m.shortKey];
+                    const trendDir     = tsd.trend_directions?.[m.shortKey];
+                    const metricStatus = tsd.tsd_status?.[m.shortKey];
+                    const statusColor  = metricStatus ? (TSD_STATUS_COLOR[metricStatus] ?? TSD_STATUS_COLOR.INSUFFICIENT_DATA) : undefined;
                     return (
                       <div key={m.label} className="rounded-[10px] border border-[var(--border-soft)] bg-[rgba(11,16,32,0.9)] px-3 py-2.5">
                         <div className="flex items-center justify-between mb-1">
@@ -215,7 +256,15 @@ export default function AnomaliesPage() {
                             <m.Icon size={10} style={{ color: m.color }} />
                             <span className="text-[9px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{m.label}</span>
                           </div>
-                          {decomp && <MiniSparkline values={decomp.trend.slice(-20)} color={m.color} />}
+                          <div className="flex items-center gap-1.5">
+                            {metricStatus && metricStatus !== "INSUFFICIENT_DATA" && (
+                              <span className="text-[8px] px-1 py-[1px] rounded border bt-mono"
+                                style={{ color: statusColor, borderColor: `${statusColor}50`, background: `${statusColor}12` }}>
+                                {metricStatus}
+                              </span>
+                            )}
+                            {decomp && <MiniSparkline values={decomp.trend.slice(-20)} color={m.color} />}
+                          </div>
                         </div>
                         <div className="bt-mono text-[17px] font-semibold" style={{ color: m.color }}>
                           {m.fmt(tsd.current[m.key])}
@@ -234,29 +283,51 @@ export default function AnomaliesPage() {
                               <Activity size={8} style={{ opacity: 0.4 }} />
                               R {lastResidual !== undefined ? lastResidual.toFixed(3) : "—"}
                             </span>
+                            {zScore !== undefined && (
+                              <span className="text-[8.5px] text-[var(--text-muted)] bt-mono flex items-center gap-1 ml-auto">
+                                <TrendIcon direction={trendDir} color={m.color} />
+                                Z {zScore.toFixed(2)}
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
                     );
                   })}
 
-                  {/* STL progress */}
-                  <div className="rounded-[10px] border border-[var(--border-soft)] bg-[rgba(11,16,32,0.9)] px-3 py-2.5">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[9px] uppercase tracking-[0.12em] text-[var(--text-muted)] flex items-center gap-1.5">
-                        <BarChart2 size={9} />STL Baseline
-                      </span>
-                      <span className="bt-mono text-[9px] text-[var(--text-muted)]">{tsd.readings_count}/12</span>
+                  {/* STL progress + confidence */}
+                  <div className="rounded-[10px] border border-[var(--border-soft)] bg-[rgba(11,16,32,0.9)] px-3 py-2.5 space-y-2">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[9px] uppercase tracking-[0.12em] text-[var(--text-muted)] flex items-center gap-1.5">
+                          <BarChart2 size={9} />STL Baseline
+                        </span>
+                        <span className="bt-mono text-[9px] text-[var(--text-muted)]">{tsd.readings_count}/12</span>
+                      </div>
+                      <div className="h-[3px] w-full rounded-full bg-[rgba(148,163,184,0.1)] overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-700" style={{
+                          width: `${Math.min((tsd.readings_count / 12) * 100, 100)}%`,
+                          background: tsd.readings_count >= 12 ? "var(--accent-teal)" : "rgba(94,234,212,0.5)",
+                        }} />
+                      </div>
+                      <p className="text-[9px] text-[var(--text-muted)] bt-mono mt-1">
+                        {tsd.readings_count >= 12 ? "Decomposition active — Season · Trend · Residual" : `${12 - tsd.readings_count} more readings needed`}
+                      </p>
                     </div>
-                    <div className="h-[3px] w-full rounded-full bg-[rgba(148,163,184,0.1)] overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-700" style={{
-                        width: `${Math.min((tsd.readings_count / 12) * 100, 100)}%`,
-                        background: tsd.readings_count >= 12 ? "var(--accent-teal)" : "rgba(94,234,212,0.5)",
-                      }} />
-                    </div>
-                    <p className="text-[9px] text-[var(--text-muted)] bt-mono mt-1">
-                      {tsd.readings_count >= 12 ? "Decomposition active — Season · Trend · Residual" : `${12 - tsd.readings_count} more readings needed`}
-                    </p>
+                    {tsd.tsd_confidence !== undefined && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[9px] uppercase tracking-[0.12em] text-[var(--text-muted)]">Z-Score Confidence</span>
+                          <span className="bt-mono text-[9px] text-[var(--text-muted)]">{(tsd.tsd_confidence * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="h-[3px] w-full rounded-full bg-[rgba(148,163,184,0.1)] overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-700" style={{
+                            width: `${(tsd.tsd_confidence * 100).toFixed(0)}%`,
+                            background: tsd.tsd_confidence >= 0.8 ? "#4ade80" : tsd.tsd_confidence >= 0.5 ? "#fcd34d" : "rgba(94,234,212,0.5)",
+                          }} />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -277,9 +348,21 @@ export default function AnomaliesPage() {
                   <Cpu size={13} className="text-[var(--accent-violet)]" />
                   <span className="bt-label">LSI Analysis</span>
                 </div>
-                <span className={`bt-chip ${lsi?.is_anomalous ? "bt-chip-critical" : "bt-chip-green"}`}>
-                  {lsi?.is_anomalous ? "ANOMALOUS" : agentOnline ? "NORMAL" : "OFFLINE"}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {lsi?.log_diversity && lsi.log_diversity !== "INSUFFICIENT" && (
+                    <span className="text-[8px] px-1 py-[1px] rounded border bt-mono"
+                      style={{
+                        color: LOG_DIVERSITY_COLOR[lsi.log_diversity] ?? "rgba(148,163,184,0.5)",
+                        borderColor: `${LOG_DIVERSITY_COLOR[lsi.log_diversity] ?? "rgba(148,163,184,0.3)"}50`,
+                        background: `${LOG_DIVERSITY_COLOR[lsi.log_diversity] ?? "rgba(148,163,184,0.3)"}12`,
+                      }}>
+                      {lsi.log_diversity}
+                    </span>
+                  )}
+                  <span className={`bt-chip ${lsi?.is_anomalous ? "bt-chip-critical" : "bt-chip-green"}`}>
+                    {lsi?.is_anomalous ? "ANOMALOUS" : agentOnline ? "NORMAL" : "OFFLINE"}
+                  </span>
+                </div>
               </div>
               <div className="bt-card-divider flex-shrink-0" />
 
@@ -377,6 +460,49 @@ export default function AnomaliesPage() {
                       </div>
                     );
                   })()}
+
+                  {/* Dominant themes */}
+                  {lsi.dominant_themes && lsi.dominant_themes.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {lsi.dominant_themes.map((theme) => (
+                        <span key={theme} className="text-[8px] px-1.5 py-[2px] rounded border bt-mono"
+                          style={{ color: "var(--accent-violet)", borderColor: "rgba(139,92,246,0.3)", background: "rgba(139,92,246,0.08)" }}>
+                          {theme.replace(/_/g, " ")}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Error patterns */}
+                  {lsi.error_patterns && lsi.error_patterns.length > 0 && (
+                    <div className="rounded-[10px] border border-[rgba(251,113,133,0.2)] bg-[rgba(251,113,133,0.04)] px-3 py-2.5">
+                      <p className="text-[9px] uppercase tracking-[0.18em] text-[var(--text-muted)] mb-1.5 flex items-center gap-1">
+                        <AlertTriangle size={8} className="text-[var(--accent-rose)]" />
+                        Detected Patterns
+                      </p>
+                      <div className="space-y-1">
+                        {lsi.error_patterns.map((p, i) => (
+                          <p key={i} className="text-[9px] bt-mono text-[var(--text-muted)] leading-relaxed">
+                            • {p}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* LSI interpretation */}
+                  {lsi.interpretation && (
+                    <div className="rounded-[10px] border border-[var(--border-soft)] bg-[rgba(11,16,32,0.9)] px-3 py-2.5">
+                      <p className="text-[9px] uppercase tracking-[0.18em] text-[var(--text-muted)] mb-1.5 flex items-center gap-1">
+                        <BookOpen size={8} />Interpretation
+                      </p>
+                      <div className="max-h-[120px] overflow-y-auto scrollbar-hide">
+                        <p className="text-[9px] bt-mono text-[var(--text-muted)] leading-[1.6] whitespace-pre-wrap">
+                          {lsi.interpretation}
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Recent / Anomalous log lines */}
                   {lsi.recent_lines && lsi.recent_lines.length > 0 && (

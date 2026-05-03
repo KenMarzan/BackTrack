@@ -60,6 +60,19 @@ class TSDCollector:
             "cpu": 0, "memory": 0, "latency": 0, "error_rate": 0
         }
 
+        # Modified Z-score analysis (per-metric, updated each decomposition cycle)
+        self.z_scores: dict[str, float] = {
+            "cpu": 0.0, "memory": 0.0, "latency": 0.0, "error_rate": 0.0,
+        }
+        self.trend_directions: dict[str, str] = {
+            "cpu": "UNKNOWN", "memory": "UNKNOWN", "latency": "UNKNOWN", "error_rate": "UNKNOWN",
+        }
+        self.tsd_confidence: float = 0.0
+        self.tsd_status: dict[str, str] = {
+            "cpu": "INSUFFICIENT_DATA", "memory": "INSUFFICIENT_DATA",
+            "latency": "INSUFFICIENT_DATA", "error_rate": "INSUFFICIENT_DATA",
+        }
+
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._docker_client = None  # reused across scrapes to avoid fd leak
@@ -257,6 +270,44 @@ class TSDCollector:
             except Exception:
                 logger.warning("STL decomposition failed for %s", name)
 
+        self._compute_z_scores()
+
+    def _compute_z_scores(self) -> None:
+        """Compute modified Z-scores, trend directions, and confidence per metric."""
+        Z_THRESHOLD = 3.0
+        self.tsd_confidence = round(min(1.0, len(self.cpu_history) / DEQUE_SIZE), 4)
+
+        for name in ("cpu", "memory", "latency", "error_rate"):
+            residuals = self.residuals.get(name, [])
+            trend = self.trend.get(name, [])
+
+            if len(residuals) < MIN_READINGS_FOR_STL:
+                self.tsd_status[name] = "INSUFFICIENT_DATA"
+                continue
+
+            arr = np.array(residuals)
+            median_val = float(np.median(arr))
+            mad = float(np.median(np.abs(arr - median_val)))
+            mod_z = 0.6745 * (arr[-1] - median_val) / (mad if mad > 1e-6 else 1e-6)
+            self.z_scores[name] = round(float(mod_z), 4)
+
+            if abs(mod_z) > Z_THRESHOLD:
+                self.tsd_status[name] = "ANOMALY"
+            elif abs(mod_z) > Z_THRESHOLD * 0.7:
+                self.tsd_status[name] = "WARNING"
+            else:
+                self.tsd_status[name] = "STABLE"
+
+            # Trend direction from last 6 points of the STL trend component
+            if len(trend) >= 6:
+                slope = (trend[-1] - trend[-6]) / 6
+                if slope > 0.1:
+                    self.trend_directions[name] = "INCREASING"
+                elif slope < -0.1:
+                    self.trend_directions[name] = "DECREASING"
+                else:
+                    self.trend_directions[name] = "STABLE"
+
     def is_drifting(self) -> bool:
         """
         Returns True if residual > 3×IQR for 3 consecutive readings
@@ -387,5 +438,9 @@ class TSDCollector:
             "residuals": {k: _r(v) for k, v in self.residuals.items()},
             "readings_count": len(self.cpu_history),
             "is_drifting": self.is_drifting(),
+            "z_scores": dict(self.z_scores),
+            "trend_directions": dict(self.trend_directions),
+            "tsd_confidence": self.tsd_confidence,
+            "tsd_status": dict(self.tsd_status),
             "evaluation": self.get_evaluation(),
         }

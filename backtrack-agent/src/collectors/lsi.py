@@ -9,8 +9,10 @@ Computes LSI anomaly score per 30-second window.
 """
 import asyncio
 import collections
+import json
 import logging
 import os
+import re
 import time
 from typing import Optional
 
@@ -70,6 +72,13 @@ class LSICollector:
             ref: {pred: 0 for pred in _classes} for ref in _classes
         }
         self._svd_classified_count: int = 0  # lines that went through SVD path
+
+        # Semantic analysis state (refreshed each window close)
+        self.topics: list[dict] = []
+        self.error_patterns: list[str] = []
+        self.dominant_themes: list[str] = []
+        self.log_diversity: str = "INSUFFICIENT"
+        self.interpretation: str = ""
 
         self._running = False
         self._task: Optional[asyncio.Task] = None
@@ -385,13 +394,14 @@ class LSICollector:
 
     def _close_window(self) -> None:
         """Close the current 30-second scoring window."""
+        error_count = self.window_counts.get("ERROR", 0)
+        warning_count = self.window_counts.get("WARN", 0)
+
         if self.window_total == 0:
             score = 0.0
         else:
-            e = self.window_counts.get("ERROR", 0)
             n = self.window_counts.get("NOVEL", 0)
-            w = self.window_counts.get("WARN", 0)
-            score = (e * 3 + n * 5 + w * 1) / self.window_total
+            score = (error_count * 3 + n * 5 + warning_count * 1) / self.window_total
 
         self.score_history.append(score)
 
@@ -408,10 +418,196 @@ class LSICollector:
                 self.baseline_scores.append(score)
                 self.baseline_scores = self.baseline_scores[-BASELINE_WINDOWS:]
 
+        self._compute_semantics(error_count, warning_count, self.window_total)
+
         # Reset window
         self.window_start = time.time()
         self.window_counts = {"INFO": 0, "WARN": 0, "ERROR": 0, "NOVEL": 0}
         self.window_total = 0
+
+    def _compute_semantics(self, error_count: int, warning_count: int, window_total: int) -> None:
+        """Extract topics, error patterns, and human-readable interpretation after each window."""
+        if not self.fitted or self.svd is None or self.vectorizer is None:
+            return
+        try:
+            feature_names = self.vectorizer.get_feature_names_out()
+            variance_ratios = self.svd.explained_variance_ratio_
+
+            # Extract up to 5 topics from SVD components
+            self.topics = []
+            n_topics = min(5, len(self.svd.components_))
+            for idx in range(n_topics):
+                component = self.svd.components_[idx]
+                top_idxs = component.argsort()[-5:][::-1]
+                top_terms = [feature_names[i] for i in top_idxs]
+                top_weights = [round(float(component[i]), 4) for i in top_idxs]
+                strength = round(float(variance_ratios[idx]) if idx < len(variance_ratios) else 0.0, 4)
+                self.topics.append({
+                    "topic_id": idx,
+                    "strength": strength,
+                    "top_terms": top_terms,
+                    "weights": top_weights,
+                    "label": self._label_topic(top_terms),
+                })
+
+            # Complexity from top 2 components (mirrors TestBt.py n_topics=2 approach)
+            complexity = float(np.sum(variance_ratios[:2])) if len(variance_ratios) >= 2 else float(np.sum(variance_ratios))
+
+            if complexity > 0.7:
+                self.log_diversity = "HIGH"
+            elif complexity > 0.4:
+                self.log_diversity = "MODERATE"
+            elif window_total > 0:
+                self.log_diversity = "LOW"
+            else:
+                self.log_diversity = "INSUFFICIENT"
+
+            recent_texts = [entry["line"] for entry in self.recent_lines]
+            self.error_patterns = self._extract_error_patterns(recent_texts, error_count, warning_count)
+            self.dominant_themes = self._extract_dominant_themes(self.topics)
+
+            if self.is_anomalous():
+                status = "ANOMALY"
+            elif (self.score_history and self.baseline_scores and
+                    self.score_history[-1] > max(1.0, float(np.mean(self.baseline_scores)))):
+                status = "WARNING"
+            else:
+                status = "STABLE"
+
+            error_ratio = (error_count + warning_count * 0.5) / max(window_total, 1)
+            self.interpretation = self._generate_interpretation(
+                complexity, error_ratio, self.topics, self.error_patterns,
+                self.dominant_themes, self.log_diversity, status,
+            )
+
+        except Exception:
+            logger.warning("Semantic analysis failed for %s", self.service_name)
+
+    @staticmethod
+    def _label_topic(terms: list[str]) -> str:
+        """Assign a semantic label to a topic based on its top terms."""
+        lower = [t.lower() for t in terms]
+        if any(t in lower for t in ["error", "exception", "failed", "failure", "panic"]):
+            return "ERROR_HANDLING"
+        if any(t in lower for t in ["connection", "timeout", "network", "socket", "http"]):
+            return "NETWORK_OPERATIONS"
+        if any(t in lower for t in ["database", "query", "sql", "postgres", "mysql", "redis"]):
+            return "DATABASE_OPERATIONS"
+        if any(t in lower for t in ["auth", "authentication", "token", "permission", "unauthorized"]):
+            return "AUTHENTICATION"
+        if any(t in lower for t in ["request", "response", "status", "code", "handler"]):
+            return "REQUEST_HANDLING"
+        if any(t in lower for t in ["latency", "slow", "performance", "memory", "cpu"]):
+            return "PERFORMANCE"
+        if any(t in lower for t in ["service", "client", "api", "endpoint", "call"]):
+            return "SERVICE_INTEGRATION"
+        return "GENERAL_OPERATIONS"
+
+    @staticmethod
+    def _extract_error_patterns(docs: list[str], error_count: int, warning_count: int) -> list[str]:
+        """Detect known error patterns from a list of log lines."""
+        known = {
+            "connection refused": "Connection Refused - Dependency unavailable",
+            "timeout":            "Timeout - Slow response or network issue",
+            "out of memory":      "Out of Memory - Resource exhaustion",
+            "null pointer":       "Null Pointer - Code defect",
+            "permission denied":  "Permission Denied - Authorization issue",
+            "not found":          "Not Found - Missing resource",
+            "deadlock":           "Deadlock - Concurrency issue",
+            "panic":              "Panic - Critical application crash",
+            "500":                "HTTP 500 - Internal server error",
+            "503":                "HTTP 503 - Service unavailable",
+            "429":                "HTTP 429 - Rate limit exceeded",
+        }
+        combined = " ".join(docs).lower()
+        found = [desc for pattern, desc in known.items() if pattern in combined]
+        if error_count > 0 and not found:
+            found.append(f"Unclassified Errors - {error_count} error entries found")
+        return found[:5]
+
+    @staticmethod
+    def _extract_dominant_themes(topics: list[dict]) -> list[str]:
+        """Return labels of the two strongest topics."""
+        if not topics:
+            return []
+        return [t["label"] for t in sorted(topics, key=lambda t: t["strength"], reverse=True)[:2]]
+
+    @staticmethod
+    def _generate_interpretation(
+        complexity: float, error_ratio: float,
+        topics: list[dict], error_patterns: list[str],
+        dominant_themes: list[str], log_diversity: str, status: str,
+    ) -> str:
+        """Generate a human-readable interpretation of the LSI semantic analysis."""
+        parts: list[str] = []
+
+        if log_diversity == "HIGH":
+            parts.append(
+                f"📊 Log Diversity: HIGH ({complexity:.2f}) - Logs show diverse patterns, "
+                "indicating varied system behaviors or multiple concurrent issues."
+            )
+        elif log_diversity == "MODERATE":
+            parts.append(
+                f"📊 Log Diversity: MODERATE ({complexity:.2f}) - Logs show some variation, "
+                "typical of normal operations with occasional events."
+            )
+        else:
+            parts.append(
+                f"📊 Log Diversity: LOW ({complexity:.2f}) - Logs are very uniform, "
+                "indicating stable, repetitive operations or limited logging."
+            )
+
+        if error_ratio > 0.3:
+            parts.append(
+                f"🔴 Error Rate: CRITICAL ({error_ratio:.1%}) - Very high proportion of error messages. "
+                "This strongly suggests active failures."
+            )
+        elif error_ratio > 0.1:
+            parts.append(
+                f"🟠 Error Rate: ELEVATED ({error_ratio:.1%}) - Notable number of errors detected. "
+                "System is experiencing some failures."
+            )
+        elif error_ratio > 0.05:
+            parts.append(
+                f"🟡 Error Rate: MODERATE ({error_ratio:.1%}) - Some errors present but within "
+                "potentially acceptable range for normal operations."
+            )
+        else:
+            parts.append(f"🟢 Error Rate: LOW ({error_ratio:.1%}) - Minimal errors detected.")
+
+        if dominant_themes:
+            parts.append(
+                f"🎯 Dominant Themes: {', '.join(dominant_themes)} - "
+                "These operational areas are most prominent in recent logs."
+            )
+
+        if error_patterns:
+            parts.append(
+                "⚠️  Detected Issues:\n   " + "\n   ".join(f"• {p}" for p in error_patterns)
+            )
+
+        if topics:
+            topic_lines = [
+                f"   Topic {t['topic_id']} ({t['label']}, {t['strength']:.1%} variance): "
+                + ", ".join(t["top_terms"][:3])
+                for t in topics
+            ]
+            parts.append("📝 Topic Breakdown:\n" + "\n".join(topic_lines))
+
+        if status == "ANOMALY":
+            parts.append(
+                "🚨 OVERALL: Log patterns are ANOMALOUS. Either high error rate, unusual diversity, "
+                "or both indicate potential system issues requiring investigation."
+            )
+        elif status == "WARNING":
+            parts.append(
+                "⚠️  OVERALL: Log patterns show WARNING signals. Some deviation from normal "
+                "but not yet critical. Continue monitoring."
+            )
+        else:
+            parts.append("✅ OVERALL: Log patterns appear STABLE and within normal parameters.")
+
+        return "\n\n".join(parts)
 
     def is_anomalous(self) -> bool:
         """Returns True if LSI score exceeds relative or absolute threshold."""
@@ -477,5 +673,10 @@ class LSICollector:
             "window_counts": dict(self.window_counts),
             "score_history": [round(s, 4) for s in self.score_history[-20:]],
             "recent_lines": list(self.recent_lines),
+            "topics": self.topics,
+            "error_patterns": self.error_patterns,
+            "dominant_themes": self.dominant_themes,
+            "log_diversity": self.log_diversity,
+            "interpretation": self.interpretation,
             "evaluation": self.get_evaluation(),
         }

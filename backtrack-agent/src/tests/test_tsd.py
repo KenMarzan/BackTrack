@@ -103,12 +103,18 @@ def test_get_metrics_structure():
     result = collector.get_metrics()
     assert set(result.keys()) == {
         "current", "history", "decomposition", "residuals",
-        "readings_count", "is_drifting", "evaluation",
+        "readings_count", "is_drifting",
+        "z_scores", "trend_directions", "tsd_confidence", "tsd_status",
+        "evaluation",
     }
     assert set(result["current"].keys()) == {
         "cpu_percent", "memory_mb", "latency_ms", "error_rate_percent"
     }
     assert result["readings_count"] == 15
+    assert set(result["z_scores"].keys()) == {"cpu", "memory", "latency", "error_rate"}
+    assert set(result["trend_directions"].keys()) == {"cpu", "memory", "latency", "error_rate"}
+    assert set(result["tsd_status"].keys()) == {"cpu", "memory", "latency", "error_rate"}
+    assert isinstance(result["tsd_confidence"], float)
 
 
 def test_get_metrics_readings_count():
@@ -210,3 +216,82 @@ async def test_scrape_kubernetes_parses_ki_memory():
             await collector._scrape_kubernetes()
 
     assert abs(collector.current_memory - 0.5) < 1e-6  # 512Ki = 0.5 MiB
+
+
+# --- _compute_z_scores ---
+
+def test_compute_z_scores_populated_after_decompose():
+    """After _decompose(), z_scores and tsd_status are set for each metric."""
+    collector = make_collector_with_history(20)
+    collector._decompose()
+    for key in ("cpu", "memory", "latency", "error_rate"):
+        assert key in collector.z_scores
+        assert key in collector.tsd_status
+        assert key in collector.trend_directions
+
+
+def test_compute_z_scores_stable_when_normal():
+    """Stable residuals should produce a STABLE status."""
+    collector = TSDCollector(service_name="test")
+    # Flat, low-variance residuals → last value close to median → small Z-score
+    collector.residuals["cpu"] = [1.0, 1.1, 0.9, 1.0, 1.05, 0.95,
+                                   1.0, 1.1, 0.9, 1.0, 1.05, 0.95]
+    collector._compute_z_scores()
+    assert collector.tsd_status["cpu"] == "STABLE"
+    assert abs(collector.z_scores["cpu"]) < 3.0
+
+
+def test_compute_z_scores_anomaly_on_spike():
+    """A large residual spike should produce an ANOMALY status and large Z-score."""
+    collector = TSDCollector(service_name="test")
+    # Stable baseline, then huge spike as last value
+    collector.residuals["cpu"] = [1.0] * 11 + [500.0]
+    collector._compute_z_scores()
+    assert collector.tsd_status["cpu"] == "ANOMALY"
+    assert abs(collector.z_scores["cpu"]) > 3.0
+
+
+def test_compute_z_scores_insufficient_data():
+    """Short residuals list → status remains INSUFFICIENT_DATA."""
+    collector = TSDCollector(service_name="test")
+    collector.residuals["cpu"] = [1.0, 2.0]  # fewer than MIN_READINGS_FOR_STL
+    collector._compute_z_scores()
+    assert collector.tsd_status["cpu"] == "INSUFFICIENT_DATA"
+
+
+def test_compute_z_scores_trend_increasing():
+    """Trend series with positive slope → INCREASING direction."""
+    collector = TSDCollector(service_name="test")
+    collector.residuals["cpu"] = [1.0] * 12
+    collector.trend["cpu"] = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+    collector._compute_z_scores()
+    assert collector.trend_directions["cpu"] == "INCREASING"
+
+
+def test_compute_z_scores_trend_decreasing():
+    """Trend series with negative slope → DECREASING direction."""
+    collector = TSDCollector(service_name="test")
+    collector.residuals["cpu"] = [1.0] * 12
+    collector.trend["cpu"] = [6.0, 5.0, 4.0, 3.0, 2.0, 1.0]
+    collector._compute_z_scores()
+    assert collector.trend_directions["cpu"] == "DECREASING"
+
+
+def test_compute_z_scores_trend_stable():
+    """Flat trend series → STABLE direction."""
+    collector = TSDCollector(service_name="test")
+    collector.residuals["cpu"] = [1.0] * 12
+    collector.trend["cpu"] = [5.0, 5.0, 5.0, 5.0, 5.0, 5.0]
+    collector._compute_z_scores()
+    assert collector.trend_directions["cpu"] == "STABLE"
+
+
+def test_compute_z_scores_confidence_proportional():
+    """Confidence grows as the rolling deque fills up (capped at 1.0)."""
+    from src.collectors.tsd import DEQUE_SIZE
+    c_partial = make_collector_with_history(DEQUE_SIZE // 2)
+    c_partial._compute_z_scores()
+    c_full = make_collector_with_history(DEQUE_SIZE)
+    c_full._compute_z_scores()
+    assert c_partial.tsd_confidence < c_full.tsd_confidence
+    assert c_full.tsd_confidence == 1.0

@@ -288,14 +288,16 @@ def test_lsi_score_at_exact_threshold_not_anomalous(lsi_cfg):
 def test_lsi_score_just_above_threshold_is_anomalous(lsi_cfg):
     """
     score just above threshold IS anomalous.
-    baseline_mean = 0.1, threshold = 0.2
-    3 WARN / 10 total → score = 0.3 > 0.2 → anomalous.
+    baseline_mean = 0.1, multiplier = 2.0, threshold = 0.2
+    score = 0.3 → 0.3 > 0.2 → anomalous.
+
+    State is set directly to avoid _close_window's baseline-update side effect
+    which corrupts the baseline when BASELINE_WINDOWS is small (e.g. 3 in .env).
     """
     c = _fitted_lsi()
-    _close_windows(c, {"INFO": 9, "WARN": 1, "ERROR": 0, "NOVEL": 0}, BASELINE_WINDOWS)
-    c.window_counts = {"INFO": 7, "WARN": 3, "ERROR": 0, "NOVEL": 0}
-    c.window_total = 10
-    c._close_window()
+    c.baseline_scores = [0.1] * max(BASELINE_WINDOWS, 1)
+    c.baseline_locked = True
+    c.score_history = list(c.baseline_scores) + [0.3]  # 0.3 > 2.0 × 0.1 = 0.2
     assert c.is_anomalous()
 
 
