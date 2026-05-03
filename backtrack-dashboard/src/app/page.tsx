@@ -22,38 +22,44 @@ export default function Home() {
 
   useEffect(() => {
     let active = true;
+    let errorCount = 0;
+    let timer: ReturnType<typeof window.setTimeout> | null = null;
 
     const load = async () => {
       setSyncState("syncing");
       try {
         const response = await fetch("/api/dashboard/overview", { cache: "no-store" });
         const data = await response.json();
-
         if (!active) return;
         setServices(data.services ?? []);
         setAnomalies(data.anomalies ?? []);
         setLastSync(new Date());
         setSyncState("idle");
+        errorCount = 0;
       } catch {
         if (!active) return;
         setServices([]);
         setAnomalies([]);
         setSyncState("error");
+        errorCount++;
+      }
+      if (active) {
+        // Exponential backoff on errors: 10s → 20s → 40s → 60s max
+        const delay = errorCount > 0
+          ? Math.min(10000 * Math.pow(2, errorCount - 1), 60000)
+          : 10000;
+        timer = window.setTimeout(load, delay);
       }
     };
 
     load();
-    const timer = window.setInterval(load, 10000);
 
-    const refresh = () => {
-      load();
-    };
-
+    const refresh = () => { load(); };
     window.addEventListener("backtrack:connection-updated", refresh);
 
     return () => {
       active = false;
-      window.clearInterval(timer);
+      if (timer !== null) window.clearTimeout(timer);
       window.removeEventListener("backtrack:connection-updated", refresh);
     };
   }, []);
@@ -68,7 +74,7 @@ export default function Home() {
   }, [lastSync]);
 
   const handleAnomalyRollback = (anomaly: DashboardAnomaly) => {
-    const evId = Date.now();
+    const evId = Date.now() + Math.floor(Math.random() * 1000000);
     const fromVersion = anomaly.current;
     const toVersion = "previous stable";
 
@@ -101,7 +107,7 @@ export default function Home() {
           if (succeeded) setAnomalies((prev) => prev.filter((a) => a.id !== anomaly.id));
           setRollbackToasts((prev) => [
             {
-              id: Date.now(),
+              id: Date.now() + Math.floor(Math.random() * 1000000),
               service: anomaly.service,
               fromVersion,
               toVersion,

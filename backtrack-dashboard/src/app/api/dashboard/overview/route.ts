@@ -3,6 +3,9 @@ import { listConnections } from "@/lib/monitoring-store";
 import { runCommand } from "@/lib/command";
 import type { DashboardService, DashboardAnomaly } from "@/lib/monitoring-types";
 
+const MEMORY_THRESHOLD_MIB = Number(process.env.BACKTRACK_MEMORY_THRESHOLD_MIB) || 120;
+const SCRAPE_INTERVAL_SECONDS = Number(process.env.BACKTRACK_SCRAPE_INTERVAL) || 10;
+
 type RawConnection = {
 	id: string;
 	appName?: string;
@@ -340,7 +343,7 @@ export async function GET() {
 	}
 
 	// Fetch agent anomaly signals (LSI + TSD) and per-service metrics
-	const agentUrl = process.env.BACKTRACK_AGENT_URL || "http://127.0.0.1:9090";
+	const agentUrl = process.env.BACKTRACK_AGENT_URL || "http://127.0.0.1:8847";
 	type AgentService = { name: string; is_drifting: boolean; is_anomalous: boolean };
 	type AgentMetrics = { current?: { cpu_percent?: number; memory_mb?: number; latency_ms?: number; error_rate_percent?: number } };
 	let agentServices: AgentService[] = [];
@@ -379,7 +382,7 @@ export async function GET() {
 		// latency_ms > 0 means agent is actively probing the service — use as request signal
 		if (svc.requestRate === 0 && (agentM.current.latency_ms ?? 0) > 0) {
 			// 1 probe per scrape_interval seconds — express as req/s
-			svc.requestRate = parseFloat((1 / 10).toFixed(3));
+			svc.requestRate = parseFloat((1 / SCRAPE_INTERVAL_SECONDS).toFixed(3));
 		}
 	}
 
@@ -403,7 +406,7 @@ export async function GET() {
 				});
 			}
 
-			if (service.memoryMiB > 120) {
+			if (service.memoryMiB > MEMORY_THRESHOLD_MIB) {
 				issues.push({
 					id: `${service.id}-memory`,
 					service: service.name,

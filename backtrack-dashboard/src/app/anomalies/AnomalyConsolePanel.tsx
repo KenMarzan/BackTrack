@@ -10,6 +10,7 @@ type AnomalyConsolePanelProps = {
   namespace: string;
   terminalLines: string[];
   diffLines: Array<{ sign: string; text: string }>;
+  clusterName?: string;
 };
 
 type LiveLogResponse = {
@@ -35,6 +36,7 @@ export default function AnomalyConsolePanel({
   namespace,
   terminalLines,
   diffLines,
+  clusterName = "local",
 }: AnomalyConsolePanelProps) {
   const [activeTab, setActiveTab] = useState<ConsoleTab>("pipeline");
   const [liveLogs, setLiveLogs] = useState<string[]>(terminalLines);
@@ -161,7 +163,7 @@ export default function AnomalyConsolePanel({
             </div>
 
             <div className="mt-4 flex items-center justify-between text-green-400">
-              <span>admin@production-us-east:~$</span>
+              <span>admin@{clusterName}:~$</span>
               {liveMetrics ? (
                 <span className="text-[11px] text-white/55">
                   pod {livePod || "unknown"} • {podStatus} • cpu {liveMetrics.cpuCores.toFixed(3)} • mem {liveMetrics.memoryMiB.toFixed(1)} MiB

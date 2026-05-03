@@ -17,7 +17,7 @@ BackTrack/
 Run from `backtrack-dashboard/`:
 
 ```bash
-npm run dev       # Start dev server (http://localhost:3000)
+npm run dev       # Start dev server (http://localhost:3847)
 npm run build     # Production build
 npm run start     # Start production server
 npm run lint      # Run ESLint

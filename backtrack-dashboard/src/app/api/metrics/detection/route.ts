@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addDetectionEntry, clearDetectionEntries, listDetectionEntries } from "@/lib/metrics-store";
 
-const AGENT_URL = process.env.BACKTRACK_AGENT_URL || "http://127.0.0.1:9090";
+const AGENT_URL = process.env.BACKTRACK_AGENT_URL || "http://127.0.0.1:8847";
 
 type AgentTSDEval = {
   drift_events_total: number;

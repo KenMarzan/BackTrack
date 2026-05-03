@@ -12,7 +12,7 @@ type RollbackPayload = {
   anomaly_type?: "TSD" | "LSI" | "BOTH" | "MANUAL";
 };
 
-const AGENT_URL = process.env.BACKTRACK_AGENT_URL || "http://127.0.0.1:9090";
+const AGENT_URL = process.env.BACKTRACK_AGENT_URL || "http://127.0.0.1:8847";
 
 export async function POST(request: NextRequest) {
   try {
@@ -141,7 +141,13 @@ export async function POST(request: NextRequest) {
         if (svcType === "NodePort" && nodePort) {
           accessUrl = `http://localhost:${nodePort}`;
         } else if (svcType === "LoadBalancer") {
-          accessUrl = `http://localhost:${clusterPort}`;
+          // Get external IP assigned by cloud LB
+          const lbIp = await runCommand("kubectl", [
+            "get", "svc", payload.service, "-n", ns,
+            "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}",
+          ]);
+          const ip = lbIp.stdout.trim() || "localhost";
+          accessUrl = `http://${ip}:${clusterPort}`;
         } else {
           // Patch existing ClusterIP service to NodePort
           await runCommand("kubectl", [

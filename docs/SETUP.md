@@ -52,12 +52,12 @@ docker compose up -d
 ```
 
 This pulls two images from Docker Hub:
-- `zeritzuu/backtrack-dashboard` → web UI on **http://localhost:3000**
-- `zeritzuu/backtrack-agent` → anomaly engine on port **9091**
+- `zeritzuu/backtrack-dashboard` → web UI on **http://localhost:3847**
+- `zeritzuu/backtrack-agent` → anomaly engine on port **8847**
 
 ### Step 3 — Connect your app
 
-1. Open **http://localhost:3000**
+1. Open **http://localhost:3847**
 2. Click **Configure Cluster** (top-right)
 3. Choose **Docker** or **Kubernetes**
 4. Enter your container/deployment name → click **Connect**
@@ -142,7 +142,7 @@ Or port-forward locally and use `http://localhost:9090`.
 
 Docker mode requires only the container name. No cluster configuration needed.
 
-1. Open **http://localhost:3000**
+1. Open **http://localhost:3847**
 2. Click **Configure Cluster**
 3. **Platform** → Docker
 4. **Application name** → exact container name (find it with `docker ps --format "{{.Names}}"`)
@@ -179,7 +179,7 @@ npm install
 npm run dev
 ```
 
-Open **http://localhost:3000**
+Open **http://localhost:3847**
 
 ### 3. Start the agent
 
@@ -187,10 +187,10 @@ Open **http://localhost:3000**
 cd backtrack-agent
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 9090
+.venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8847
 ```
 
-> **Port conflict:** if `kubectl port-forward` is also using port 9090, the dashboard may hit the wrong process. Either kill the port-forward or set `BACKTRACK_AGENT_URL=http://127.0.0.1:9090` in `backtrack-dashboard/.env.local`.
+> **Port conflict:** if another process is using port 8847, set `BACKTRACK_AGENT_URL=http://127.0.0.1:<other-port>` in `backtrack-dashboard/.env.local`.
 
 ### 4. Connect
 
@@ -224,7 +224,7 @@ Click **Configure Cluster** in the dashboard → fill in the form → Connect.
 
 | Variable | Default | Description |
 |---|---|---|
-| `BACKTRACK_AGENT_URL` | `http://127.0.0.1:9090` | URL of the running backtrack-agent |
+| `BACKTRACK_AGENT_URL` | `http://127.0.0.1:8847` | URL of the running backtrack-agent |
 | `GITHUB_TOKEN` | _(optional)_ | GitHub PAT for the deployment history panel |
 
 ---
@@ -293,18 +293,18 @@ docker ps                            # Verify containers are up
 
 **Agent offline**
 ```bash
-curl http://127.0.0.1:9090/health    # Should return {"status":"ok"}
-curl http://127.0.0.1:9090/services  # List monitored services
+curl http://127.0.0.1:8847/health    # Should return {"status":"ok"}
+curl http://127.0.0.1:8847/services  # List monitored services
 ```
 
 **All metrics are zero**
-- Check for port conflict: `ss -tlnp | grep 9090` — if `kubectl port-forward` is on 9090, it intercepts requests. Use `http://127.0.0.1:9090` explicitly or kill the conflicting process.
+- Check for port conflict: `ss -tlnp | grep 8847` — if another process is on 8847, it intercepts requests. Use `http://127.0.0.1:8847` explicitly or kill the conflicting process.
 - Verify `kubectl top pods -n default -l app=<service>` returns data (requires metrics-server).
 
 **LSI corpus stuck at 0 lines**
 ```bash
 kubectl logs -n default -l app=<service> --tail=5   # Verify logs exist
-curl http://127.0.0.1:9090/services                 # Check agent sees the service
+curl http://127.0.0.1:8847/services                 # Check agent sees the service
 ```
 
 **TSD/LSI panels empty after connecting**
@@ -313,7 +313,7 @@ curl http://127.0.0.1:9090/services                 # Check agent sees the servi
 
 **Rollback didn't restore the app**
 - BackTrack auto-restores replicas if scaled to 0 before running `rollout undo`.
-- Check history: `curl http://127.0.0.1:9090/rollback/history`
+- Check history: `curl http://127.0.0.1:8847/rollback/history`
 
 **High LSI false positives**
 - Raise SVD threshold: `BACKTRACK_SVD_SIMILARITY_THRESHOLD=0.70` and restart agent.

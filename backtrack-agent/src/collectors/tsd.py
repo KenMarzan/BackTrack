@@ -62,6 +62,7 @@ class TSDCollector:
 
         self._running = False
         self._task: Optional[asyncio.Task] = None
+        self._docker_client = None  # reused across scrapes to avoid fd leak
 
     async def start(self) -> None:
         """Start the background collection loop."""
@@ -103,7 +104,9 @@ class TSDCollector:
         try:
             import docker
 
-            client = docker.from_env()
+            if self._docker_client is None:
+                self._docker_client = docker.from_env()
+            client = self._docker_client
             container = client.containers.get(config.target)
             stats = container.stats(stream=False)
 
@@ -242,8 +245,33 @@ class TSDCollector:
         """
         Returns True if residual > 3×IQR for 3 consecutive readings
         on ANY metric. This is the core anomaly signal from TSD.
+        Also detects flat-zero crashes: series was non-zero historically
+        but recent readings dropped to near-zero (e.g. container crashed).
         """
         drifting_now = False
+
+        # Flat-zero crash detection: catches containers that die and produce 0 metrics.
+        # IQR-based detection misses this because residuals of an all-zero series are 0.
+        raw_histories: dict[str, list[float]] = {
+            "cpu": list(self.cpu_history),
+            "memory": list(self.memory_history),
+        }
+        for name, series in raw_histories.items():
+            if len(series) < MIN_READINGS_FOR_STL:
+                continue
+            historical = series[:-3]
+            recent = series[-3:]
+            hist_mean = float(np.mean(historical))
+            # Thresholds: CPU >1% historical, memory >1 MiB historical
+            threshold = 1.0 if name == "cpu" else 1.0
+            if hist_mean > threshold and all(v < 0.01 for v in recent):
+                logger.warning(
+                    "TSD FLAT-ZERO DRIFT on %s: historical mean=%.2f dropped to near-zero %s",
+                    name, hist_mean, [round(v, 4) for v in recent],
+                )
+                self._per_metric_drifts[name] = self._per_metric_drifts.get(name, 0) + 1
+                drifting_now = True
+
         for name, residuals in self.residuals.items():
             if len(residuals) < 6:
                 continue
@@ -256,7 +284,7 @@ class TSDCollector:
                 continue
             threshold = config.tsd_iqr_multiplier * iqr
             last_three = residuals[-3:]
-            if all(abs(r) > threshold for r in last_three) and threshold > 0:
+            if all(abs(r) > threshold for r in last_three):
                 logger.warning(
                     "TSD DRIFT on %s: last 3 residuals %s exceed threshold %.4f",
                     name, [round(r, 4) for r in last_three], threshold,

@@ -7,13 +7,15 @@ services:
       context: ./backtrack-dashboard
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3847:3847"
     environment:
-      - BACKTRACK_AGENT_URL=http://backtrack-agent:9090
+      - BACKTRACK_AGENT_URL=http://backtrack-agent:8847
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - backtrack-data:/.backtrack
+      # Kubernetes mode: uncomment to mount kubeconfig for kubectl access
+      # - ~/.kube:/root/.kube:ro
     depends_on:
       backtrack-agent:
         condition: service_healthy
@@ -26,15 +28,29 @@ services:
     environment:
       - BACKTRACK_TARGET=${BACKTRACK_TARGET:-}
       - BACKTRACK_IMAGE_TAG=${BACKTRACK_IMAGE_TAG:-unknown}
-      - BACKTRACK_ROLLBACK_ENABLED=${BACKTRACK_ROLLBACK_ENABLED:-true}
+      - BACKTRACK_MODE=${BACKTRACK_MODE:-}
+      - BACKTRACK_K8S_NAMESPACE=${BACKTRACK_K8S_NAMESPACE:-default}
+      - BACKTRACK_K8S_LABEL_SELECTOR=${BACKTRACK_K8S_LABEL_SELECTOR:-}
       - BACKTRACK_SCRAPE_INTERVAL=${BACKTRACK_SCRAPE_INTERVAL:-10}
+      - BACKTRACK_STABLE_SECONDS=${BACKTRACK_STABLE_SECONDS:-600}
+      - BACKTRACK_ROLLBACK_ENABLED=${BACKTRACK_ROLLBACK_ENABLED:-true}
+      - BACKTRACK_ROLLBACK_COOLDOWN=${BACKTRACK_ROLLBACK_COOLDOWN:-120}
+      - BACKTRACK_TSD_IQR_MULTIPLIER=${BACKTRACK_TSD_IQR_MULTIPLIER:-3.0}
+      - BACKTRACK_LSI_SCORE_MULTIPLIER=${BACKTRACK_LSI_SCORE_MULTIPLIER:-2.0}
+      - BACKTRACK_CORPUS_SIZE=${BACKTRACK_CORPUS_SIZE:-200}
+      - BACKTRACK_BASELINE_WINDOWS=${BACKTRACK_BASELINE_WINDOWS:-10}
+      - BACKTRACK_WINDOW_SECONDS=${BACKTRACK_WINDOW_SECONDS:-30}
+      - BACKTRACK_SVD_SIMILARITY_THRESHOLD=${BACKTRACK_SVD_SIMILARITY_THRESHOLD:-0.55}
+      - BACKTRACK_DATA_DIR=${BACKTRACK_DATA_DIR:-/data}
     volumes:
       - backtrack-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
+      # Kubernetes mode: uncomment to mount kubeconfig for kubectl access
+      # - ~/.kube:/root/.kube:ro
     ports:
-      - "9091:9090"
+      - "8847:8847"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8847/health"]
       interval: 15s
       timeout: 5s
       retries: 3

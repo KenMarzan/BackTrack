@@ -26,30 +26,29 @@ Complete operator and developer knowledge base. Every port, config, data flow, w
 
 | Port | Service | Direction | Defined In | Notes |
 |------|---------|-----------|-----------|-------|
-| `3000` | backtrack-dashboard | External (host) | `docker-compose.yml:10` | Next.js frontend |
-| `9090` | backtrack-agent | Internal only (container) | `agent/Dockerfile EXPOSE` | FastAPI server |
-| `9091` | backtrack-agent | External (host) | `docker-compose.yml:35` (`9091:9090`) | Avoids Prometheus default port conflict |
+| `3847` | backtrack-dashboard | External (host) | `docker-compose.yml:10` | Next.js frontend |
+| `8847` | backtrack-agent | Internal + External | `agent/Dockerfile EXPOSE` | FastAPI server |
 
 **Inter-service communication (Docker Compose):**
-- Dashboard → Agent: `http://backtrack-agent:9090` (service name resolution on internal bridge network)
-- Set via `BACKTRACK_AGENT_URL=http://backtrack-agent:9090` in `docker-compose.yml:12`
+- Dashboard → Agent: `http://backtrack-agent:8847` (service name resolution on internal bridge network)
+- Set via `BACKTRACK_AGENT_URL=http://backtrack-agent:8847` in `docker-compose.yml:12`
 
 **From source (no Docker):**
-- Dashboard defaults to `http://127.0.0.1:9090` (NOT `localhost`) — avoids IPv6 conflict
+- Dashboard defaults to `http://127.0.0.1:8847` (NOT `localhost`) — avoids IPv6 conflict
 - Defined in `backtrack-dashboard/src/app/api/agent/route.ts:3`
 
 **IPv6 port conflict (common issue):**
-- `kubectl port-forward` on dual-stack systems binds to `::1:9090`, not `127.0.0.1:9090`
+- `kubectl port-forward` on dual-stack systems binds to `::1:<port>`, not `127.0.0.1:<port>`
 - Symptom: agent returns 404 despite uvicorn running correctly
-- Detect: `ss -tlnp | grep 9090` — look for both `0.0.0.0:9090` (uvicorn) and `[::1]:9090` (kubectl)
+- Detect: `ss -tlnp | grep 8847` — look for both `0.0.0.0:8847` (uvicorn) and `[::1]:8847` (kubectl)
 - Fix option A: kill the port-forward `kill <kubectl-pid>`
 - Fix option B: use `kubectl port-forward --address=127.0.0.1 ...`
-- Fix option C: set `BACKTRACK_AGENT_URL=http://127.0.0.1:9090` explicitly
+- Fix option C: set `BACKTRACK_AGENT_URL=http://127.0.0.1:8847` explicitly
 
 **How to change the agent port:**
-1. `docker-compose.yml`: change `"9091:9090"` to `"<newhost>:9090"`
-2. Dashboard service env: add `BACKTRACK_AGENT_URL=http://backtrack-agent:9090` (internal stays 9090)
-3. If also changing internal port: update `agent/Dockerfile EXPOSE` and uvicorn CMD
+1. `docker-compose.yml`: change `"8847:8847"` to `"<newhost>:<newcontainer>"`
+2. Dashboard service env: update `BACKTRACK_AGENT_URL=http://backtrack-agent:<newport>`
+3. Update `agent/Dockerfile EXPOSE` and uvicorn CMD
 
 ---
 
@@ -87,10 +86,10 @@ return "docker"
 
 | Variable | Default | Where Set | Effect |
 |---|---|---|---|
-| `BACKTRACK_AGENT_URL` | `http://127.0.0.1:9090` | `docker-compose.yml:12` or `.env.local` | Agent endpoint for all proxy calls |
+| `BACKTRACK_AGENT_URL` | `http://127.0.0.1:8847` | `docker-compose.yml:12` or `.env.local` | Agent endpoint for all proxy calls |
 | `GITHUB_TOKEN` | `""` | `docker-compose.yml:13` or `.env` | GitHub PAT for deployment history panel. Blank = panel disabled |
 | `NODE_ENV` | `production` | `Dockerfile:18` | Next.js mode |
-| `PORT` | `3000` | `Dockerfile:19` | Next.js listen port |
+| `PORT` | `3847` | `Dockerfile:19` | Next.js listen port |
 | `HOSTNAME` | `0.0.0.0` | `Dockerfile:20` | Next.js bind address |
 
 ---
@@ -494,7 +493,7 @@ All use `docker.from_env()` which reads `DOCKER_HOST` env var or defaults to `/v
 | **Cross-namespace** monitoring | One namespace per connection | Add multiple connections |
 | **Historical log** analysis | Only tails current logs | No workaround (by design) |
 | **Coordinated multi-service** rollback | Per-service executors | Manual sequencing |
-| **Prometheus on port 9090** | Same as agent default | Agent host-mapped to 9091 |
+| **Prometheus on port 9090** | Different from agent port (8847) | No conflict |
 | **Non-standard label selectors** | Assumes `app=<name>` | Set `BACKTRACK_K8S_LABEL_SELECTOR` |
 | **Windows container** rollback | Docker SDK stop/remove not tested | Unknown |
 | **Private Prometheus** without token | Needs Bearer auth | Add token in Connect modal Prometheus URL field |
@@ -555,25 +554,25 @@ All use `docker.from_env()` which reads `DOCKER_HOST` env var or defaults to `/v
 - [ ] K8s mode: mount `~/.kube:/root/.kube:ro` in both services
 - [ ] K8s mode: verify metrics-server is installed (`kubectl top nodes`)
 - [ ] K8s mode: verify pods have `app=<name>` labels (`kubectl get pods --show-labels`)
-- [ ] No other process on host port 9091 (agent) or 3000 (dashboard)
+- [ ] No other process on host port 8847 (agent) or 3847 (dashboard)
 
 ### Verify Agent Is Working
 
 ```bash
-curl http://127.0.0.1:9090/health
+curl http://127.0.0.1:8847/health
 # → {"status":"ok","mode":"kubernetes","uptime_seconds":42,"monitored_services":["frontend","checkoutservice",...]}
 
-curl http://127.0.0.1:9090/services
+curl http://127.0.0.1:8847/services
 # → [{"name":"frontend","is_drifting":false,"is_anomalous":false,"readings_count":12,"lsi_fitted":false}]
 
-curl "http://127.0.0.1:9090/metrics?service=frontend"
+curl "http://127.0.0.1:8847/metrics?service=frontend"
 # → {"current":{"cpu_percent":1.1,...},"readings_count":12,...}
 ```
 
 ### Warm-up Status Check
 
 ```bash
-curl http://127.0.0.1:9090/services | python3 -m json.tool
+curl http://127.0.0.1:8847/services | python3 -m json.tool
 ```
 
 - `readings_count >= 12` → TSD active
@@ -590,16 +589,16 @@ docker compose logs -f backtrack-agent
 docker compose logs -f backtrack-dashboard
 
 # Check port conflicts
-ss -tlnp | grep -E "9090|9091|3000"
+ss -tlnp | grep -E "8847|3847"
 
 # Inspect persisted connections
 cat ~/.backtrack/connections.json 2>/dev/null || docker compose exec backtrack-dashboard cat /.backtrack/connections.json
 
 # Rollback history
-curl http://127.0.0.1:9090/rollback/history
+curl http://127.0.0.1:8847/rollback/history
 
 # Version snapshots
-curl http://127.0.0.1:9090/versions
+curl http://127.0.0.1:8847/versions
 
 # Reset everything
 docker compose down -v && docker compose up -d

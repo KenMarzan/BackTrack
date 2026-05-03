@@ -4,7 +4,7 @@ import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import "xterm/css/xterm.css";
 
-export default function AnomalyTerminal() {
+export default function AnomalyTerminal({ clusterName }: { clusterName?: string }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
 
@@ -64,7 +64,7 @@ export default function AnomalyTerminal() {
     }, 100);
 
     term.writeln("\x1b[2m" + "─".repeat(64) + "\x1b[0m");
-    term.writeln("\x1b[36;1m  BackTrack \x1b[0m\x1b[2m·\x1b[0m\x1b[36m kubectl \x1b[0m\x1b[2m· production-us-east\x1b[0m");
+    term.writeln(`\x1b[36;1m  BackTrack \x1b[0m\x1b[2m·\x1b[0m\x1b[36m kubectl \x1b[0m\x1b[2m· ${clusterName || "local"}\x1b[0m`);
     term.writeln("\x1b[2m" + "─".repeat(64) + "\x1b[0m");
     term.writeln("\x1b[2mType kubectl commands. Tab to complete. Ctrl+C to cancel.\x1b[0m");
     term.writeln("");

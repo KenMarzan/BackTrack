@@ -85,13 +85,20 @@ class RollbackExecutor:
         return result
 
     def _rollback_docker(self, stable: Snapshot) -> None:
-        """Docker mode: stop current container and run previous image."""
+        """Docker mode: stop current container and run previous image, preserving config."""
         import docker
 
         client = docker.from_env()
         container = client.containers.get(config.target)
         image = stable.image_tag
-        network_mode = container.attrs.get("HostConfig", {}).get("NetworkMode", "bridge")
+
+        # Capture runtime config before stopping so the restored container matches
+        host_config = container.attrs.get("HostConfig", {})
+        container_config = container.attrs.get("Config", {})
+        network_mode = host_config.get("NetworkMode", "bridge")
+        port_bindings = host_config.get("PortBindings") or {}
+        env = container_config.get("Env") or []
+        binds = host_config.get("Binds") or []
 
         logger.info("Stopping container %s ...", config.target)
         container.stop()
@@ -103,12 +110,24 @@ class RollbackExecutor:
             detach=True,
             name=config.target,
             network_mode=network_mode,
+            ports=port_bindings if port_bindings else None,
+            environment=env if env else None,
+            volumes=binds if binds else None,
         )
         logger.info("Docker rollback complete.")
 
     def _rollback_kubernetes(self) -> None:
         """K8s mode: kubectl rollout undo, then restore replicas if scaled to 0."""
-        name = config.target or config.k8s_label_selector.split("=")[-1]
+        name = config.target
+        if not name and config.k8s_label_selector:
+            # Parse deployment name from first key=value pair only
+            # "app=frontend,env=prod" → "frontend"
+            first_pair = config.k8s_label_selector.split(",")[0]
+            name = first_pair.split("=")[-1] if "=" in first_pair else first_pair
+        if not name:
+            raise ValueError(
+                "Cannot determine deployment name for rollback — set BACKTRACK_TARGET explicitly."
+            )
 
         # Check current replica count — scale-to-0 defeats rollout undo
         rep_result = subprocess.run(

@@ -84,8 +84,8 @@ class VersionStore:
         # Prune: keep only the newest MAX_STABLE stable snapshots
         stable = [s for s in self.snapshots if s.status == "STABLE"]
         if len(stable) > MAX_STABLE:
-            to_remove = stable[MAX_STABLE:]
-            self.snapshots = [s for s in self.snapshots if s not in to_remove]
+            remove_ids = {s.id for s in stable[MAX_STABLE:]}
+            self.snapshots = [s for s in self.snapshots if s.id not in remove_ids]
 
         self._persist()
 
@@ -100,10 +100,10 @@ class VersionStore:
 
     def get_last_stable(self) -> Optional[Snapshot]:
         """Return the most recent STABLE snapshot, or None."""
-        for snap in self.snapshots:
-            if snap.status == "STABLE":
-                return snap
-        return None
+        stable = [s for s in self.snapshots if s.status == "STABLE"]
+        if not stable:
+            return None
+        return max(stable, key=lambda s: s.timestamp)
 
     def get_current_pending(self) -> Optional[Snapshot]:
         """Return the current PENDING snapshot, or None."""

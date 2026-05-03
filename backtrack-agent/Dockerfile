@@ -14,6 +14,6 @@ COPY src/ ./src/
 
 RUN mkdir -p /data
 
-EXPOSE 9090
+EXPOSE 8847
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "9090"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8847"]

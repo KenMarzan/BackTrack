@@ -26,10 +26,14 @@ class BacktrackConfig:
         self.scrape_interval: int = int(os.getenv("BACKTRACK_SCRAPE_INTERVAL", "10"))
         self.rollback_enabled: bool = os.getenv("BACKTRACK_ROLLBACK_ENABLED", "true").lower() == "true"
         self.image_tag: str = os.getenv("BACKTRACK_IMAGE_TAG", "unknown")
+        # Set by /reconfigure — overrides env var without mutating os.environ (thread-safe)
+        self._forced_mode: str = ""
 
     @property
     def mode(self) -> str:
-        """Returns 'kubernetes' if forced via env var or running inside a K8s pod, else 'docker'."""
+        """Returns 'kubernetes' if forced via reconfigure or env var or inside a K8s pod, else 'docker'."""
+        if self._forced_mode:
+            return self._forced_mode
         forced = os.getenv("BACKTRACK_MODE", "").lower()
         if forced in ("kubernetes", "k8s"):
             return "kubernetes"

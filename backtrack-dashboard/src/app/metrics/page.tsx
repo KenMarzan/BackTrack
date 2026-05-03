@@ -161,7 +161,17 @@ export default function MetricsPage() {
     await loadDetection();
     setSubmitting(false);
     setShowTestForm(false);
-    setTestForm((p) => ({ ...p, test_label: "", notes: "" }));
+    setTestForm({
+      test_label: "",
+      fault_injected: true,
+      fault_type: "latency",
+      service: "",
+      injected_at: new Date().toISOString().slice(0, 16),
+      tsd_detected: false,
+      lsi_detected: false,
+      detected_at: new Date().toISOString().slice(0, 16),
+      notes: "",
+    });
   };
 
   const submitMttrManual = async () => {
@@ -179,6 +189,7 @@ export default function MetricsPage() {
     await loadMttr();
     setSubmitting(false);
     setShowMttrForm(false);
+    setMttrForm({ service: "", anomaly_type: "MANUAL", anomaly_detected_at: "", rollback_triggered_at: "", rollback_completed_at: "", success: true });
   };
 
   const clearMttr = async () => {
