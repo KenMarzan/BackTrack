@@ -1,8 +1,83 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addMttrEntry, clearMttrEntries, listMttrEntries } from "@/lib/metrics-store";
+import { addMttrEntry, clearMttrEntries, listMttrEntries, type MttrEntry } from "@/lib/metrics-store";
+
+type AgentRollbackHistoryEntry = {
+  id: string;
+  timestamp: string;
+  rollback_triggered_at?: string;
+  rollback_completed_at?: string;
+  reason: string;
+  from_tag: string;
+  to_tag: string;
+  service_name?: string;
+  mode: string;
+  success: boolean;
+};
+
+const AGENT_URL = process.env.BACKTRACK_AGENT_URL || "http://127.0.0.1:8847";
+
+function parseServiceName(entry: AgentRollbackHistoryEntry): string {
+  if (entry.service_name && entry.service_name.trim()) return entry.service_name.trim();
+
+  const reason = entry.reason || "";
+  const patterns = [
+    /anomaly on\s+(.+?)\s+for\s+\d+\s+cycles/i,
+    /Dashboard rollback for\s+(.+?)(?:[,.]|$)/i,
+    /for service\s+(.+?)(?:[,.]|$)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = reason.match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+
+  return entry.from_tag || "unknown";
+}
+
+function parseTime(entry: AgentRollbackHistoryEntry, key: "rollback_triggered_at" | "rollback_completed_at"): string {
+  return entry[key] || entry.timestamp;
+}
+
+async function loadAgentRollbackEntries(): Promise<MttrEntry[]> {
+  try {
+    const response = await fetch(`${AGENT_URL}/rollback/history`, { cache: "no-store" });
+    if (!response.ok) return [];
+
+    const payload = (await response.json()) as AgentRollbackHistoryEntry[];
+    if (!Array.isArray(payload)) return [];
+
+    return payload
+      .filter((entry) => entry.success)
+      .map((entry) => ({
+        id: `agent-${entry.id}`,
+        service: parseServiceName(entry),
+        anomaly_type: "AUTO",
+        anomaly_detected_at: parseTime(entry, "rollback_triggered_at"),
+        rollback_triggered_at: parseTime(entry, "rollback_triggered_at"),
+        rollback_completed_at: parseTime(entry, "rollback_completed_at"),
+        mttr_seconds: Math.max(
+          0,
+          Math.round((new Date(parseTime(entry, "rollback_completed_at")).getTime() - new Date(parseTime(entry, "rollback_triggered_at")).getTime()) / 1000),
+        ),
+        success: true,
+        source: "agent",
+      }));
+  } catch {
+    return [];
+  }
+}
+
+function sortByCompletionTime(entries: MttrEntry[]): MttrEntry[] {
+  return [...entries].sort(
+    (left, right) => new Date(left.rollback_completed_at).getTime() - new Date(right.rollback_completed_at).getTime(),
+  );
+}
 
 export async function GET() {
-  const entries = listMttrEntries();
+  const entries = sortByCompletionTime([
+    ...listMttrEntries(),
+    ...await loadAgentRollbackEntries(),
+  ]);
   const count = entries.length;
   const successful = entries.filter((e) => e.success);
   const avg = successful.length

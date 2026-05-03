@@ -12,6 +12,7 @@ type MttrEntry = {
   rollback_completed_at: string;
   mttr_seconds: number;
   success: boolean;
+  source?: "manual" | "agent";
 };
 
 type MttrStats = { count: number; avg: number | null; min: number | null; max: number | null };
@@ -204,9 +205,10 @@ export default function MetricsPage() {
   };
 
   return (
-    <main className="flex-1 min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] p-6 space-y-8">
+    <main className="h-screen overflow-hidden bg-[var(--bg-base)] text-[var(--text-primary)] p-6">
+      <div className="flex h-full min-h-0 flex-col gap-8">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 shrink-0">
         <BarChart2 size={22} className="text-[var(--accent-teal)]" />
         <div>
           <h1 className="text-[18px] font-semibold">Evaluation Metrics</h1>
@@ -214,6 +216,7 @@ export default function MetricsPage() {
         </div>
       </div>
 
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide pr-1 space-y-8">
       {/* ── MTTR ── */}
       <section>
         <div className="flex items-center justify-between mb-3">
@@ -284,6 +287,7 @@ export default function MetricsPage() {
 
         {mttrEntries.length > 0 ? (
           <div className="bt-panel overflow-hidden">
+            <div className="max-h-[42vh] overflow-y-auto scrollbar-hide">
             <table className="w-full text-[12px]">
               <thead>
                 <tr className="border-b border-[var(--border-soft)]">
@@ -311,6 +315,7 @@ export default function MetricsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         ) : (
           <div className="bt-panel p-8 text-center text-[var(--text-muted)] text-[13px]">
@@ -517,6 +522,9 @@ export default function MetricsPage() {
           </div>
         )}
       </section>
+
+      </div>
+      </div>
     </main>
   );
 }

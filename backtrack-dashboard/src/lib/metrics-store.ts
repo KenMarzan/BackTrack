@@ -10,12 +10,13 @@ export type MttrEntry = {
   id: string;
   service: string;
   connectionId?: string;
-  anomaly_type: "TSD" | "LSI" | "BOTH" | "MANUAL";
+  anomaly_type: "TSD" | "LSI" | "BOTH" | "MANUAL" | "AUTO";
   anomaly_detected_at: string;
   rollback_triggered_at: string;
   rollback_completed_at: string;
   mttr_seconds: number;
   success: boolean;
+  source?: "manual" | "agent";
 };
 
 export type DetectionEntry = {
