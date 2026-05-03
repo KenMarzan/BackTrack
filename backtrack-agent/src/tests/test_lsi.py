@@ -141,10 +141,33 @@ def test_is_anomalous_false_when_baseline_mean_is_zero():
     collector = make_fitted_collector()
     collector.baseline_scores = [0.0] * BASELINE_WINDOWS
     collector.baseline_locked = True
-    # Score must be below the absolute floor (1.5) so that floor doesn't fire first;
-    # the zero-guard (baseline_mean <= 0 → False) is what we're testing here.
     collector.score_history = [0.5]
     assert not collector.is_anomalous()
+
+
+def test_is_anomalous_respects_multiplier_over_abs_floor():
+    """Score > 1.5 must NOT be anomalous when multiplier * baseline_mean > score.
+
+    Previously, a hardcoded ABS_FLOOR = 1.5 fired before the threshold check,
+    meaning NOVEL-heavy windows (score ≈ 1.6) were always flagged even when
+    the configured threshold was 2.0 or higher.
+    """
+    collector = make_fitted_collector()
+    # baseline_mean = 1.0, multiplier = 2.0 → threshold = 2.0
+    collector.baseline_scores = [1.0] * BASELINE_WINDOWS
+    collector.baseline_locked = True
+    # Score of 1.6 is above the old ABS_FLOOR (1.5) but below threshold (2.0)
+    collector.score_history = [1.6]
+    assert not collector.is_anomalous()
+
+
+def test_is_anomalous_zero_baseline_uses_abs_floor():
+    """When baseline is zero (pure-INFO service), fall back to the absolute floor."""
+    collector = make_fitted_collector()
+    collector.baseline_scores = [0.0] * BASELINE_WINDOWS
+    collector.baseline_locked = True
+    collector.score_history = [1.6]  # above ABS_FLOOR of 1.5
+    assert collector.is_anomalous()
 
 
 # --- get_lsi ---

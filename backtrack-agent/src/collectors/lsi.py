@@ -405,15 +405,17 @@ class LSICollector:
 
         self.score_history.append(score)
 
-        # Lock baseline after first BASELINE_WINDOWS clean windows
+        # Lock baseline after first BASELINE_WINDOWS windows
         if not self.baseline_locked and len(self.score_history) >= BASELINE_WINDOWS:
             self.baseline_scores = list(self.score_history[:BASELINE_WINDOWS])
             self.baseline_locked = True
             logger.info("LSI baseline locked: mean=%.4f", np.mean(self.baseline_scores))
         elif self.baseline_locked and self.baseline_scores:
             # Gradually update baseline using only non-anomalous windows so it adapts
-            # to normal log evolution without being corrupted by actual anomaly spikes
-            current_threshold = max(1.5, config.lsi_score_multiplier * float(np.mean(self.baseline_scores)))
+            # to normal log evolution without being corrupted by actual anomaly spikes.
+            # Use same threshold logic as is_anomalous() for consistency.
+            bm = float(np.mean(self.baseline_scores))
+            current_threshold = 1.5 if bm <= 0 else config.lsi_score_multiplier * bm
             if score <= current_threshold:
                 self.baseline_scores.append(score)
                 self.baseline_scores = self.baseline_scores[-BASELINE_WINDOWS:]
@@ -610,17 +612,20 @@ class LSICollector:
         return "\n\n".join(parts)
 
     def is_anomalous(self) -> bool:
-        """Returns True if LSI score exceeds relative or absolute threshold."""
+        """Returns True if LSI score exceeds the configured threshold.
+
+        When a baseline is established (baseline_mean > 0), the configured
+        lsi_score_multiplier always governs — no hard floor bypass.  The ABS_FLOOR
+        only applies when the baseline is zero (pure-INFO service with no history),
+        so the multiplier threshold is never silently overridden by novel-log inflation.
+        """
         if not self.baseline_locked or not self.score_history:
             return False
         baseline_mean = float(np.mean(self.baseline_scores))
-        current_score = self.score_history[-1] if self.score_history else 0.0
-        # Absolute floor so a high-error rate is always caught even with inflated baseline
-        ABS_FLOOR = 1.5
-        if current_score > ABS_FLOOR:
-            return True
+        current_score = self.score_history[-1]
         if baseline_mean <= 0:
-            return False
+            # Safety net only: no meaningful baseline yet, use absolute floor
+            return current_score > 1.5
         return current_score > config.lsi_score_multiplier * baseline_mean
 
     def get_evaluation(self) -> dict:
@@ -668,7 +673,7 @@ class LSICollector:
             "corpus_size": len(self.corpus),
             "current_score": round(current_score, 4),
             "baseline_mean": round(baseline_mean, 4),
-            "threshold": round(max(1.5, config.lsi_score_multiplier * baseline_mean), 4),
+            "threshold": round(1.5 if baseline_mean <= 0 else config.lsi_score_multiplier * baseline_mean, 4),
             "is_anomalous": self.is_anomalous(),
             "window_counts": dict(self.window_counts),
             "score_history": [round(s, 4) for s in self.score_history[-20:]],

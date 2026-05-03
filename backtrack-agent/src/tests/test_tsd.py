@@ -175,9 +175,11 @@ async def test_scrape_docker_failure_zeroes_metrics(mock_config):
 
 async def test_scrape_kubernetes_parses_millicores():
     collector = TSDCollector(service_name="test")
-    kubectl_output = b"pod-1  25m  128Mi\npod-2  50m  64Mi\n"
+    # Pod names must contain the service name ("test") — _scrape_kubernetes filters by needle.
+    kubectl_output = b"test-pod-abc  25m  128Mi\ntest-pod-xyz  50m  64Mi\n"
 
     mock_proc = MagicMock()
+    mock_proc.returncode = 0
     mock_proc.communicate = AsyncMock(return_value=(kubectl_output, b""))
 
     with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
@@ -192,9 +194,10 @@ async def test_scrape_kubernetes_parses_millicores():
 
 async def test_scrape_kubernetes_parses_gi_memory():
     collector = TSDCollector(service_name="test")
-    kubectl_output = b"pod-1  100m  1Gi\n"
+    kubectl_output = b"test-pod-abc  100m  1Gi\n"
 
     mock_proc = MagicMock()
+    mock_proc.returncode = 0
     mock_proc.communicate = AsyncMock(return_value=(kubectl_output, b""))
 
     with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
@@ -206,9 +209,10 @@ async def test_scrape_kubernetes_parses_gi_memory():
 
 async def test_scrape_kubernetes_parses_ki_memory():
     collector = TSDCollector(service_name="test")
-    kubectl_output = b"pod-1  10m  512Ki\n"
+    kubectl_output = b"test-pod-abc  10m  512Ki\n"
 
     mock_proc = MagicMock()
+    mock_proc.returncode = 0
     mock_proc.communicate = AsyncMock(return_value=(kubectl_output, b""))
 
     with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
