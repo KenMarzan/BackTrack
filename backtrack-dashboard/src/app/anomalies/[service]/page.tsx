@@ -434,6 +434,7 @@ export default function ServiceDiagnosticsPage() {
   const current = decode(searchParams.get("current"));
   const baseline = decode(searchParams.get("baseline"));
   const message = decode(searchParams.get("message"));
+  const platform = (searchParams.get("platform") ?? "kubernetes") as "kubernetes" | "docker";
   const tones = severityTone(severity);
 
   const [tsd, setTsd] = useState<TSDMetrics | null>(null);
@@ -828,7 +829,9 @@ export default function ServiceDiagnosticsPage() {
                       const allZero = tsd.readings_count >= 12 &&
                         tsd.current.cpu_percent === 0 && tsd.current.memory_mb === 0 && tsd.current.latency_ms === 0;
                       return allZero
-                        ? <span className="text-amber-400">All metrics are zero — kubectl top may not be returning data. Check that metrics-server is installed and pods have <code>app={"<service>"}</code> labels.</span>
+                        ? <span className="text-amber-400">{platform === "docker"
+                            ? "All metrics are zero — agent may still be warming up for this container, or Docker stats are unavailable."
+                            : "All metrics are zero — kubectl top may not be returning data. Check that metrics-server is installed and pods have "}{platform !== "docker" && <code>app={"<service>"}</code>}{platform !== "docker" && " labels."}</span>
                         : <span className="text-emerald-400">All residuals within normal bounds.{tsd.readings_count < 12 && ` Warming up (${tsd.readings_count}/12 readings).`}</span>;
                     })()
                   ) : (
