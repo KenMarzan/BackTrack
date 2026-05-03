@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   backtrack-dashboard:
     image: zeritzuu/backtrack-dashboard:latest
@@ -8,14 +6,23 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3847:3847"
+    # Allows containers to reach the host as "host.docker.internal".
+    # On Linux this is required (Docker Desktop on Mac/Windows defines it automatically).
+    # host-gateway resolves to the host machine on all platforms with Docker Engine 20.10+.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - BACKTRACK_AGENT_URL=http://backtrack-agent:8847
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      # Tells kubectl which config file to load from the mounted .kube directory.
+      # Set KUBECONFIG_FILE=config-docker in your .env for the patched Docker-safe copy.
+      - KUBECONFIG=/root/.kube/${KUBECONFIG_FILE:-config}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - backtrack-data:/.backtrack
-      # Kubernetes mode: uncomment to mount kubeconfig for kubectl access
-      # - ~/.kube:/root/.kube:ro
+      # Mounts your entire .kube directory so kubectl can reach the cluster.
+      # KUBE_DIR defaults to ~/.kube (Linux/Mac). Windows users: set KUBE_DIR=C:/Users/<you>/.kube
+      - ${KUBE_DIR:-~/.kube}:/root/.kube:ro
     depends_on:
       backtrack-agent:
         condition: service_healthy
@@ -25,6 +32,8 @@ services:
     build:
       context: ./backtrack-agent
       dockerfile: Dockerfile
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - BACKTRACK_TARGET=${BACKTRACK_TARGET:-}
       - BACKTRACK_IMAGE_TAG=${BACKTRACK_IMAGE_TAG:-unknown}
@@ -42,11 +51,11 @@ services:
       - BACKTRACK_WINDOW_SECONDS=${BACKTRACK_WINDOW_SECONDS:-30}
       - BACKTRACK_SVD_SIMILARITY_THRESHOLD=${BACKTRACK_SVD_SIMILARITY_THRESHOLD:-0.55}
       - BACKTRACK_DATA_DIR=${BACKTRACK_DATA_DIR:-/data}
+      - KUBECONFIG=/root/.kube/${KUBECONFIG_FILE:-config}
     volumes:
       - backtrack-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
-      # Kubernetes mode: uncomment to mount kubeconfig for kubectl access
-      # - ~/.kube:/root/.kube:ro
+      - ${KUBE_DIR:-~/.kube}:/root/.kube:ro
     ports:
       - "8847:8847"
     healthcheck:
