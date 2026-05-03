@@ -122,19 +122,52 @@ class LSICollector:
             # Fall back to polling logs
             await self._poll_logs_fallback()
 
+    async def _resolve_pod_name(self) -> Optional[str]:
+        """Find a pod whose name contains the service name. More robust than label selectors."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "kubectl", "get", "pods",
+                "-n", config.k8s_namespace,
+                "--no-headers",
+                "-o", "custom-columns=NAME:.metadata.name,STATUS:.status.phase",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+            if proc.returncode != 0:
+                err = stderr.decode("utf-8", errors="replace").strip() if stderr else "no output"
+                logger.warning("kubectl get pods failed for %s (rc=%d): %s",
+                               self.service_name, proc.returncode, err[:300])
+                return None
+            needle = self.service_name.lower().replace(".", "-")
+            for line in stdout.decode("utf-8", errors="replace").splitlines():
+                parts = line.split()
+                if len(parts) >= 1 and needle in parts[0].lower():
+                    if len(parts) < 2 or parts[1].lower() == "running":
+                        return parts[0]
+            return None
+        except Exception as exc:
+            logger.warning("Pod resolution failed for %s: %s", self.service_name, exc)
+            return None
+
     async def _tail_kubernetes(self) -> None:
-        """Tail logs from Kubernetes pods using kubectl. Retries on stream break."""
-        # Initial snapshot: fetch last 200 lines without --follow to populate corpus quickly
+        """Tail logs from Kubernetes pods. Resolves pod name first then tails by name."""
+        # Initial snapshot: populate corpus quickly with last 200 lines
         await self._fetch_kubernetes_snapshot(tail=200)
 
         while self._running:
+            pod_name = await self._resolve_pod_name()
+            if not pod_name:
+                logger.warning("No running pod found for %s — retrying in 5s", self.service_name)
+                await asyncio.sleep(5)
+                continue
+
             try:
                 proc = await asyncio.create_subprocess_exec(
                     "kubectl", "logs",
+                    pod_name,
                     "-n", config.k8s_namespace,
-                    "-l", self.label_selector,
-                    "--follow", "--tail=0",  # tail=0: only new lines after snapshot
-                    "--prefix",
+                    "--follow", "--tail=0",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -155,7 +188,6 @@ class LSICollector:
                     proc.kill()
                     await proc.wait()
 
-                # Log stderr on non-zero exit so errors are visible
                 if proc.returncode is not None and proc.returncode != 0:
                     stderr_bytes = b""
                     try:
@@ -165,47 +197,52 @@ class LSICollector:
                         pass
                     err = stderr_bytes.decode("utf-8", errors="replace").strip() if stderr_bytes else ""
                     logger.warning(
-                        "kubectl logs exited (rc=%d) for %s%s",
-                        proc.returncode, self.service_name,
+                        "kubectl logs exited (rc=%d) for %s/%s%s",
+                        proc.returncode, self.service_name, pod_name,
                         f": {err[:300]}" if err else "",
                     )
 
                 if not got_any_line and self._running:
-                    # No new lines — re-fetch snapshot to catch up
+                    # Pod might have restarted — refetch snapshot
                     await self._fetch_kubernetes_snapshot(tail=50)
 
-            except Exception:
-                logger.warning("K8s log tail broke for %s — retrying in 3s", self.service_name)
+            except Exception as exc:
+                logger.warning("K8s log tail broke for %s: %s — retrying in 3s", self.service_name, exc)
 
             if self._running:
                 await asyncio.sleep(3)
 
     async def _fetch_kubernetes_snapshot(self, tail: int = 100) -> None:
-        """Fetch the last N log lines without --follow (reliable even outside cluster)."""
+        """Fetch the last N log lines from any pod matching the service name."""
         try:
+            pod_name = await self._resolve_pod_name()
+            if not pod_name:
+                return
             proc = await asyncio.create_subprocess_exec(
                 "kubectl", "logs",
+                pod_name,
                 "-n", config.k8s_namespace,
-                "-l", self.label_selector,
                 f"--tail={tail}",
-                "--prefix",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=20)
             if stdout:
                 lines = stdout.decode("utf-8", errors="replace").splitlines()
+                count = 0
                 for raw in lines:
                     line = raw.strip()
                     if line:
                         await self._process_line(line)
-                logger.info("kubectl logs snapshot: %d lines for %s", len(lines), self.service_name)
+                        count += 1
+                logger.info("kubectl logs snapshot: %d lines from %s/%s",
+                            count, self.service_name, pod_name)
             elif proc.returncode != 0:
                 err = stderr.decode("utf-8", errors="replace").strip() if stderr else "no output"
-                logger.warning("kubectl logs snapshot failed for %s (rc=%d): %s",
-                               self.service_name, proc.returncode, err[:300])
-        except Exception:
-            logger.warning("kubectl logs snapshot error for %s", self.service_name)
+                logger.warning("kubectl logs snapshot failed for %s/%s (rc=%d): %s",
+                               self.service_name, pod_name, proc.returncode, err[:300])
+        except Exception as exc:
+            logger.warning("kubectl logs snapshot error for %s: %s", self.service_name, exc)
 
     async def _poll_logs_fallback(self) -> None:
         """Fallback: periodically fetch the last N log lines."""
