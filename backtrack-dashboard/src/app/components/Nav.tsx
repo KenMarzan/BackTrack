@@ -131,6 +131,7 @@ function Nav({ healthSummary }: NavProps) {
         if (servicesFound) {
           setTimeout(() => setIsOpen(false), 2000);
         }
+      }
     } catch (error: unknown) {
       setStatusMessage(error instanceof Error ? error.message : "Connection request failed.");
     } finally {
