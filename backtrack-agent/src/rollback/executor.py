@@ -28,9 +28,10 @@ class RollbackExecutor:
     def __init__(self, version_store: VersionStore) -> None:
         self.version_store = version_store
 
-    def trigger(self, reason: str) -> dict:
+    def trigger(self, reason: str, service_name: str = "") -> dict:
         """
         Main entry point — rolls back to last stable version.
+        service_name: the specific deployment/container to roll back (overrides config.target).
         Returns a result dict with success status and details.
         """
         if not config.rollback_enabled:
@@ -48,16 +49,19 @@ class RollbackExecutor:
         from_tag = current_pending.image_tag if current_pending else "unknown"
         to_tag = last_stable.image_tag
 
+        # Use the specific service name if provided, otherwise fall back to config.target
+        target = service_name or config.target
+
         logger.warning(
-            "EXECUTING ROLLBACK: %s → %s (reason: %s)",
-            from_tag, to_tag, reason,
+            "EXECUTING ROLLBACK: %s → %s (service: %s, reason: %s)",
+            from_tag, to_tag, target, reason,
         )
 
         try:
             if config.mode == "docker":
-                self._rollback_docker(last_stable)
+                self._rollback_docker(last_stable, target)
             else:
-                self._rollback_kubernetes()
+                self._rollback_kubernetes(target)
 
             # Mark current pending as rolled back
             if current_pending:
@@ -84,12 +88,13 @@ class RollbackExecutor:
 
         return result
 
-    def _rollback_docker(self, stable: Snapshot) -> None:
+    def _rollback_docker(self, stable: Snapshot, target: str = "") -> None:
         """Docker mode: stop current container and run previous image, preserving config."""
         import docker
 
+        container_name = target or config.target
         client = docker.from_env()
-        container = client.containers.get(config.target)
+        container = client.containers.get(container_name)
         image = stable.image_tag
 
         # Capture runtime config before stopping so the restored container matches
@@ -100,15 +105,15 @@ class RollbackExecutor:
         env = container_config.get("Env") or []
         binds = host_config.get("Binds") or []
 
-        logger.info("Stopping container %s ...", config.target)
+        logger.info("Stopping container %s ...", container_name)
         container.stop()
         container.remove()
 
-        logger.info("Starting container %s with image %s ...", config.target, image)
+        logger.info("Starting container %s with image %s ...", container_name, image)
         client.containers.run(
             image,
             detach=True,
-            name=config.target,
+            name=container_name,
             network_mode=network_mode,
             ports=port_bindings if port_bindings else None,
             environment=env if env else None,
@@ -116,9 +121,9 @@ class RollbackExecutor:
         )
         logger.info("Docker rollback complete.")
 
-    def _rollback_kubernetes(self) -> None:
-        """K8s mode: kubectl rollout undo, then restore replicas if scaled to 0."""
-        name = config.target
+    def _rollback_kubernetes(self, target: str = "") -> None:
+        """K8s mode: kubectl rollout undo the specific deployment, then restore replicas if needed."""
+        name = target or config.target
         if not name and config.k8s_label_selector:
             # Parse deployment name from first key=value pair only
             # "app=frontend,env=prod" → "frontend"
@@ -126,7 +131,7 @@ class RollbackExecutor:
             name = first_pair.split("=")[-1] if "=" in first_pair else first_pair
         if not name:
             raise ValueError(
-                "Cannot determine deployment name for rollback — set BACKTRACK_TARGET explicitly."
+                "Cannot determine deployment name for rollback — service_name must be passed."
             )
 
         # Check current replica count — scale-to-0 defeats rollout undo
