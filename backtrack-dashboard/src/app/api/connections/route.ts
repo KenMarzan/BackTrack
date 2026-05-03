@@ -144,14 +144,21 @@ async function discoverKubernetesServices(
 		return { name, namespace, status: isRunning ? "running" : "unknown", ports, source: "kubernetes" };
 	};
 
-	// Tier 1: explicit app.kubernetes.io/part-of label
+	// Tier 1: explicit app.kubernetes.io/part-of label — highest precision
 	const tier1 = allItems.filter((item) => {
 		const partOf = (item.metadata?.labels?.["app.kubernetes.io/part-of"] || "").toLowerCase();
 		return partOf === norm;
 	});
 	if (tier1.length > 0) return { services: tier1.map(toService) };
 
-	// Tier 2: service name or app label contains normalized appName
+	// Microservices: app name is a logical group label, not a service name filter.
+	// Return all services in the namespace — the user named their whole system "microservice-demo"
+	// but individual services are named adservice, cartservice, etc.
+	if (architecture === "microservices") {
+		return { services: allItems.map(toService) };
+	}
+
+	// Monolith: service name or app label must contain the app name
 	const tier2 = allItems.filter((item) => {
 		const name = (item.metadata?.name || "").toLowerCase();
 		const appLabel = (item.metadata?.labels?.app || "").toLowerCase();
@@ -164,22 +171,7 @@ async function discoverKubernetesServices(
 		return { services: tier2.map(toService), warning };
 	}
 
-	// Tier 3 (microservices only): any label value partially overlaps appName
-	if (architecture === "microservices") {
-		const normParts = norm.split("-").filter((p) => p.length > 2);
-		const tier3 = allItems.filter((item) => {
-			const name = (item.metadata?.name || "").toLowerCase();
-			return normParts.some((part) => name.includes(part));
-		});
-		if (tier3.length > 0) {
-			return {
-				services: tier3.map(toService),
-				warning: `No exact match for "${appName}" — showing services with similar names. Verify these are correct.`,
-			};
-		}
-	}
-
-	// No results — return available service names so the user can correct input
+	// Monolith fallback: return available names as suggestions
 	const availableNames = allItems.map((item) => item.metadata?.name).filter(Boolean) as string[];
 	return {
 		services: [],
