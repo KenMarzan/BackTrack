@@ -125,7 +125,12 @@ function Nav({ healthSummary }: NavProps) {
         }).catch(() => {/* non-fatal */});
 
         window.dispatchEvent(new Event("backtrack:connection-updated"));
-      }
+
+        // Auto-close modal after 2s on successful connect
+        const servicesFound = Array.isArray(payload.discoveredServices) && payload.discoveredServices.length > 0;
+        if (servicesFound) {
+          setTimeout(() => setIsOpen(false), 2000);
+        }
     } catch (error: unknown) {
       setStatusMessage(error instanceof Error ? error.message : "Connection request failed.");
     } finally {
