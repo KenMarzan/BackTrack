@@ -94,10 +94,9 @@ BackTrack watches your containerized services in real time, detects metric drift
 
 Choose the path that matches your setup:
 
-- [Docker Hub (no source code)](#1-docker-hub-quickstart) — fastest
-- [From Source](#2-from-source)
-- [Kubernetes Mode](#kubernetes-mode)
-- [Docker Mode](#docker-mode)
+- **[Docker Hub Quickstart](docs/DOCKER_HUB.md)** — Using pre-built images from Docker Hub (fastest, **no source code needed**)
+- **[From Source](docs/SETUP.md)** — Building and running from this repo (development)
+- **[Setup Guide](docs/SETUP.md)** — Full reference for all configurations
 
 ---
 
