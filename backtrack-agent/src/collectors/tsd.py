@@ -159,12 +159,16 @@ class TSDCollector:
         self.error_rate_history.append(self.current_error_rate)
 
     async def _scrape_kubernetes(self) -> None:
-        """Scrape metrics using kubectl top pods."""
+        """Scrape metrics using kubectl top pods. Match by service name in pod name
+        rather than relying on label selectors which may not match exactly."""
         try:
+            # Fetch ALL pod metrics in the namespace, then filter by name match.
+            # This is more robust than -l <selector> because:
+            #  - Online Boutique-style pods may use multiple labels (app, app.kubernetes.io/name)
+            #  - Selector mismatch silently returns nothing, hiding the issue
             proc = await asyncio.create_subprocess_exec(
                 "kubectl", "top", "pods",
                 "-n", config.k8s_namespace,
-                "-l", self.label_selector,
                 "--no-headers",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -172,39 +176,48 @@ class TSDCollector:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
             if proc.returncode != 0:
                 err = stderr.decode("utf-8", errors="replace").strip() if stderr else "no output"
-                logger.warning("kubectl top failed for %s (rc=%d): %s", self.service_name, proc.returncode, err[:300])
+                logger.warning(
+                    "kubectl top failed for %s (rc=%d): %s — install metrics-server in your cluster",
+                    self.service_name, proc.returncode, err[:300],
+                )
             lines = stdout.decode().strip().splitlines()
 
+            # Match pods whose name contains the service name (e.g. frontend-7b9c-abc → frontend)
+            needle = self.service_name.lower().replace(".", "-")
             total_cpu = 0.0
             total_mem = 0.0
             count = 0
             for line in lines:
                 parts = line.split()
-                if len(parts) >= 3:
-                    # CPU is like "25m" (millicores) or "0"
-                    cpu_str = parts[1].rstrip("m")
-                    cpu_val = float(cpu_str) / 1000.0 if "m" in parts[1] else float(cpu_str)
-                    # Memory is like "128Mi" or "64Ki"
-                    mem_str = parts[2]
-                    if mem_str.endswith("Mi"):
-                        mem_val = float(mem_str[:-2])
-                    elif mem_str.endswith("Ki"):
-                        mem_val = float(mem_str[:-2]) / 1024.0
-                    elif mem_str.endswith("Gi"):
-                        mem_val = float(mem_str[:-2]) * 1024.0
-                    else:
-                        mem_val = float(mem_str) / (1024 * 1024)
-                    total_cpu += cpu_val
-                    total_mem += mem_val
-                    count += 1
+                if len(parts) < 3:
+                    continue
+                pod_name = parts[0].lower()
+                if needle not in pod_name:
+                    continue
+                # CPU is like "25m" (millicores) or "0"
+                cpu_str = parts[1].rstrip("m")
+                cpu_val = float(cpu_str) / 1000.0 if "m" in parts[1] else float(cpu_str)
+                # Memory is like "128Mi" or "64Ki"
+                mem_str = parts[2]
+                if mem_str.endswith("Mi"):
+                    mem_val = float(mem_str[:-2])
+                elif mem_str.endswith("Ki"):
+                    mem_val = float(mem_str[:-2]) / 1024.0
+                elif mem_str.endswith("Gi"):
+                    mem_val = float(mem_str[:-2]) * 1024.0
+                else:
+                    mem_val = float(mem_str) / (1024 * 1024)
+                total_cpu += cpu_val
+                total_mem += mem_val
+                count += 1
 
             self.current_cpu = (total_cpu * 100.0) if count > 0 else 0.0
             self.current_memory = total_mem if count > 0 else 0.0
             self.current_latency = await self._probe_latency()
             self.current_error_rate = 0.0
 
-        except Exception:
-            logger.warning("K8s metrics scrape failed for %s", self.service_name)
+        except Exception as exc:
+            logger.warning("K8s metrics scrape failed for %s: %s", self.service_name, exc)
             self.current_cpu = 0.0
             self.current_memory = 0.0
             self.current_latency = 0.0
