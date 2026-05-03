@@ -9,7 +9,7 @@ import os
 import time
 from typing import Optional
 
-from fastapi import FastAPI, Query
+from fastapi import Body, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.collectors.lsi import LSICollector
@@ -249,7 +249,7 @@ async def rollback_history() -> list[dict]:
 
 
 @app.post("/rollback/trigger")
-async def rollback_trigger(body: dict = {}) -> dict:
+async def rollback_trigger(body: dict = Body(default={})) -> dict:
     if rollback_executor is None:
         return {"success": False, "message": "Rollback executor not initialised."}
     service_name = body.get("service", "") or body.get("service_name", "")
