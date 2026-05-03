@@ -190,7 +190,7 @@ async function discoverKubernetesServices(
 
 async function discoverDockerServices(
 	appName: string,
-	architecture: ArchitectureType,
+	_architecture: ArchitectureType,
 ): Promise<DiscoveryResult> {
 	const dockerResult = await runCommand("docker", ["ps", "--format", "{{json .}}"]);
 
@@ -331,7 +331,7 @@ export async function POST(request: NextRequest) {
 				? `Connected ${appName} with ${discoveredServices.length} discovered service(s).`
 				: `Connected "${appName}" but no services were discovered. Check the app name.`,
 		});
-	} catch (error: any) {
-		return NextResponse.json({ error: error.message }, { status: 500 });
+	} catch (error: unknown) {
+		return NextResponse.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 });
 	}
 }

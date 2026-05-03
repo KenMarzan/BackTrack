@@ -39,6 +39,7 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
   useEffect(() => {
     if (services.length === 0) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHistory((prev) => {
       const last = prev[prev.length - 1];
       const unchanged =
@@ -79,6 +80,7 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
 
   useEffect(() => {
     if (selectedServiceId !== "all" && !serviceOptions.some((s) => s.id === selectedServiceId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedServiceId("all");
     }
   }, [serviceOptions, selectedServiceId]);

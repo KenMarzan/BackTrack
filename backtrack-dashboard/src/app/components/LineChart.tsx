@@ -59,14 +59,6 @@ export default function LineChart({ labels, datasets, yAxisLabel }: LineChartPro
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
-    const buildGradient = (color: string) => {
-      if (!ctx) return color;
-      const grad = ctx.createLinearGradient(0, 0, 0, canvas.clientHeight || 200);
-      grad.addColorStop(0, color.replace(")", ", 0.22)").replace("rgb", "rgba"));
-      grad.addColorStop(1, color.replace(")", ", 0)").replace("rgb", "rgba"));
-      return grad;
-    };
-
     chartRef.current = new Chart(canvas, {
       type: "line",
       data: {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { Activity, AlertTriangle, BarChart2, Cpu, HardDrive, ScrollText, Server, TrendingUp, Wifi, Zap } from "lucide-react";
+import { Activity, AlertTriangle, BarChart2, Cpu, HardDrive, Server, TrendingUp, Wifi, Zap } from "lucide-react";
 import Nav from "../components/Nav";
 
 const KubernetesTerminal = dynamic(() => import("./KubernetesTerminal"), {

@@ -79,9 +79,9 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
       setMessage("");
       hasLoadedRef.current = true;
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       setDeployments([]);
-      setMessage(error.message || "Failed to load deployment history.");
+      setMessage(error instanceof Error ? error.message : "Failed to load deployment history.");
     } finally {
       setIsLoading(false);
     }
@@ -180,8 +180,8 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
       const accessNote = payload.accessUrl ? ` App accessible at ${payload.accessUrl}` : "";
       setMessage(`Rollback completed for ${serviceName}.${accessNote}`);
       loadHistory();
-    } catch (error: any) {
-      setMessage(error.message || "Rollback failed.");
+    } catch (error: unknown) {
+      setMessage(error instanceof Error ? error.message : "Rollback failed.");
     } finally {
       setRollingBackKey("");
     }
