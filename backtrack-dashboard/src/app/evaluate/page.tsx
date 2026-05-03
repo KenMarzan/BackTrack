@@ -161,6 +161,7 @@ export default function EvaluatePage() {
     setResults(data);
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadResults(); }, [loadResults]);
 
   const setScore = (char: keyof EvalScores, sub: string, val: number) => {

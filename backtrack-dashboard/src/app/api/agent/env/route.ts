@@ -63,9 +63,9 @@ export async function POST(request: NextRequest) {
     const dir = path.dirname(AGENT_ENV_PATH);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(AGENT_ENV_PATH, serializeEnv(existing), "utf8");
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { error: `Failed to write agent .env: ${err.message}`, path: AGENT_ENV_PATH },
+      { error: `Failed to write agent .env: ${err instanceof Error ? err.message : String(err)}`, path: AGENT_ENV_PATH },
       { status: 500 },
     );
   }

@@ -126,8 +126,8 @@ function Nav({ healthSummary }: NavProps) {
 
         window.dispatchEvent(new Event("backtrack:connection-updated"));
       }
-    } catch (error: any) {
-      setStatusMessage(error.message);
+    } catch (error: unknown) {
+      setStatusMessage(error instanceof Error ? error.message : "Connection request failed.");
     } finally {
       setIsSubmitting(false);
     }

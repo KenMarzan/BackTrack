@@ -13,7 +13,6 @@ import {
   History,
   CircleDot,
   BarChart2,
-  Cpu,
   HardDrive,
   Wifi,
   TrendingUp,
@@ -223,7 +222,6 @@ function SparkLine({
   lineColor,
   id,
   height = 88,
-  unit = "",
 }: {
   values: number[];
   threshold?: number;
@@ -460,6 +458,7 @@ export default function ServiceDiagnosticsPage() {
         (v) => v.status === "ROLLED_BACK" && !prev.some((p) => p.id === v.id),
       );
       if (fresh) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setRollingBack(false);
         setRollbackMessage({ kind: "info", text: `Auto-rollback complete · reverted to ${fresh.image_tag}` });
         setTimeout(() => setRollbackMessage(null), 6000);
@@ -493,9 +492,9 @@ export default function ServiceDiagnosticsPage() {
       setRollbackMessage({ kind: "info", text: data?.message || "Rollback initiated." });
       // Stop spinner once next poll lands a new version, OR after a 30s safety timeout.
       setTimeout(() => setRollingBack(false), 30000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setRollingBack(false);
-      setRollbackMessage({ kind: "error", text: err?.message || "Rollback request failed." });
+      setRollbackMessage({ kind: "error", text: err instanceof Error ? err.message : "Rollback request failed." });
       setTimeout(() => setRollbackMessage(null), 6000);
     }
   };

@@ -55,7 +55,6 @@ export default function AnomalyConsolePanel({
     }
 
     let active = true;
-    let timer: number | undefined;
 
     const loadLogs = async () => {
       try {
@@ -80,9 +79,9 @@ export default function AnomalyConsolePanel({
         setRestartCount(payload.restartCount || 0);
         setPodReason(payload.podReason || "");
         setLogError(null);
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (!active) return;
-        setLogError(error.message || "Unable to load service logs.");
+        setLogError(error instanceof Error ? error.message : "Unable to load service logs.");
       } finally {
         if (active) {
           setIsLoadingLogs(false);
@@ -91,7 +90,7 @@ export default function AnomalyConsolePanel({
     };
 
     loadLogs();
-    timer = window.setInterval(loadLogs, 3000);
+    const timer = window.setInterval(loadLogs, 3000);
 
     return () => {
       active = false;
@@ -213,7 +212,7 @@ export default function AnomalyConsolePanel({
         </div>
       </div>
     );
-  }, [activeTab, diffLines, isLoadingLogs, liveMetrics, livePod, liveLogs, namespace, podReason, podReady, podStatus, restartCount, serviceName, terminalLines]);
+  }, [activeTab, clusterName, diffLines, isLoadingLogs, liveMetrics, livePod, liveLogs, logError, namespace, podReason, podReady, podStatus, restartCount, serviceName]);
 
   return (
     <section className="flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/5 bg-[#171e29] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.28)]">

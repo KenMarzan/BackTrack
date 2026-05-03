@@ -140,8 +140,8 @@ export default function AnomalyTerminal({ clusterName }: { clusterName?: string 
 
         term.writeln("\x1b[90m" + "─".repeat(60) + "\x1b[0m");
         term.write("\x1b[32m$\x1b[0m ");
-      } catch (error: any) {
-        term.writeln("\x1b[31mConnection error: " + error.message + "\x1b[0m");
+      } catch (error: unknown) {
+        term.writeln("\x1b[31mConnection error: " + (error instanceof Error ? error.message : String(error)) + "\x1b[0m");
         term.write("\x1b[32m$\x1b[0m ");
       }
     };
@@ -161,7 +161,7 @@ export default function AnomalyTerminal({ clusterName }: { clusterName?: string 
       window.removeEventListener("resize", handleResize);
       term.dispose();
     };
-  }, []);
+  }, [clusterName]);
 
   return <div className="h-full w-full" ref={ref} />;
 }
