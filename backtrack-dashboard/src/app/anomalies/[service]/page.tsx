@@ -826,6 +826,20 @@ function ServiceDiagnosticsPage() {
                   />
                 </div>
 
+                {/* TSD warmup progress */}
+                {tsd && tsd.readings_count < 12 && (
+                  <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/[0.05] px-3 py-2.5">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] font-semibold text-cyan-300">Building TSD baseline…</span>
+                      <span className="text-[10px] font-mono text-white/40">{tsd.readings_count} / 12 readings</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                      <div className="h-full rounded-full bg-cyan-400 transition-all duration-700" style={{ width: `${(tsd.readings_count / 12) * 100}%` }} />
+                    </div>
+                    <p className="mt-1.5 text-[10px] text-white/35">STL decomposition activates after 12 readings (~2 min). Anomaly detection starts automatically.</p>
+                  </div>
+                )}
+
                 {/* TSD Status */}
                 <div className="rounded-xl border border-white/[0.05] bg-[#0d1117] px-3 py-2.5 text-[11px] leading-5 text-white/60">
                   <span className="font-semibold text-white/80">TSD Status: </span>
@@ -839,7 +853,7 @@ function ServiceDiagnosticsPage() {
                         ? <span className="text-amber-400">{platform === "docker"
                             ? "All metrics are zero — agent may still be warming up for this container, or Docker stats are unavailable."
                             : "All metrics are zero — kubectl top may not be returning data. Check that metrics-server is installed and pods have "}{platform !== "docker" && <code>app={"<service>"}</code>}{platform !== "docker" && " labels."}</span>
-                        : <span className="text-emerald-400">All residuals within normal bounds.{tsd.readings_count < 12 && ` Warming up (${tsd.readings_count}/12 readings).`}</span>;
+                        : <span className="text-emerald-400">All residuals within normal bounds.</span>;
                     })()
                   ) : (
                     <span className="text-white/30">Waiting for agent connection...</span>
@@ -977,6 +991,20 @@ function ServiceDiagnosticsPage() {
                   </div>
                 )}
 
+                {/* LSI warmup progress */}
+                {lsi && !lsi.fitted && (
+                  <div className="rounded-xl border border-violet-500/25 bg-violet-500/[0.05] px-3 py-2.5">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] font-semibold text-violet-300">Building log corpus…</span>
+                      <span className="text-[10px] font-mono text-white/40">{lsi.corpus_size} / 200 lines</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                      <div className="h-full rounded-full bg-violet-400 transition-all duration-700" style={{ width: `${Math.min((lsi.corpus_size / 200) * 100, 100)}%` }} />
+                    </div>
+                    <p className="mt-1.5 text-[10px] text-white/35">TF-IDF + SVD model trains after 200 log lines. Log anomaly scoring activates automatically.</p>
+                  </div>
+                )}
+
                 {/* LSI status */}
                 <div className="rounded-xl border border-white/[0.05] bg-[#0d1117] px-3 py-2.5 text-[11px] leading-5 text-white/60">
                   <span className="font-semibold text-white/80">LSI Status: </span>
@@ -985,7 +1013,7 @@ function ServiceDiagnosticsPage() {
                   ) : lsi?.fitted ? (
                     <span className="text-emerald-400">Log patterns within normal baseline.</span>
                   ) : (
-                    <span className="text-white/30">{lsi ? `Building corpus (${lsi.corpus_size}/200 lines)...` : "Waiting for agent connection..."}</span>
+                    <span className="text-white/30">{lsi ? "Waiting for corpus to reach 200 lines…" : "Waiting for agent connection..."}</span>
                   )}
                 </div>
               </>

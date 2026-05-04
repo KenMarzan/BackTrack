@@ -459,6 +459,10 @@ function Nav({ healthSummary }: NavProps) {
                         Enter that name in <strong>Application name</strong> above, then click Connect.
                       </li>
                     </ol>
+                    <div className="mt-3 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.05] px-3 py-2">
+                      <p className="text-[11px] text-cyan-300 font-medium mb-0.5">What happens after Connect</p>
+                      <p className="text-[11px] text-[var(--text-muted)]">BackTrack builds a 2-minute baseline (TSD: 12 readings, LSI: 200 log lines). A progress bar appears on the Anomalies page while warming up. Auto-rollback activates once the first stable window is confirmed.</p>
+                    </div>
                   </div>
                 ) : (
                   <div className="rounded-xl border border-[var(--border-soft)] bg-[rgba(148,163,184,0.03)] p-4">
@@ -480,6 +484,10 @@ function Nav({ healthSummary }: NavProps) {
                         </code>
                       </li>
                     </ol>
+                    <div className="mt-3 rounded-lg border border-violet-500/20 bg-violet-500/[0.05] px-3 py-2">
+                      <p className="text-[11px] text-violet-300 font-medium mb-0.5">What happens after Connect</p>
+                      <p className="text-[11px] text-[var(--text-muted)]">BackTrack discovers all deployments in the namespace and starts TSD + LSI monitoring per service. A 2-minute warmup period builds the anomaly baseline. Rollback requires metrics-server installed in your cluster.</p>
+                    </div>
                   </div>
                 )}
               </div>
