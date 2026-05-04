@@ -96,11 +96,34 @@ async def polling_loop() -> None:
             for svc_name, (tsd, lsi) in service_monitors.items():
                 drifting = tsd.is_drifting()
                 anomalous = lsi.is_anomalous()
+                crashed = tsd.has_crashed()
 
                 count = consecutive_anomaly_counts.get(svc_name, 0)
                 clean = clean_seconds_map.get(svc_name, 0)
 
                 in_cooldown = time.time() < rollback_cooldown_until.get(svc_name, 0)
+
+                # Crash/restart detected → immediate rollback, no 3-cycle wait
+                if crashed and not in_cooldown and rollback_executor:
+                    exit_code = tsd._last_exit_code
+                    logger.critical(
+                        "CRASH ROLLBACK for %s — container restarted (exit_code=%d)",
+                        svc_name, exit_code,
+                    )
+                    if not first_anomaly_at.get(svc_name):
+                        from datetime import datetime, timezone
+                        first_anomaly_at[svc_name] = datetime.now(timezone.utc).isoformat()
+                    rollback_executor.trigger(
+                        reason=f"Container crash/restart detected for {svc_name} (exit_code={exit_code})",
+                        service_name=svc_name,
+                        first_anomaly_at=first_anomaly_at.get(svc_name),
+                    )
+                    rollback_cooldown_until[svc_name] = time.time() + ROLLBACK_COOLDOWN_SECONDS
+                    first_anomaly_at.pop(svc_name, None)
+                    consecutive_anomaly_counts[svc_name] = 0
+                    clean_seconds_map[svc_name] = 0
+                    continue
+
                 if drifting or anomalous:
                     if in_cooldown:
                         logger.info("Anomaly [%s] suppressed — rollback cooldown active.", svc_name)
@@ -222,6 +245,9 @@ async def get_services() -> list[dict]:
             "name": svc_name,
             "is_drifting": tsd.is_drifting(),
             "is_anomalous": lsi.is_anomalous(),
+            "has_crashed": tsd.has_crashed(),
+            "restart_count": tsd._last_restart_count,
+            "last_exit_code": tsd._last_exit_code,
             "readings_count": len(tsd.cpu_history),
             "lsi_fitted": lsi.fitted,
         })

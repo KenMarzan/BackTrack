@@ -168,8 +168,14 @@ class TSDCollector:
         self._drift_sustained: int = 0   # confirmed: 3+ consecutive anomaly cycles
         self._drift_consecutive: int = 0  # current run length
         self._per_metric_drifts: dict[str, int] = {
-            "cpu": 0, "memory": 0, "latency": 0, "error_rate": 0
+            "cpu": 0, "memory": 0, "latency": 0, "error_rate": 0, "restarts": 0,
         }
+
+        # Container restart / crash tracking
+        self._last_restart_count: int = -1   # -1 = not yet fetched
+        self._restart_increased: bool = False  # True for one scrape cycle after a restart
+        self._last_exit_code: int = 0
+        self._last_container_status: str = ""  # running / exited / restarting / etc.
 
         # Modified Z-score analysis (per-metric, updated each decomposition cycle)
         self.z_scores: dict[str, float] = {
@@ -212,6 +218,7 @@ class TSDCollector:
         while self._running:
             try:
                 await self._scrape()
+                await self._check_restarts()
                 self._total_readings += 1
                 if len(self.cpu_history) >= MIN_READINGS_FOR_STL:
                     self._decompose()
@@ -334,6 +341,110 @@ class TSDCollector:
                 continue
         return 0.0
 
+    async def _check_restarts(self) -> None:
+        """Check container restart count and exit code each scrape cycle."""
+        if config.mode == "docker":
+            await self._check_docker_restarts()
+        else:
+            await self._check_k8s_restarts()
+
+    async def _check_docker_restarts(self) -> None:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "docker", "inspect", "--format",
+                "{{.RestartCount}} {{.State.ExitCode}} {{.State.Status}}",
+                self.service_name,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            if proc.returncode != 0:
+                self._restart_increased = False
+                return
+            parts = stdout.decode().strip().split()
+            if len(parts) < 2:
+                self._restart_increased = False
+                return
+            restart_count = int(parts[0])
+            exit_code = int(parts[1])
+            status = parts[2] if len(parts) > 2 else ""
+            crash_detected = False
+
+            # Case 1: restart count increased (restart policy = on-failure / always)
+            if self._last_restart_count >= 0 and restart_count > self._last_restart_count:
+                logger.warning(
+                    "CRASH DETECTED on %s: restarts %d→%d exit_code=%d",
+                    self.service_name, self._last_restart_count, restart_count, exit_code,
+                )
+                crash_detected = True
+
+            # Case 2: container transitioned from running → exited with non-zero exit code
+            if (self._last_container_status == "running"
+                    and status in ("exited", "dead")
+                    and exit_code != 0):
+                logger.warning(
+                    "CRASH DETECTED on %s: status running→%s exit_code=%d",
+                    self.service_name, status, exit_code,
+                )
+                crash_detected = True
+
+            if crash_detected:
+                self._restart_increased = True
+                self._per_metric_drifts["restarts"] += 1
+            else:
+                self._restart_increased = False
+
+            self._last_restart_count = restart_count
+            self._last_exit_code = exit_code
+            self._last_container_status = status
+        except Exception:
+            self._restart_increased = False
+
+    async def _check_k8s_restarts(self) -> None:
+        try:
+            selector = self.label_selector or f"app={self.service_name}"
+            proc = await asyncio.create_subprocess_exec(
+                "kubectl", "get", "pods",
+                "-n", config.k8s_namespace,
+                "-l", selector,
+                "-o", "jsonpath={range .items[*]}{range .status.containerStatuses[*]}"
+                      "{.restartCount}{' '}{.lastState.terminated.exitCode}{'\\n'}{end}{end}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+            if proc.returncode != 0:
+                self._restart_increased = False
+                return
+            total_restarts = 0
+            last_exit = 0
+            for line in stdout.decode().strip().splitlines():
+                parts = line.strip().split()
+                if parts:
+                    try:
+                        total_restarts += int(parts[0])
+                        if len(parts) > 1 and parts[1].lstrip("-").isdigit():
+                            last_exit = int(parts[1])
+                    except ValueError:
+                        pass
+            if self._last_restart_count >= 0 and total_restarts > self._last_restart_count:
+                logger.warning(
+                    "CRASH DETECTED on %s: restarts %d→%d exit_code=%d",
+                    self.service_name, self._last_restart_count, total_restarts, last_exit,
+                )
+                self._restart_increased = True
+                self._per_metric_drifts["restarts"] += 1
+                self._last_exit_code = last_exit
+            else:
+                self._restart_increased = False
+            self._last_restart_count = total_restarts
+        except Exception:
+            self._restart_increased = False
+
+    def has_crashed(self) -> bool:
+        """True for one scrape cycle after restart count increases — triggers immediate rollback."""
+        return self._restart_increased
+
     def _decompose(self) -> None:
         """Run STL decomposition on each metric series."""
         from statsmodels.tsa.seasonal import STL
@@ -443,6 +554,22 @@ class TSDCollector:
                 self._per_metric_drifts[name] = self._per_metric_drifts.get(name, 0) + 1
                 drifting_now = True
 
+        # Memory leak: monotonically increasing for 6+ consecutive readings AND >15% above baseline
+        mem_series = list(self.memory_history)
+        if len(mem_series) >= 8:
+            recent_mem = mem_series[-6:]
+            if all(recent_mem[i] < recent_mem[i + 1] for i in range(len(recent_mem) - 1)):
+                baseline_mem = float(np.mean(mem_series[:len(mem_series) // 2]))
+                mem_growth = recent_mem[-1] - recent_mem[0]
+                if baseline_mem > 1.0 and mem_growth / baseline_mem > 0.15:
+                    logger.warning(
+                        "TSD MEMORY LEAK on %s: monotonic growth %.1f→%.1f MB (+%.1f%% over 6 readings)",
+                        self.service_name, recent_mem[0], recent_mem[-1],
+                        100 * mem_growth / baseline_mem,
+                    )
+                    self._per_metric_drifts["memory"] += 1
+                    drifting_now = True
+
         for name, residuals in self.residuals.items():
             if len(residuals) < 6:
                 continue
@@ -538,6 +665,10 @@ class TSDCollector:
             "residuals": {k: _r(v) for k, v in self.residuals.items()},
             "readings_count": len(self.cpu_history),
             "is_drifting": self.is_drifting(),
+            "has_crashed": self.has_crashed(),
+            "restart_count": self._last_restart_count,
+            "last_exit_code": self._last_exit_code,
+            "container_status": self._last_container_status,
             "z_scores": dict(self.z_scores),
             "trend_directions": dict(self.trend_directions),
             "tsd_confidence": self.tsd_confidence,
