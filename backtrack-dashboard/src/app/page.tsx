@@ -289,7 +289,7 @@ export default function Home() {
             </section>
 
             {/* Primary grid: health + deployments */}
-            <section className="bt-rise flex-1 min-h-[280px] grid grid-cols-1 xl:grid-cols-3 gap-3 lg:gap-4" style={{ animationDelay: "80ms" }}>
+            <section className="bt-rise relative z-10 flex-1 min-h-[280px] grid grid-cols-1 xl:grid-cols-3 gap-3 lg:gap-4" style={{ animationDelay: "80ms" }}>
               <div className="xl:col-span-2 min-h-0 h-full">
                 <ContainerHealth services={services} />
               </div>
@@ -299,7 +299,7 @@ export default function Home() {
             </section>
 
             {/* Secondary grid: anomalies + containers */}
-            <section className="bt-rise flex-shrink-0 h-[300px] md:h-[340px] xl:h-[360px] grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4" style={{ animationDelay: "160ms" }}>
+            <section className="bt-rise relative z-0 flex-shrink-0 h-[300px] md:h-[340px] xl:h-[360px] grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4" style={{ animationDelay: "160ms" }}>
               <div className="min-h-0 h-full">
                 <AnomalyDetection anomalies={anomalies} onAnomalyRollback={handleAnomalyRollback} />
               </div>

@@ -331,7 +331,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
             )}
             {!isLoading && deployments.length === 0 && (
               platform === "docker" ? (
-                <div className="flex flex-col items-center justify-center py-8 px-4 text-center gap-3">
+                <div className="w-full flex flex-col items-center justify-center py-8 px-4 text-center gap-3">
                   <div className="h-12 w-12 rounded-xl border border-[var(--border-soft)] bg-white/[0.03] flex items-center justify-center">
                     <Terminal size={20} className="text-[var(--accent-teal)] opacity-50" />
                   </div>
