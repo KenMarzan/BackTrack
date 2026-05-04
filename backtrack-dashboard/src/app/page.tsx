@@ -12,10 +12,13 @@ import type { DashboardService, DashboardAnomaly } from "@/lib/monitoring-types"
 import type { RollbackEvent } from "@/app/components/RollbackEventCard";
 import RollbackToastStack, { type RollbackToast } from "@/app/components/RollbackToast";
 
+// Module-level cache — survives page navigation, cleared on full reload
+let _overviewCache: { services: DashboardService[]; anomalies: DashboardAnomaly[]; at: Date } | null = null;
+
 export default function Home() {
-  const [services, setServices] = useState<DashboardService[]>([]);
-  const [anomalies, setAnomalies] = useState<DashboardAnomaly[]>([]);
-  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [services, setServices] = useState<DashboardService[]>(_overviewCache?.services ?? []);
+  const [anomalies, setAnomalies] = useState<DashboardAnomaly[]>(_overviewCache?.anomalies ?? []);
+  const [lastSync, setLastSync] = useState<Date | null>(_overviewCache?.at ?? null);
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "error">("idle");
   const [rollbackEvents, setRollbackEvents] = useState<RollbackEvent[]>([]);
   const [rollbackToasts, setRollbackToasts] = useState<RollbackToast[]>([]);
@@ -26,20 +29,23 @@ export default function Home() {
     let timer: number | null = null;
 
     const load = async () => {
-      setSyncState("syncing");
+      // Only show full spinner on first load — cached data stays visible during refresh
+      if (!_overviewCache) setSyncState("syncing");
       try {
         const response = await fetch("/api/dashboard/overview", { cache: "no-store" });
         const data = await response.json();
         if (!active) return;
+        const now = new Date();
+        _overviewCache = { services: data.services ?? [], anomalies: data.anomalies ?? [], at: now };
         setServices(data.services ?? []);
         setAnomalies(data.anomalies ?? []);
-        setLastSync(new Date());
+        setLastSync(now);
         setSyncState("idle");
         errorCount = 0;
       } catch {
         if (!active) return;
-        setServices([]);
-        setAnomalies([]);
+        if (!_overviewCache) setServices([]);
+        if (!_overviewCache) setAnomalies([]);
         setSyncState("error");
         errorCount++;
       }
@@ -135,11 +141,11 @@ export default function Home() {
   }, [services]);
 
   return (
-    <div className="h-screen overflow-hidden w-full flex flex-col bg-transparent">
+    <div className="min-h-screen w-full flex flex-col bg-transparent">
       <RollbackToastStack toasts={rollbackToasts} onDismiss={handleDismissToast} />
       <Nav healthSummary={healthSummary} />
 
-      <main className="flex-1 min-h-0 w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-4 lg:py-5 flex flex-col gap-3 lg:gap-4 overflow-hidden">
+      <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-4 lg:py-5 flex flex-col gap-3 lg:gap-4">
         {/* Status strip */}
         <section className="bt-rise flex flex-col sm:flex-row sm:items-center justify-between gap-3" style={{ animationDelay: "0ms" }}>
           <div className="flex items-center gap-3">
@@ -200,11 +206,11 @@ export default function Home() {
         )}
 
         {/* Primary grid: health + deployments */}
-        <section className="bt-rise flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-3 gap-3 lg:gap-4" style={{ animationDelay: "80ms" }}>
-          <div className="xl:col-span-2 min-h-0 h-full">
+        <section className="bt-rise grid grid-cols-1 xl:grid-cols-3 gap-3 lg:gap-4 min-h-[420px]" style={{ animationDelay: "80ms" }}>
+          <div className="xl:col-span-2 min-h-[420px]">
             <ContainerHealth services={services} />
           </div>
-          <div className="xl:col-span-1 min-h-0 h-full">
+          <div className="xl:col-span-1 min-h-[280px] xl:min-h-[420px]">
             <RecentDeployment
               rollbackEvents={rollbackEvents}
               onDismissRollback={handleDismissRollback}
@@ -213,7 +219,7 @@ export default function Home() {
         </section>
 
         {/* Secondary grid: anomalies + containers */}
-        <section className="bt-rise h-[380px] grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4" style={{ animationDelay: "160ms" }}>
+        <section className="bt-rise h-[320px] md:h-[360px] xl:h-[380px] grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4" style={{ animationDelay: "160ms" }}>
           <div className="min-h-0 h-full">
             <AnomalyDetection anomalies={anomalies} onAnomalyRollback={handleAnomalyRollback} />
           </div>

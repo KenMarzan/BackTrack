@@ -81,15 +81,15 @@ async function fetchAgentMatrix() {
           const l = await lRes.json() as { evaluation?: AgentLSIEval };
           const ev = l.evaluation;
           if (ev?.per_class) {
-            // Aggregate ERROR + NOVEL as "anomalous" class (the detectable faults)
-            for (const cls of ["ERROR", "NOVEL"] as const) {
-              const c = ev.per_class[cls];
-              if (c) {
-                lsiAgg.tp += c.tp;
-                lsiAgg.fp += c.fp;
-                lsiAgg.fn += c.fn;
-                lsiAgg.tn += c.tn;
-              }
+            // Only ERROR class = true anomaly detection signal.
+            // NOVEL = "SVD didn't recognise pattern" which fires on any unseen log line
+            // during normal operation — inflates FP massively on healthy systems.
+            const c = ev.per_class["ERROR"];
+            if (c) {
+              lsiAgg.tp += c.tp;
+              lsiAgg.fp += c.fp;
+              lsiAgg.fn += c.fn;
+              lsiAgg.tn += c.tn;
             }
           }
         }

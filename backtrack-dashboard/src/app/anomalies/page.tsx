@@ -418,8 +418,9 @@ export default function AnomaliesPage() {
                   })()}
 
                   {/* Anomaly Score History chart */}
-                  {lsi.score_history.length > 1 && (() => {
-                    const pts = lsi.score_history.slice(-30);
+                  {lsi.score_history.length > 0 && (() => {
+                    const rawPts = lsi.score_history.slice(-30);
+                    const pts = rawPts.length === 1 ? [rawPts[0], rawPts[0]] : rawPts;
                     const maxV = Math.max(...pts, lsi.threshold, 0.1);
                     const W = 300, H = 72, pad = 4;
                     const toX = (i: number) => pad + (i / (pts.length - 1)) * (W - pad * 2);

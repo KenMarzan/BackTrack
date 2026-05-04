@@ -4,6 +4,7 @@ import { addMttrEntry, clearMttrEntries, listMttrEntries, type MttrEntry } from 
 type AgentRollbackHistoryEntry = {
   id: string;
   timestamp: string;
+  first_anomaly_at?: string;
   rollback_triggered_at?: string;
   rollback_completed_at?: string;
   reason: string;
@@ -48,20 +49,25 @@ async function loadAgentRollbackEntries(): Promise<MttrEntry[]> {
 
     return payload
       .filter((entry) => entry.success)
-      .map((entry) => ({
-        id: `agent-${entry.id}`,
-        service: parseServiceName(entry),
-        anomaly_type: "AUTO",
-        anomaly_detected_at: parseTime(entry, "rollback_triggered_at"),
-        rollback_triggered_at: parseTime(entry, "rollback_triggered_at"),
-        rollback_completed_at: parseTime(entry, "rollback_completed_at"),
-        mttr_seconds: Math.max(
-          0,
-          Math.round((new Date(parseTime(entry, "rollback_completed_at")).getTime() - new Date(parseTime(entry, "rollback_triggered_at")).getTime()) / 1000),
-        ),
-        success: true,
-        source: "agent",
-      }));
+      .map((entry) => {
+        // MTTR = first anomaly detection → rollback completion (full detection-to-recovery time)
+        const detectedAt = entry.first_anomaly_at || parseTime(entry, "rollback_triggered_at");
+        const completedAt = parseTime(entry, "rollback_completed_at");
+        return {
+          id: `agent-${entry.id}`,
+          service: parseServiceName(entry),
+          anomaly_type: "AUTO",
+          anomaly_detected_at: detectedAt,
+          rollback_triggered_at: parseTime(entry, "rollback_triggered_at"),
+          rollback_completed_at: completedAt,
+          mttr_seconds: Math.max(
+            0,
+            Math.round((new Date(completedAt).getTime() - new Date(detectedAt).getTime()) / 1000),
+          ),
+          success: true,
+          source: "agent",
+        };
+      });
   } catch {
     return [];
   }
