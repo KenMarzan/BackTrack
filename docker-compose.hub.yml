@@ -1,5 +1,8 @@
 version: "3.9"
 
+# Dashboard is available at http://localhost:3847 once the stack is running.
+# On Linux, if localhost does not work, use http://127.0.0.1:3847 instead.
+
 services:
   backtrack-dashboard:
     image: zeritzuu/backtrack-dashboard:latest
@@ -8,11 +11,15 @@ services:
     environment:
       - BACKTRACK_AGENT_URL=http://backtrack-agent:8847
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - KUBECONFIG=/root/.kube/config
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - backtrack-data:/.backtrack
-      # Kubernetes mode: uncomment and set your kube path
-      # - ~/.kube:/root/.kube:ro
+      - ${KUBE_DIR:-~/.kube}:/root/.kube:ro
+    # Uncomment these lines if you are using kind. 
+    #networks:
+    #  - default
+    #  - kind
     depends_on:
       backtrack-agent:
         condition: service_healthy
@@ -28,11 +35,11 @@ services:
       - BACKTRACK_STABLE_SECONDS=${BACKTRACK_STABLE_SECONDS:-600}
       - BACKTRACK_ROLLBACK_ENABLED=${BACKTRACK_ROLLBACK_ENABLED:-true}
       - BACKTRACK_DATA_DIR=/data
+      - KUBECONFIG=/root/.kube/config
     volumes:
       - backtrack-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
-      # Kubernetes mode: uncomment and set your kube path
-      # - ~/.kube:/root/.kube:ro
+      - ${KUBE_DIR:-~/.kube}:/root/.kube:ro
     ports:
       - "8847:8847"
     healthcheck:
@@ -41,6 +48,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+# Uncomment these lines if you are using kind.
+#networks:
+#  kind:
+#    external: true
 
 volumes:
   backtrack-data:
