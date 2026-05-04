@@ -325,23 +325,23 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
             </div>
           )}
 
-<div className="space-y-1.5 overflow-y-auto scrollbar-hide flex-1 min-h-0 h-full">
+<div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
             {isLoading && (
               <div className="text-[12px] text-[var(--text-muted)] px-1">Loading deployment history…</div>
             )}
             {!isLoading && deployments.length === 0 && (
               platform === "docker" ? (
-                <div className="w-full flex flex-col items-center justify-center py-8 px-4 text-center gap-3">
-                  <div className="h-12 w-12 rounded-xl border border-[var(--border-soft)] bg-white/[0.03] flex items-center justify-center">
-                    <Terminal size={20} className="text-[var(--accent-teal)] opacity-50" />
+                <div className="h-full w-full flex flex-col items-center justify-center gap-4 px-6 text-center">
+                  <div className="h-16 w-16 rounded-2xl border border-[var(--border-soft)] bg-white/[0.03] flex items-center justify-center">
+                    <Terminal size={26} className="text-[var(--accent-teal)] opacity-60" />
                   </div>
                   <div>
-                    <p className="text-[12px] font-medium text-[var(--text-secondary)] mb-1">No container history yet</p>
-                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed max-w-[200px]">
+                    <p className="text-[15px] font-semibold text-[var(--text-primary)] mb-1.5">No container history yet</p>
+                    <p className="text-[12.5px] text-[var(--text-muted)] leading-relaxed">
                       History populates automatically as BackTrack monitors your containers over time.
                     </p>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] bt-mono bg-white/[0.02] border border-[var(--border-soft)] rounded-lg px-3 py-1.5">
+                  <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] bt-mono bg-white/[0.02] border border-[var(--border-soft)] rounded-lg px-3 py-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-teal)] animate-pulse" />
                     Monitoring active
                   </div>
