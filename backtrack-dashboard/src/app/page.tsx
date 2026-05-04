@@ -152,13 +152,48 @@ export default function Home() {
           <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 bt-rise">
             {/* Glow blob */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] rounded-full bg-[rgba(94,234,212,0.04)] blur-3xl" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] rounded-full bg-[rgba(94,234,212,0.05)] blur-3xl" />
             </div>
 
-            {/* Icon */}
-            <div className="relative mb-6 h-20 w-20 rounded-2xl border border-[rgba(94,234,212,0.25)] bg-gradient-to-br from-[rgba(94,234,212,0.12)] to-[rgba(167,139,250,0.08)] flex items-center justify-center shadow-[0_0_60px_rgba(94,234,212,0.12)]">
-              <Server size={32} className="text-[var(--accent-teal)]" />
-              <span className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-[#0b1018] bg-[var(--border-mid)]" />
+            {/* Disconnected socket illustration */}
+            <div className="relative mb-8 flex items-center justify-center">
+              <svg width="220" height="110" viewBox="0 0 220 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Left plug body */}
+                <rect x="8" y="35" width="52" height="40" rx="8" fill="rgba(94,234,212,0.08)" stroke="rgba(94,234,212,0.35)" strokeWidth="1.5"/>
+                {/* Left plug pins */}
+                <rect x="56" y="46" width="18" height="6" rx="3" fill="rgba(94,234,212,0.5)"/>
+                <rect x="56" y="58" width="18" height="6" rx="3" fill="rgba(94,234,212,0.5)"/>
+                {/* Left cable */}
+                <path d="M8 55 Q-10 55 -10 55" stroke="rgba(94,234,212,0.2)" strokeWidth="3" strokeLinecap="round"/>
+                {/* Left plug prong detail */}
+                <rect x="18" y="44" width="8" height="4" rx="2" fill="rgba(94,234,212,0.2)"/>
+                <rect x="18" y="52" width="8" height="4" rx="2" fill="rgba(94,234,212,0.2)"/>
+                <rect x="18" y="60" width="8" height="4" rx="2" fill="rgba(94,234,212,0.2)"/>
+
+                {/* Right socket body */}
+                <rect x="160" y="35" width="52" height="40" rx="8" fill="rgba(167,139,250,0.08)" stroke="rgba(167,139,250,0.35)" strokeWidth="1.5"/>
+                {/* Right socket holes */}
+                <rect x="146" y="46" width="18" height="6" rx="3" fill="rgba(11,16,26,0.9)" stroke="rgba(167,139,250,0.3)" strokeWidth="1"/>
+                <rect x="146" y="58" width="18" height="6" rx="3" fill="rgba(11,16,26,0.9)" stroke="rgba(167,139,250,0.3)" strokeWidth="1"/>
+                {/* Right cable */}
+                <path d="M212 55 Q230 55 230 55" stroke="rgba(167,139,250,0.2)" strokeWidth="3" strokeLinecap="round"/>
+                {/* Right socket detail */}
+                <rect x="174" y="44" width="8" height="4" rx="2" fill="rgba(167,139,250,0.2)"/>
+                <rect x="174" y="52" width="8" height="4" rx="2" fill="rgba(167,139,250,0.2)"/>
+                <rect x="174" y="60" width="8" height="4" rx="2" fill="rgba(167,139,250,0.2)"/>
+
+                {/* Gap / disconnected sparks */}
+                <line x1="96" y1="48" x2="124" y2="48" stroke="rgba(100,116,139,0.15)" strokeWidth="1" strokeDasharray="3 3"/>
+                <line x1="96" y1="62" x2="124" y2="62" stroke="rgba(100,116,139,0.15)" strokeWidth="1" strokeDasharray="3 3"/>
+
+                {/* Disconnection indicator — X in the gap */}
+                <circle cx="110" cy="55" r="14" fill="rgba(239,68,68,0.08)" stroke="rgba(239,68,68,0.25)" strokeWidth="1.2"/>
+                <line x1="104" y1="49" x2="116" y2="61" stroke="rgba(239,68,68,0.6)" strokeWidth="1.8" strokeLinecap="round"/>
+                <line x1="116" y1="49" x2="104" y2="61" stroke="rgba(239,68,68,0.6)" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+
+              {/* Animated pulse ring on the gap */}
+              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full border border-red-500/20 animate-ping" style={{ animationDuration: "2s" }} />
             </div>
 
             {/* Heading */}
