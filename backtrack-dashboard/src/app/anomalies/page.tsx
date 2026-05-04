@@ -272,7 +272,7 @@ export default function AnomaliesPage() {
                           </div>
                         </div>
                         <div className="bt-mono text-[17px] font-semibold" style={{ color: m.color }}>
-                          {m.fmt(tsd.current[m.key])}
+                          {m.fmt(tsd.current?.[m.key] ?? 0)}
                         </div>
                         {decomp && (
                           <div className="flex items-center gap-3 mt-1.5">
