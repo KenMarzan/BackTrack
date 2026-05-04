@@ -14,15 +14,14 @@ services:
     environment:
       - BACKTRACK_AGENT_URL=http://backtrack-agent:8847
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
-      # Tells kubectl which config file to load from the mounted .kube directory.
-      # Set KUBECONFIG_FILE=config-docker in your .env for the patched Docker-safe copy.
-      - KUBECONFIG=/root/.kube/${KUBECONFIG_FILE:-config}
+      - KUBECONFIG=/root/.kube/config
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - backtrack-data:/.backtrack
-      # Mounts your entire .kube directory so kubectl can reach the cluster.
-      # KUBE_DIR defaults to ~/.kube (Linux/Mac). Windows users: set KUBE_DIR=C:/Users/<you>/.kube
-      - ${KUBE_DIR:-~/.kube}:/root/.kube:ro
+      - /home/andy/.kube:/root/.kube:ro
+    networks:
+      - default
+      - kind
     depends_on:
       backtrack-agent:
         condition: service_healthy
@@ -51,11 +50,11 @@ services:
       - BACKTRACK_WINDOW_SECONDS=${BACKTRACK_WINDOW_SECONDS:-30}
       - BACKTRACK_SVD_SIMILARITY_THRESHOLD=${BACKTRACK_SVD_SIMILARITY_THRESHOLD:-0.55}
       - BACKTRACK_DATA_DIR=${BACKTRACK_DATA_DIR:-/data}
-      - KUBECONFIG=/root/.kube/${KUBECONFIG_FILE:-config}
+      - KUBECONFIG=/root/.kube/config
     volumes:
       - backtrack-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${KUBE_DIR:-~/.kube}:/root/.kube:ro
+      - /home/andy/.kube:/root/.kube:ro
     ports:
       - "8847:8847"
     healthcheck:
@@ -64,6 +63,10 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+networks:
+  kind:
+    external: true
 
 volumes:
   backtrack-data:
