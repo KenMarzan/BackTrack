@@ -18,14 +18,9 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - backtrack-data:/app/.backtrack
-      # Kubernetes mode: uncomment and point to your kube config directory.
-      # Mac/Windows: - ~/.kube:/root/.kube:ro
-      # Linux: use the absolute path, e.g. - /home/yourname/.kube:/root/.kube:ro
-      - /home/andy/.kube:/root/.kube:ro
-    # Kubernetes Mode: Uncomment if using kind.
-    #networks:
-    #  - default
-    #  - kind
+      # Kubernetes mode: uncomment and set KUBE_DIR to your .kube directory.
+      # e.g. KUBE_DIR=/home/yourname/.kube docker compose -f docker-compose.hub.yml up -d
+      # - ${KUBE_DIR:-~/.kube}:/root/.kube:ro
     depends_on:
       backtrack-agent:
         condition: service_healthy
@@ -48,10 +43,8 @@ services:
     volumes:
       - backtrack-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
-      # Kubernetes mode: uncomment and point to your kube config directory.
-      # Mac/Windows: - ~/.kube:/root/.kube:ro
-      # Linux: use the absolute path, e.g. - /home/yourname/.kube:/root/.kube:ro
-      - /home/andy/.kube:/root/.kube:ro
+      # Kubernetes mode: uncomment and set KUBE_DIR to your .kube directory.
+      # - ${KUBE_DIR:-~/.kube}:/root/.kube:ro
     ports:
       - "8847:8847"
     healthcheck:
