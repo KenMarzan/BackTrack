@@ -74,7 +74,7 @@ export default function Home() {
   }, [lastSync]);
 
   const handleAnomalyRollback = (anomaly: DashboardAnomaly) => {
-    const evId = Date.now() + Math.floor(Math.random() * 1000000);
+    const evId = crypto.randomUUID();
     const fromVersion = anomaly.current;
     const toVersion = "previous stable";
 
@@ -107,7 +107,7 @@ export default function Home() {
           if (succeeded) setAnomalies((prev) => prev.filter((a) => a.id !== anomaly.id));
           setRollbackToasts((prev) => [
             {
-              id: Date.now() + Math.floor(Math.random() * 1000000),
+              id: crypto.randomUUID(),
               service: anomaly.service,
               fromVersion,
               toVersion,
@@ -119,11 +119,11 @@ export default function Home() {
       });
   };
 
-  const handleDismissRollback = (id: number) => {
+  const handleDismissRollback = (id: string) => {
     setRollbackEvents((prev) => prev.filter((e) => e.id !== id));
   };
 
-  const handleDismissToast = (id: number) => {
+  const handleDismissToast = (id: string) => {
     setRollbackToasts((prev) => prev.filter((t) => t.id !== id));
   };
 

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { CheckCircle, RotateCcw, X, XCircle } from "lucide-react";
 
 export type RollbackToast = {
-  id: number;
+  id: string;
   service: string;
   fromVersion: string;
   toVersion: string;
@@ -13,10 +13,10 @@ export type RollbackToast = {
 
 type Props = {
   toasts: RollbackToast[];
-  onDismiss: (id: number) => void;
+  onDismiss: (id: string) => void;
 };
 
-function Toast({ toast, onDismiss }: { toast: RollbackToast; onDismiss: (id: number) => void }) {
+function Toast({ toast, onDismiss }: { toast: RollbackToast; onDismiss: (id: string) => void }) {
   const ok = toast.status === "success";
 
   useEffect(() => {

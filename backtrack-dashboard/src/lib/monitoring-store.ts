@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { AppConnection, AppConnectionInput } from "./monitoring-types";
 
+let _writeLock: Promise<void> = Promise.resolve();
+
 const DATA_DIR = path.join(process.cwd(), ".backtrack");
 const CONNECTIONS_FILE = path.join(DATA_DIR, "connections.json");
 
@@ -103,6 +105,11 @@ function writeConnections(connections: AppConnection[]) {
 	fs.writeFileSync(CONNECTIONS_FILE, JSON.stringify(connections, null, 2));
 }
 
+function writeConnectionsQueued(connections: AppConnection[]): Promise<void> {
+	_writeLock = _writeLock.then(() => writeConnections(connections)).catch(() => writeConnections(connections));
+	return _writeLock;
+}
+
 export function listConnections() {
 	return readConnections();
 }
@@ -132,7 +139,7 @@ export function registerConnection(input: AppConnectionInput) {
 	};
 
 	surviving.unshift(connection);
-	writeConnections(surviving);
+	writeConnectionsQueued(surviving);
 
 	return connection;
 }

@@ -39,7 +39,7 @@ services:
     volumes:
       - ~/.kube:/root/.kube:ro                  # ← add this
       - /var/run/docker.sock:/var/run/docker.sock
-      - backtrack-data:/.backtrack
+      - backtrack-data:/app/.backtrack
 
   backtrack-agent:
     image: zeritzuu/backtrack-agent:latest
@@ -51,6 +51,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - backtrack-data:/data
 ```
+
+> **Important:** Your kubeconfig must reference the cluster at a network address reachable from inside Docker — not `127.0.0.1` or `localhost`. If `kubectl cluster-info` shows `127.0.0.1`, use the actual node/control-plane IP in your kubeconfig instead.
+
+> **Kubernetes TSD metrics** require `metrics-server` to be installed in your cluster. Without it, CPU/memory show as 0. Log-based LSI anomaly detection works regardless.
 
 Then restart:
 
@@ -99,15 +103,23 @@ Or port-forward locally and use `http://localhost:9090`.
 
 ## Docker Mode
 
-Docker mode requires only the container name. No cluster configuration needed.
+Docker mode works with any running container or Docker Compose application.
 
 1. Open **http://localhost:3847**
 2. Click **Configure Cluster**
 3. **Platform** → Docker
-4. **Application name** → exact container name (find it with `docker ps --format "{{.Names}}"`)
-5. Click **Connect**
+4. **Application name** → your Docker Compose project name, or any container name
+5. **Architecture** → Microservices (multiple containers) or Monolith (single container)
+6. Click **Test Connection** → **Connect**
 
-The agent monitors that container via Docker SDK (CPU, memory) and log tailing (LSI). The Docker socket must be mounted in both containers (already done in the default `docker-compose.yml`).
+**Service discovery is automatic** — BackTrack finds containers by:
+1. Docker Compose project label (most reliable — matches all services in a compose stack)
+2. Container name or image containing the app name
+3. Partial compose project name match
+
+The agent monitors containers via the Docker CLI (`docker stats`, `docker logs`). The Docker socket must be mounted in both containers — already done in the default `docker-compose.yml`.
+
+> **Prometheus URL (Hub install):** Use `http://host.docker.internal:<port>` not `http://localhost:<port>`. Inside Docker, `localhost` resolves to the container, not your machine.
 
 ---
 
@@ -257,18 +269,30 @@ curl http://127.0.0.1:8847/services  # List monitored services
 ```
 
 **All metrics are zero**
-- Check for port conflict: `ss -tlnp | grep 8847` — if another process is on 8847, it intercepts requests. Use `http://127.0.0.1:8847` explicitly or kill the conflicting process.
-- Verify `kubectl top pods -n default -l app=<service>` returns data (requires metrics-server).
+- Check for port conflict: `ss -tlnp | grep 8847` — if another process is on 8847, use `http://127.0.0.1:8847` explicitly or kill it.
+- Docker mode: verify Docker CLI works in the agent container: `docker exec backtrack-agent-1 docker ps`
+- Kubernetes mode: `kubectl top pods -n default` requires `metrics-server`. LSI still works without it.
 
 **LSI corpus stuck at 0 lines**
 ```bash
-kubectl logs -n default -l app=<service> --tail=5   # Verify logs exist
-curl http://127.0.0.1:8847/services                 # Check agent sees the service
+# Docker: verify container has logs
+docker logs <container-name> --tail=5
+
+# Kubernetes: verify pod has logs
+kubectl logs -n default -l app=<service> --tail=5
+
+# Confirm agent sees the service
+curl http://127.0.0.1:8847/services
 ```
 
 **TSD/LSI panels empty after connecting**
-- Agent needs ~2 min for TSD, ~5 min for LSI to warm up.
-- Verify service name in Connect modal matches the deployment/container name exactly.
+- TSD needs ~2 min (12 readings at 10s intervals)
+- LSI fills instantly from log history, then needs ~2 min to fit the SVD model
+- Sparse loggers (Prometheus, Grafana) may take up to 2 min before LSI fits
+
+**Prometheus URL not working (Hub install)**
+- Use `http://host.docker.internal:<port>` — not `http://localhost:<port>`
+- `localhost` inside the container resolves to the container itself
 
 **Rollback didn't restore the app**
 - BackTrack auto-restores replicas if scaled to 0 before running `rollout undo`.

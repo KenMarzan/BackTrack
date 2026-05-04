@@ -27,6 +27,45 @@ MIN_READINGS_FOR_STL = 12  # Need at least 2×period readings
 _stats_cache: dict[str, dict[str, float]] = {}  # name → {cpu, mem_mb}
 _stats_cache_at: float = 0.0
 _stats_refresh_lock: Optional[asyncio.Lock] = None
+_monitored_containers: set[str] = set()  # only stats these names, not all containers
+
+_cluster_cpu_cores: float = 0.0  # total allocatable CPU cores across all nodes
+_cluster_cpu_fetched_at: float = 0.0
+
+
+async def _refresh_cluster_cpu() -> float:
+    """Return total allocatable CPU cores across all nodes (cached for 5 minutes)."""
+    global _cluster_cpu_cores, _cluster_cpu_fetched_at
+    now = time.monotonic()
+    if _cluster_cpu_cores > 0 and now - _cluster_cpu_fetched_at < 300:
+        return _cluster_cpu_cores
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "kubectl", "get", "nodes",
+            "-o", "jsonpath={range .items[*]}{.status.allocatable.cpu}{'\\n'}{end}",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+        if proc.returncode == 0:
+            total = 0.0
+            for line in stdout.decode().strip().splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                if line.endswith("m"):
+                    total += float(line[:-1]) / 1000.0
+                else:
+                    try:
+                        total += float(line)
+                    except ValueError:
+                        pass
+            if total > 0:
+                _cluster_cpu_cores = total
+                _cluster_cpu_fetched_at = now
+    except Exception:
+        pass
+    return _cluster_cpu_cores if _cluster_cpu_cores > 0 else 1.0
 
 
 def _get_stats_lock() -> asyncio.Lock:
@@ -46,9 +85,13 @@ async def _refresh_docker_stats(max_age: float = 5.0) -> None:
         if time.monotonic() - _stats_cache_at < max_age:
             return  # another coroutine refreshed while we waited
         try:
+            # Only stat the containers we're actually monitoring — avoids scanning
+            # every container on the host which is slow when many are running.
+            targets = list(_monitored_containers)
+            cmd = ["docker", "stats", "--no-stream", "--format",
+                   "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"] + targets
             proc = await asyncio.create_subprocess_exec(
-                "docker", "stats", "--no-stream", "--format",
-                "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}",
+                *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -148,12 +191,14 @@ class TSDCollector:
     async def start(self) -> None:
         """Start the background collection loop."""
         self._running = True
+        _monitored_containers.add(self.service_name)
         self._task = asyncio.create_task(self._collect_loop())
         logger.info("TSD collector started for %s (interval=%ds)", self.service_name, config.scrape_interval)
 
     async def stop(self) -> None:
         """Stop the background collection loop."""
         self._running = False
+        _monitored_containers.discard(self.service_name)
         if self._task:
             self._task.cancel()
             try:
@@ -248,7 +293,11 @@ class TSDCollector:
                 total_mem += mem_val
                 count += 1
 
-            self.current_cpu = (total_cpu * 100.0) if count > 0 else 0.0
+            if count > 0:
+                cluster_cores = await _refresh_cluster_cpu()
+                self.current_cpu = (total_cpu / cluster_cores) * 100.0
+            else:
+                self.current_cpu = 0.0
             self.current_memory = total_mem if count > 0 else 0.0
             self.current_latency = await self._probe_latency()
             self.current_error_rate = 0.0

@@ -171,6 +171,13 @@ function normalizeConnectionServices(connection: RawConnection) {
 		}));
 	}
 
+	// Empty discoveredServices array means discovery ran and found nothing — don't
+	// synthesize a fake service, just skip this connection silently.
+	if (Array.isArray(connection.discoveredServices)) {
+		return [];
+	}
+
+	// Legacy connections with no discoveredServices field at all: fall back to workload/appName.
 	const workload = connection.workload || "";
 	const fallbackName = workload.includes("/")
 		? workload.split("/")[1]
