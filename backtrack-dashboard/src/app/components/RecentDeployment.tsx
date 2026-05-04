@@ -46,9 +46,11 @@ type HistoryResponse = {
 function RecentDeployment({
   rollbackEvents = [],
   onDismissRollback,
+  platform,
 }: {
   rollbackEvents?: RollbackEvent[];
   onDismissRollback?: (id: string) => void;
+  platform?: string;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"k8s" | "backtrack">("k8s");
@@ -222,7 +224,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
           onClick={() => setActiveTab("k8s")}
           className={`flex-1 bt-tab text-center text-[11.5px] ${activeTab === "k8s" ? "bt-tab-active" : ""}`}
         >
-          K8s History
+          {platform === "docker" ? "Docker History" : "K8s History"}
         </button>
         <button
           type="button"
@@ -314,7 +316,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
         </div>
       )}
 
-      {/* ── K8s History tab ── */}
+      {/* ── K8s / Docker History tab ── */}
       {activeTab === "k8s" && (
         <>
           {message && (
@@ -323,14 +325,32 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
             </div>
           )}
 
-<div className="space-y-1.5 overflow-y-auto scrollbar-hide flex-1 min-h-0">
+<div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
             {isLoading && (
               <div className="text-[12px] text-[var(--text-muted)] px-1">Loading deployment history…</div>
             )}
             {!isLoading && deployments.length === 0 && (
-              <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-3 text-[12px] text-[var(--text-muted)]">
-                No deployment history yet. Configure a Kubernetes connection and optional GitHub repo.
-              </div>
+              platform === "docker" ? (
+                <div className="h-full w-full flex flex-col items-center justify-center gap-4 px-6 text-center">
+                  <div className="h-16 w-16 rounded-2xl border border-[var(--border-soft)] bg-white/[0.03] flex items-center justify-center">
+                    <Terminal size={26} className="text-[var(--accent-teal)] opacity-60" />
+                  </div>
+                  <div>
+                    <p className="text-[15px] font-semibold text-[var(--text-primary)] mb-1.5">No container history yet</p>
+                    <p className="text-[12.5px] text-[var(--text-muted)] leading-relaxed">
+                      History populates automatically as BackTrack monitors your containers over time.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] bt-mono bg-white/[0.02] border border-[var(--border-soft)] rounded-lg px-3 py-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-teal)] animate-pulse" />
+                    Monitoring active
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-3 text-[12px] text-[var(--text-muted)]">
+                  No deployment history yet. Configure a Kubernetes connection and optional GitHub repo.
+                </div>
+              )
             )}
 
             {deployments.map((deployment, index) => (
