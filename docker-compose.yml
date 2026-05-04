@@ -1,19 +1,19 @@
+# Dashboard is available at http://localhost:3847 once the stack is running.
+# On Linux, if localhost does not work, use http://127.0.0.1:3847 instead.
+
 services:
   backtrack-dashboard:
     image: zeritzuu/backtrack-dashboard:latest
-    build:
-      context: ./backtrack-dashboard
-      dockerfile: Dockerfile
     ports:
       - "3847:3847"
-    # Allows containers to reach the host as "host.docker.internal".
-    # On Linux this is required (Docker Desktop on Mac/Windows defines it automatically).
-    # host-gateway resolves to the host machine on all platforms with Docker Engine 20.10+.
+    # Allows containers to reach host services (e.g. Prometheus at localhost:9091).
+    # Required on Linux. Docker Desktop on Mac/Windows handles this automatically.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       - BACKTRACK_AGENT_URL=http://backtrack-agent:8847
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      # Kubernetes mode: uncomment after enabling the kube volume above.
       - KUBECONFIG=/root/.kube/config
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -25,28 +25,18 @@ services:
 
   backtrack-agent:
     image: zeritzuu/backtrack-agent:latest
-    build:
-      context: ./backtrack-agent
-      dockerfile: Dockerfile
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       - BACKTRACK_TARGET=${BACKTRACK_TARGET:-}
-      - BACKTRACK_IMAGE_TAG=${BACKTRACK_IMAGE_TAG:-unknown}
-      - BACKTRACK_MODE=${BACKTRACK_MODE:-}
+      - BACKTRACK_IMAGE_TAG=${BACKTRACK_IMAGE_TAG:-latest}
+      - BACKTRACK_MODE=${BACKTRACK_MODE:-docker}
       - BACKTRACK_K8S_NAMESPACE=${BACKTRACK_K8S_NAMESPACE:-default}
-      - BACKTRACK_K8S_LABEL_SELECTOR=${BACKTRACK_K8S_LABEL_SELECTOR:-}
       - BACKTRACK_SCRAPE_INTERVAL=${BACKTRACK_SCRAPE_INTERVAL:-10}
       - BACKTRACK_STABLE_SECONDS=${BACKTRACK_STABLE_SECONDS:-600}
       - BACKTRACK_ROLLBACK_ENABLED=${BACKTRACK_ROLLBACK_ENABLED:-true}
-      - BACKTRACK_ROLLBACK_COOLDOWN=${BACKTRACK_ROLLBACK_COOLDOWN:-120}
-      - BACKTRACK_TSD_IQR_MULTIPLIER=${BACKTRACK_TSD_IQR_MULTIPLIER:-3.0}
-      - BACKTRACK_LSI_SCORE_MULTIPLIER=${BACKTRACK_LSI_SCORE_MULTIPLIER:-2.0}
-      - BACKTRACK_CORPUS_SIZE=${BACKTRACK_CORPUS_SIZE:-200}
-      - BACKTRACK_BASELINE_WINDOWS=${BACKTRACK_BASELINE_WINDOWS:-10}
-      - BACKTRACK_WINDOW_SECONDS=${BACKTRACK_WINDOW_SECONDS:-30}
-      - BACKTRACK_SVD_SIMILARITY_THRESHOLD=${BACKTRACK_SVD_SIMILARITY_THRESHOLD:-0.55}
-      - BACKTRACK_DATA_DIR=${BACKTRACK_DATA_DIR:-/data}
+      - BACKTRACK_DATA_DIR=/data
+      # Kubernetes mode: uncomment after enabling the kube volume above.
       - KUBECONFIG=/root/.kube/config
     volumes:
       - backtrack-data:/data
@@ -55,9 +45,9 @@ services:
     ports:
       - "8847:8847"
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8847/health')"]
-      interval: 15s
-      timeout: 5s
+      test: ["CMD", "curl", "-f", "http://localhost:8847/health"]
+      interval: 20s
+      timeout: 10s
       retries: 5
       start_period: 30s
 

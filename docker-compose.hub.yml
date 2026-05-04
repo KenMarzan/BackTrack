@@ -1,3 +1,6 @@
+# Dashboard is available at http://localhost:3847 once the stack is running.
+# On Linux, if localhost does not work, use http://127.0.0.1:3847 instead.
+
 services:
   backtrack-dashboard:
     image: zeritzuu/backtrack-dashboard:latest
@@ -10,12 +13,19 @@ services:
     environment:
       - BACKTRACK_AGENT_URL=http://backtrack-agent:8847
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      # Kubernetes mode: uncomment after enabling the kube volume above.
       - KUBECONFIG=/root/.kube/config
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - backtrack-data:/app/.backtrack
-      # Kubernetes mode: uncomment and point to your kube config
-      # - ~/.kube:/root/.kube:ro
+      # Kubernetes mode: uncomment and point to your kube config directory.
+      # Mac/Windows: - ~/.kube:/root/.kube:ro
+      # Linux: use the absolute path, e.g. - /home/yourname/.kube:/root/.kube:ro
+      - /home/andy/.kube:/root/.kube:ro
+    # Kubernetes Mode: Uncomment if using kind.
+    #networks:
+    #  - default
+    #  - kind
     depends_on:
       backtrack-agent:
         condition: service_healthy
@@ -33,12 +43,15 @@ services:
       - BACKTRACK_STABLE_SECONDS=${BACKTRACK_STABLE_SECONDS:-120}
       - BACKTRACK_ROLLBACK_ENABLED=${BACKTRACK_ROLLBACK_ENABLED:-true}
       - BACKTRACK_DATA_DIR=/data
+      # Kubernetes mode: uncomment after enabling the kube volume above.
       - KUBECONFIG=/root/.kube/config
     volumes:
       - backtrack-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
-      # Kubernetes mode: uncomment and point to your kube config
-      # - ~/.kube:/root/.kube:ro
+      # Kubernetes mode: uncomment and point to your kube config directory.
+      # Mac/Windows: - ~/.kube:/root/.kube:ro
+      # Linux: use the absolute path, e.g. - /home/yourname/.kube:/root/.kube:ro
+      - /home/andy/.kube:/root/.kube:ro
     ports:
       - "8847:8847"
     healthcheck:
@@ -48,7 +61,7 @@ services:
       retries: 5
       start_period: 30s
 
-# Uncomment these lines if you are using kind.
+# Kubernetes Mode: Uncomment these lines if you are using kind.
 #networks:
 #  kind:
 #    external: true
