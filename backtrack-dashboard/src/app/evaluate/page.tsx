@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, ClipboardList, Users } from "lucide-react";
+import Nav from "@/app/components/Nav";
 
 type EvalScores = {
   functional_suitability: { completeness: number; correctness: number; appropriateness: number };
@@ -186,7 +187,9 @@ export default function EvaluatePage() {
   };
 
   return (
-    <main className="flex-1 min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] p-6 max-w-4xl mx-auto space-y-6">
+    <div className="h-screen flex flex-col bg-[var(--bg-base)] text-[var(--text-primary)] overflow-hidden">
+    <Nav />
+    <main className="flex-1 min-h-0 overflow-y-auto p-6 max-w-4xl mx-auto w-full space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
@@ -398,5 +401,6 @@ export default function EvaluatePage() {
         </>
       )}
     </main>
+    </div>
   );
 }
