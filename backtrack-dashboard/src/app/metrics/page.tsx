@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Activity, BarChart2, CheckCircle2, Clock, FlaskConical, Trash2, XCircle, Zap } from "lucide-react";
+import Nav from "@/app/components/Nav";
 
 type MttrEntry = {
   id: string;
@@ -215,7 +216,9 @@ export default function MetricsPage() {
   };
 
   return (
-    <main className="h-screen overflow-hidden bg-[var(--bg-base)] text-[var(--text-primary)] p-6">
+    <div className="h-screen flex flex-col bg-[var(--bg-base)] text-[var(--text-primary)] overflow-hidden">
+    <Nav />
+    <main className="flex-1 min-h-0 overflow-hidden p-6">
       <div className="flex h-full min-h-0 flex-col gap-8">
       {/* Header */}
       <div className="flex items-center gap-3 shrink-0">
@@ -536,5 +539,6 @@ export default function MetricsPage() {
       </div>
       </div>
     </main>
+    </div>
   );
 }
