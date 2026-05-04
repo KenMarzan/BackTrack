@@ -48,7 +48,7 @@ function RecentDeployment({
   onDismissRollback,
 }: {
   rollbackEvents?: RollbackEvent[];
-  onDismissRollback?: (id: number) => void;
+  onDismissRollback?: (id: string) => void;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"k8s" | "backtrack">("k8s");

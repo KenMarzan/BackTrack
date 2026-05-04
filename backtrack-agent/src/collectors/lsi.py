@@ -87,7 +87,26 @@ class LSICollector:
         """Start the background log tailing loop."""
         self._running = True
         self._task = asyncio.create_task(self._tail_loop())
+        asyncio.create_task(self._partial_fit_watchdog())
         logger.info("LSI collector started for %s (mode=%s)", self.service_name, config.mode)
+
+    async def _partial_fit_watchdog(self) -> None:
+        """Fit with whatever corpus we have after 120s if still not fitted.
+        Handles sparse loggers (Prometheus, Grafana) that never reach CORPUS_SIZE."""
+        await asyncio.sleep(120)
+        if not self._running or self.fitted:
+            return
+        if len(self.corpus) >= 10:
+            logger.info(
+                "LSI partial fit for %s: corpus=%d lines (below target %d, fitting anyway)",
+                self.service_name, len(self.corpus), CORPUS_SIZE,
+            )
+            self._fit()
+        else:
+            logger.warning(
+                "LSI corpus too sparse for %s after 120s (%d lines) — skipping fit",
+                self.service_name, len(self.corpus),
+            )
 
     async def stop(self) -> None:
         """Stop the background log tailing loop."""
@@ -284,10 +303,14 @@ class LSICollector:
         while self._running:
             try:
                 if config.mode == "docker":
-                    import docker
-                    client = docker.from_env()
-                    container = client.containers.get(self.service_name)
-                    logs = container.logs(tail=20).decode("utf-8", errors="replace")
+                    proc = await asyncio.create_subprocess_exec(
+                        "docker", "logs", "--tail", "20",
+                        self.service_name,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.STDOUT,
+                    )
+                    stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+                    logs = stdout.decode("utf-8", errors="replace")
                 else:
                     proc = await asyncio.create_subprocess_exec(
                         "kubectl", "logs",

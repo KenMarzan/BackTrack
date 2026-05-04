@@ -189,11 +189,13 @@ async def shutdown() -> None:
 
 @app.get("/health")
 async def health() -> dict:
+    from src.collectors.tsd import MIN_READINGS_FOR_STL
     return {
         "status": "ok",
         "mode": config.mode,
         "uptime_seconds": round(time.time() - START_TIME, 1),
         "monitored_services": list(service_monitors.keys()),
+        "min_readings": MIN_READINGS_FOR_STL,
     }
 
 
