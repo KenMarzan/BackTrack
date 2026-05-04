@@ -330,11 +330,27 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
               <div className="text-[12px] text-[var(--text-muted)] px-1">Loading deployment history…</div>
             )}
             {!isLoading && deployments.length === 0 && (
-              <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-3 text-[12px] text-[var(--text-muted)]">
-                {platform === "docker"
-                  ? "No container history yet — history populates as BackTrack monitors your containers."
-                  : "No deployment history yet. Configure a Kubernetes connection and optional GitHub repo."}
-              </div>
+              platform === "docker" ? (
+                <div className="flex flex-col items-center justify-center py-8 px-4 text-center gap-3">
+                  <div className="h-12 w-12 rounded-xl border border-[var(--border-soft)] bg-white/[0.03] flex items-center justify-center">
+                    <Terminal size={20} className="text-[var(--accent-teal)] opacity-50" />
+                  </div>
+                  <div>
+                    <p className="text-[12px] font-medium text-[var(--text-secondary)] mb-1">No container history yet</p>
+                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed max-w-[200px]">
+                      History populates automatically as BackTrack monitors your containers over time.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] bt-mono bg-white/[0.02] border border-[var(--border-soft)] rounded-lg px-3 py-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-teal)] animate-pulse" />
+                    Monitoring active
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-3 text-[12px] text-[var(--text-muted)]">
+                  No deployment history yet. Configure a Kubernetes connection and optional GitHub repo.
+                </div>
+              )
             )}
 
             {deployments.map((deployment, index) => (

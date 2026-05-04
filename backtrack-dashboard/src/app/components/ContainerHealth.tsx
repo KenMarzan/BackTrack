@@ -138,7 +138,7 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
   };
 
   return (
-    <div className="bt-panel h-full flex flex-col overflow-hidden p-5">
+    <div className="bt-panel h-full flex flex-col p-5" style={{ overflow: "visible" }}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-shrink-0 mb-4">
         <div className="flex items-center gap-2">

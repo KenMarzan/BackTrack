@@ -68,7 +68,7 @@ export default function CustomSelect({
       {open && (
         <ul
           role="listbox"
-          className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border border-[var(--border-mid)] bg-[var(--bg-elevated)] shadow-lg shadow-black/40 backdrop-blur"
+          className="absolute z-[200] mt-1 w-full overflow-hidden rounded-lg border border-[var(--border-mid)] bg-[var(--bg-elevated)] shadow-lg shadow-black/40 backdrop-blur"
         >
           {options.map((opt) => {
             const isSel = opt.value === value;
