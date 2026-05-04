@@ -141,11 +141,11 @@ export default function Home() {
   }, [services]);
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-transparent">
+    <div className="h-screen w-full flex flex-col bg-transparent overflow-hidden">
       <RollbackToastStack toasts={rollbackToasts} onDismiss={handleDismissToast} />
       <Nav healthSummary={healthSummary} />
 
-      <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-4 lg:py-5 flex flex-col gap-3 lg:gap-4">
+      <main className="flex-1 min-h-0 w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-4 lg:py-5 flex flex-col gap-3 lg:gap-4 overflow-y-auto">
         {/* Status strip */}
         <section className="bt-rise flex flex-col sm:flex-row sm:items-center justify-between gap-3" style={{ animationDelay: "0ms" }}>
           <div className="flex items-center gap-3">
@@ -206,11 +206,11 @@ export default function Home() {
         )}
 
         {/* Primary grid: health + deployments */}
-        <section className="bt-rise grid grid-cols-1 xl:grid-cols-3 gap-3 lg:gap-4 min-h-[420px]" style={{ animationDelay: "80ms" }}>
-          <div className="xl:col-span-2 min-h-[420px]">
+        <section className="bt-rise flex-1 min-h-[280px] grid grid-cols-1 xl:grid-cols-3 gap-3 lg:gap-4" style={{ animationDelay: "80ms" }}>
+          <div className="xl:col-span-2 min-h-0 h-full">
             <ContainerHealth services={services} />
           </div>
-          <div className="xl:col-span-1 min-h-[280px] xl:min-h-[420px]">
+          <div className="xl:col-span-1 min-h-0 h-full">
             <RecentDeployment
               rollbackEvents={rollbackEvents}
               onDismissRollback={handleDismissRollback}
@@ -219,7 +219,7 @@ export default function Home() {
         </section>
 
         {/* Secondary grid: anomalies + containers */}
-        <section className="bt-rise h-[320px] md:h-[360px] xl:h-[380px] grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4" style={{ animationDelay: "160ms" }}>
+        <section className="bt-rise flex-shrink-0 h-[300px] md:h-[340px] xl:h-[360px] grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4" style={{ animationDelay: "160ms" }}>
           <div className="min-h-0 h-full">
             <AnomalyDetection anomalies={anomalies} onAnomalyRollback={handleAnomalyRollback} />
           </div>
@@ -228,7 +228,7 @@ export default function Home() {
           </div>
         </section>
 
-        <footer className="pt-2 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
+        <footer className="flex-shrink-0 pt-2 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
           <div className="flex items-center gap-2">
             <span className="bt-mono uppercase tracking-[0.2em]">backtrack</span>
             <span>/</span>
