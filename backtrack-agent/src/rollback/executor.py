@@ -28,7 +28,7 @@ class RollbackExecutor:
     def __init__(self, version_store: VersionStore) -> None:
         self.version_store = version_store
 
-    def trigger(self, reason: str, service_name: str = "") -> dict:
+    def trigger(self, reason: str, service_name: str = "", first_anomaly_at: str = "") -> dict:
         """
         Main entry point — rolls back to last stable version.
         service_name: the specific deployment/container to roll back (overrides config.target).
@@ -98,41 +98,56 @@ class RollbackExecutor:
             service_name=target,
             rollback_triggered_at=rollback_triggered_at,
             rollback_completed_at=rollback_completed_at,
+            first_anomaly_at=first_anomaly_at or rollback_triggered_at,
         )
 
         return result
 
     def _rollback_docker(self, stable: Snapshot, target: str = "") -> None:
-        """Docker mode: stop current container and run previous image, preserving config."""
-        import docker
-
+        """Docker mode: recreate container from previous image using docker CLI subprocess."""
         container_name = target or config.target
-        client = docker.from_env()
-        container = client.containers.get(container_name)
         image = stable.image_tag
 
-        # Capture runtime config before stopping so the restored container matches
-        host_config = container.attrs.get("HostConfig", {})
-        container_config = container.attrs.get("Config", {})
+        # Inspect current container config via CLI (no Docker SDK socket dependency)
+        inspect = subprocess.run(
+            ["docker", "inspect", container_name],
+            capture_output=True, text=True,
+        )
+        if inspect.returncode != 0:
+            raise RuntimeError(f"docker inspect failed: {inspect.stderr.strip()}")
+
+        import json as _json
+        attrs = _json.loads(inspect.stdout)[0]
+        host_config = attrs.get("HostConfig", {})
+        container_config = attrs.get("Config", {})
+
         network_mode = host_config.get("NetworkMode", "bridge")
-        port_bindings = host_config.get("PortBindings") or {}
-        env = container_config.get("Env") or []
-        binds = host_config.get("Binds") or []
+        env_list: list[str] = container_config.get("Env") or []
+        binds: list[str] = host_config.get("Binds") or []
+        port_bindings: dict = host_config.get("PortBindings") or {}
 
         logger.info("Stopping container %s ...", container_name)
-        container.stop()
-        container.remove()
+        subprocess.run(["docker", "stop", container_name], check=True)
+        subprocess.run(["docker", "rm", container_name], check=True)
+
+        # Build docker run command
+        cmd = ["docker", "run", "-d", "--name", container_name, "--network", network_mode]
+        for e in env_list:
+            cmd += ["-e", e]
+        for b in binds:
+            cmd += ["-v", b]
+        for container_port, host_ports in port_bindings.items():
+            if host_ports:
+                for hp in host_ports:
+                    host = hp.get("HostPort", "")
+                    if host:
+                        cmd += ["-p", f"{host}:{container_port}"]
+        cmd.append(image)
 
         logger.info("Starting container %s with image %s ...", container_name, image)
-        client.containers.run(
-            image,
-            detach=True,
-            name=container_name,
-            network_mode=network_mode,
-            ports=port_bindings if port_bindings else None,
-            environment=env if env else None,
-            volumes=binds if binds else None,
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
         logger.info("Docker rollback complete.")
 
     def _rollback_kubernetes(self, target: str = "") -> None:
@@ -182,16 +197,19 @@ class RollbackExecutor:
         service_name: str = "",
         rollback_triggered_at: str = "",
         rollback_completed_at: str = "",
+        first_anomaly_at: str = "",
     ) -> None:
         """Append a rollback event to the log file."""
         log_dir = os.path.dirname(ROLLBACK_LOG_FILE)
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
+        now = datetime.now(timezone.utc).isoformat()
         log_entry = {
             "id": str(uuid.uuid4()),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "rollback_triggered_at": rollback_triggered_at or datetime.now(timezone.utc).isoformat(),
-            "rollback_completed_at": rollback_completed_at or datetime.now(timezone.utc).isoformat(),
+            "timestamp": now,
+            "first_anomaly_at": first_anomaly_at or rollback_triggered_at or now,
+            "rollback_triggered_at": rollback_triggered_at or now,
+            "rollback_completed_at": rollback_completed_at or now,
             "reason": reason,
             "from_tag": from_tag,
             "to_tag": to_tag,

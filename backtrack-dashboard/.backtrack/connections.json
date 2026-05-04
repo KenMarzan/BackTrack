@@ -1,126 +1,98 @@
 [
   {
-    "id": "871b7e99-7810-4937-bf7c-80a08623c047",
+    "id": "2c9e8b06-9451-4bc4-ac2e-ae1684e80b9a",
     "status": "connected",
-    "createdAt": "2026-05-03T08:07:59.958Z",
-    "appName": "minkube",
-    "platform": "kubernetes",
+    "createdAt": "2026-05-03T14:19:26.882Z",
+    "appName": "spring-petclinic",
+    "platform": "docker",
     "architecture": "microservices",
-    "clusterName": "minikube",
+    "clusterName": "local-docker",
     "namespace": "default",
     "apiServerEndpoint": "",
-    "prometheusUrl": "",
+    "prometheusUrl": "http://localhost:9091",
     "githubBranch": "main",
     "discoveredServices": [
       {
-        "name": "adservice",
-        "namespace": "default",
+        "name": "visits-service",
         "status": "running",
         "ports": [
-          "9555:9555"
+          "0.0.0.0:8082->8082/tcp, [::]:8082->8082/tcp"
         ],
-        "source": "kubernetes"
+        "image": "springcommunity/spring-petclinic-visits-service",
+        "source": "docker"
       },
       {
-        "name": "cartservice",
-        "namespace": "default",
+        "name": "vets-service",
         "status": "running",
         "ports": [
-          "7070:7070"
+          "0.0.0.0:8083->8083/tcp, [::]:8083->8083/tcp"
         ],
-        "source": "kubernetes"
+        "image": "springcommunity/spring-petclinic-vets-service",
+        "source": "docker"
       },
       {
-        "name": "checkoutservice",
-        "namespace": "default",
+        "name": "api-gateway",
         "status": "running",
         "ports": [
-          "5050:5050"
+          "0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp"
         ],
-        "source": "kubernetes"
+        "image": "springcommunity/spring-petclinic-api-gateway",
+        "source": "docker"
       },
       {
-        "name": "currencyservice",
-        "namespace": "default",
+        "name": "customers-service",
         "status": "running",
         "ports": [
-          "7000:7000"
+          "0.0.0.0:8081->8081/tcp, [::]:8081->8081/tcp"
         ],
-        "source": "kubernetes"
+        "image": "springcommunity/spring-petclinic-customers-service",
+        "source": "docker"
       },
       {
-        "name": "emailservice",
-        "namespace": "default",
+        "name": "admin-server",
         "status": "running",
         "ports": [
-          "5000:8080"
+          "0.0.0.0:9090->9090/tcp, [::]:9090->9090/tcp"
         ],
-        "source": "kubernetes"
+        "image": "springcommunity/spring-petclinic-admin-server",
+        "source": "docker"
       },
       {
-        "name": "frontend",
-        "namespace": "default",
+        "name": "discovery-server",
         "status": "running",
         "ports": [
-          "80:8080"
+          "0.0.0.0:8761->8761/tcp, [::]:8761->8761/tcp"
         ],
-        "source": "kubernetes"
+        "image": "springcommunity/spring-petclinic-discovery-server",
+        "source": "docker"
       },
       {
-        "name": "frontend-external",
-        "namespace": "default",
+        "name": "config-server",
         "status": "running",
         "ports": [
-          "80:8080"
+          "0.0.0.0:8888->8888/tcp, [::]:8888->8888/tcp"
         ],
-        "source": "kubernetes"
+        "image": "springcommunity/spring-petclinic-config-server",
+        "source": "docker"
       },
       {
-        "name": "paymentservice",
-        "namespace": "default",
+        "name": "prometheus-server",
         "status": "running",
         "ports": [
-          "50051:50051"
+          "0.0.0.0:9091->9090/tcp, [::]:9091->9090/tcp"
         ],
-        "source": "kubernetes"
+        "image": "spring-petclinic-microservices-prometheus-server",
+        "source": "docker"
       },
       {
-        "name": "productcatalogservice",
-        "namespace": "default",
+        "name": "grafana-server",
         "status": "running",
         "ports": [
-          "3550:3550"
+          "0.0.0.0:3030->3000/tcp, [::]:3030->3000/tcp"
         ],
-        "source": "kubernetes"
-      },
-      {
-        "name": "recommendationservice",
-        "namespace": "default",
-        "status": "running",
-        "ports": [
-          "8080:8080"
-        ],
-        "source": "kubernetes"
-      },
-      {
-        "name": "redis-cart",
-        "namespace": "default",
-        "status": "running",
-        "ports": [
-          "6379:6379"
-        ],
-        "source": "kubernetes"
-      },
-      {
-        "name": "shippingservice",
-        "namespace": "default",
-        "status": "running",
-        "ports": [
-          "50051:50051"
-        ],
-        "source": "kubernetes"
+        "image": "spring-petclinic-microservices-grafana-server",
+        "source": "docker"
       }
     ]
   }
- 
 ]

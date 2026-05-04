@@ -7,7 +7,9 @@ type AgentTSDEval = {
   drift_events_total: number;
   drift_sustained: number;
   drift_spikes: number;
+  total_readings: number;
   estimated_precision: number;
+  confusion_matrix?: { TN_clean_cycles?: number };
 };
 
 type AgentLSIPerClass = {
@@ -68,12 +70,10 @@ async function fetchAgentMatrix() {
           const m = await mRes.json() as { evaluation?: AgentTSDEval };
           const ev = m.evaluation;
           if (ev) {
-            // sustained drifts = TP, spike drifts = FP
-            // TN approximated as total scrape cycles minus all drift events
             tsdAgg.tp += ev.drift_sustained ?? 0;
             tsdAgg.fp += ev.drift_spikes ?? 0;
-            // TN/FN: without ground truth, estimate TN as scrape cycles with no drift
-            // FN unknown without fault injection ground truth
+            tsdAgg.tn += ev.confusion_matrix?.TN_clean_cycles ?? Math.max(0, (ev.total_readings ?? 0) - (ev.drift_events_total ?? 0));
+            // FN unknown without fault injection ground truth — left as 0
           }
         }
 
@@ -81,15 +81,15 @@ async function fetchAgentMatrix() {
           const l = await lRes.json() as { evaluation?: AgentLSIEval };
           const ev = l.evaluation;
           if (ev?.per_class) {
-            // Aggregate ERROR + NOVEL as "anomalous" class (the detectable faults)
-            for (const cls of ["ERROR", "NOVEL"] as const) {
-              const c = ev.per_class[cls];
-              if (c) {
-                lsiAgg.tp += c.tp;
-                lsiAgg.fp += c.fp;
-                lsiAgg.fn += c.fn;
-                lsiAgg.tn += c.tn;
-              }
+            // Only ERROR class = true anomaly detection signal.
+            // NOVEL = "SVD didn't recognise pattern" which fires on any unseen log line
+            // during normal operation — inflates FP massively on healthy systems.
+            const c = ev.per_class["ERROR"];
+            if (c) {
+              lsiAgg.tp += c.tp;
+              lsiAgg.fp += c.fp;
+              lsiAgg.fn += c.fn;
+              lsiAgg.tn += c.tn;
             }
           }
         }

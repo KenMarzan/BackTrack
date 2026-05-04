@@ -1,154 +1,136 @@
 # BackTrack — Docker Hub Quick Start
 
-> If you're using BackTrack images from Docker Hub (not building from source), follow this guide.
+Pull and run BackTrack from Docker Hub — no source code needed.
 
 ---
 
 ## Prerequisites
 
 - Docker + Docker Compose installed
-- A running application (container or Kubernetes deployment)
-- Access to the BackTrack dashboard on port `3847`
+- A running application (Docker containers or Kubernetes cluster)
 
 ---
 
-## Step 1 — Download Compose File & Env Template
+## Step 1 — Download the Compose File
 
 ```bash
 mkdir backtrack && cd backtrack
 
-# Download the Docker Hub compose (no source code required)
 curl -O https://raw.githubusercontent.com/KenMarzan/BackTrack/main/docker-compose.hub.yml
+```
 
-# Download env template
-curl -O https://raw.githubusercontent.com/KenMarzan/BackTrack/main/.env.example
-cp .env.example .env
+No `.env` file required — all defaults work out of the box.
+
+---
+
+## Step 2 — Start BackTrack
+
+```bash
+docker compose -f docker-compose.hub.yml up -d
+```
+
+Both containers start in ~10 seconds. Check status:
+
+```bash
+docker compose -f docker-compose.hub.yml ps
+```
+
+Both should show `Up (healthy)`.
+
+---
+
+## Step 3 — Open the Dashboard
+
+```
+http://localhost:3847
 ```
 
 ---
 
-## Step 2 — Configure `.env`
+## Step 4 — Connect Your Application
 
-Edit `.env` with the values you know at startup. The dashboard's **Configure Cluster** flow can fill in the target later.
+Click **Configure Cluster** (top-right) and fill in the form:
 
-### Required at startup
+### Docker mode
 
-```env
-BACKTRACK_IMAGE_TAG=latest                 # Your app's current image tag
-BACKTRACK_MODE=docker                      # or kubernetes
-```
+| Field | What to enter |
+|---|---|
+| Application name | Your Docker Compose project name, or any container name |
+| Platform | `Docker` |
+| Architecture | `Microservices` (multiple containers) or `Monolith` (single container) |
+| Prometheus URL | Optional — `http://host.docker.internal:<port>` if your app exposes Prometheus |
 
-### Optional now, can be set in the dashboard later
+> **How discovery works:** BackTrack searches by Docker Compose project label first, then by container name/image match. You don't need to type exact container names — typing the compose project name finds all services automatically.
 
-```env
-BACKTRACK_TARGET=                           # Leave blank until Configure Cluster runs
-```
+> **Prometheus URL:** Use `host.docker.internal` instead of `localhost` — e.g. `http://host.docker.internal:9091`. Inside Docker, `localhost` refers to the container, not your machine.
 
-If you already know the target and want to prefill it, you can still set it now.
+### Kubernetes mode
 
-Find your container name:
-```bash
-docker ps --format "{{.Names}}"
-```
+| Field | What to enter |
+|---|---|
+| Application name | Any label for this cluster |
+| Platform | `Kubernetes` |
+| Namespace | Your deployment namespace (default: `default`) |
+| Prometheus URL | Optional — your cluster's Prometheus endpoint |
 
-### For Kubernetes Mode (monitoring a deployment)
+**Required:** Mount your kubeconfig into both containers. Uncomment these lines in `docker-compose.hub.yml`:
 
-```env
-BACKTRACK_IMAGE_TAG=v1.2.3                 # Your app's current image tag
-BACKTRACK_MODE=kubernetes
-BACKTRACK_K8S_NAMESPACE=default             # Your namespace
-```
-
-If you want to prefill the deployment target, you may set:
-
-```env
-BACKTRACK_TARGET=my-deployment             # Optional until you use Configure Cluster
-```
-
-Find your deployments:
-```bash
-kubectl get deployments -n default
-```
-
-**Optional but recommended:** Add kubeconfig mount to `docker-compose.hub.yml`:
-
-In the `backtrack-dashboard` and `backtrack-agent` services, uncomment:
 ```yaml
+# In both backtrack-dashboard and backtrack-agent services:
 volumes:
   - ~/.kube:/root/.kube:ro
 ```
 
 Then restart:
+
 ```bash
 docker compose -f docker-compose.hub.yml down
 docker compose -f docker-compose.hub.yml up -d
 ```
 
-### Optional: GitHub Token
+> **Important:** Your kubeconfig must use a cluster address reachable from inside Docker — not `127.0.0.1` or `localhost`. Use the actual cluster IP or hostname. Check with:
+> ```bash
+> kubectl cluster-info
+> ```
+> If it shows `127.0.0.1`, you need to use the container/node IP instead.
 
-To enable the "Recent Deployments" panel, add your token:
+> **Kubernetes TSD metrics** require `metrics-server` to be installed in your cluster. Without it, CPU/memory will show as 0 but anomaly detection via logs (LSI) still works. Install with:
+> ```bash
+> kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+> ```
 
-```env
-GITHUB_TOKEN=ghp_xxxxx     # Your GitHub personal access token
-```
-
----
-
-## Step 3 — Start BackTrack
-
-```bash
-docker compose -f docker-compose.hub.yml up -d
-```
-
-Check logs:
-```bash
-docker compose -f docker-compose.hub.yml logs -f
-```
+Click **Test Connection** first to confirm services are found, then **Connect**.
 
 ---
 
-## Step 4 — Open the Dashboard
+## Step 5 — Verify Everything Works
 
-Open your browser:
+After connecting:
+
+| What to check | Where |
+|---|---|
+| Services listed | Dashboard → Active Containers |
+| CPU/Memory data | Dashboard → Container Health charts (appears within 10s) |
+| Agent online | Anomalies page → green "Agent Online" badge |
+| TSD metrics | Anomalies page → service detail → TSD tab (needs ~2 min) |
+| LSI log analysis | Anomalies page → service detail → LSI tab (fills from log history immediately) |
+
+---
+
+## Optional — GitHub Token
+
+To enable the deployment history panel, add your token to `docker-compose.hub.yml`:
+
+```yaml
+environment:
+  - GITHUB_TOKEN=ghp_your_token_here
 ```
-http://localhost:3847
-```
 
-You should see:
-- **Agent status**: "Agent Online" (green badge on Anomalies page after ~10s)
-- **Active Containers**: Your app listed in the top table
-- **CPU/Memory charts**: Begin populating after ~20s
+Then restart: `docker compose -f docker-compose.hub.yml up -d`
 
 ---
 
-## Step 5 — Optional: Configure via Dashboard
-
-Use this step to finish setup when you left `BACKTRACK_TARGET` empty at startup, or to change the target later:
-
-1. Click **Configure Cluster** (top-right button)
-2. Select your **Platform** and **Architecture**
-3. Enter your **Application name** / **Namespace**
-4. Click **Test Connection** → **Connect**
-
-The agent will hot-reload to monitor the new services without a restart.
-
----
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| Agent won't start | Check `.env` exists, `BACKTRACK_MODE` matches your setup, and the dashboard container is reachable. `BACKTRACK_TARGET` may be blank until you use Configure Cluster. Run `docker compose -f docker-compose.hub.yml logs backtrack-agent` |
-| "Agent Offline" badge | Agent container crashed. Check logs: `docker compose -f docker-compose.hub.yml logs backtrack-agent` |
-| No containers/pods showing | Wrong `BACKTRACK_TARGET` or wrong namespace. Run `docker ps` or `kubectl get deployments -n <namespace>` to verify. |
-| Permission denied on docker.sock | Docker socket mount failed. Ensure `/var/run/docker.sock` exists and your user can access it: `ls -l /var/run/docker.sock` |
-| Kubeconfig errors (K8s mode) | Mount `~/.kube:/root/.kube:ro` in both services. Verify kubeconfig with `kubectl cluster-info`. |
-
----
-
-## Updating Images
-
-When new versions are pushed to Docker Hub:
+## Updating to the Latest Version
 
 ```bash
 docker compose -f docker-compose.hub.yml pull
@@ -158,8 +140,35 @@ docker compose -f docker-compose.hub.yml up -d
 
 ---
 
+## Troubleshooting
+
+| Issue | Fix |
+|---|---|
+| `Agent Offline` badge | Check agent logs: `docker compose -f docker-compose.hub.yml logs backtrack-agent` |
+| No services found | Verify containers are running: `docker ps`. Make sure app name matches compose project name or container name. |
+| CPU/Memory shows 0 (Docker) | Docker socket not accessible. Check: `docker compose -f docker-compose.hub.yml exec backtrack-agent docker ps` |
+| CPU/Memory shows 0 (Kubernetes) | `metrics-server` not installed. LSI log analysis still works. |
+| Prometheus URL not working | Use `http://host.docker.internal:<port>` not `http://localhost:<port>` |
+| Kubeconfig errors | Ensure kubeconfig uses a non-localhost cluster address. Mount: `~/.kube:/root/.kube:ro` |
+| `Permission denied` on docker.sock | Add your user to the docker group: `sudo usermod -aG docker $USER` then log out and back in |
+| Agent container unhealthy | Usually a slow start — wait 30s. Check: `docker compose -f docker-compose.hub.yml logs backtrack-agent \| tail -20` |
+| Only one connection per platform | By design — connecting a new Docker app replaces the previous Docker connection. Each platform keeps one active cluster. |
+
+---
+
+## Useful Endpoints
+
+```bash
+# Agent health + monitored services
+curl http://localhost:8847/health
+curl http://localhost:8847/services
+
+# Rollback history
+curl http://localhost:8847/rollback/history
+```
+
+---
+
 ## Support
 
-- **Dashboard**: http://localhost:3847
-- **Agent API**: http://localhost:8847/health
-- **GitHub**: https://github.com/KenMarzan/BackTrack/issues
+- **GitHub Issues**: https://github.com/KenMarzan/BackTrack/issues
