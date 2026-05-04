@@ -294,7 +294,7 @@ export default function Home() {
                 <ContainerHealth services={services} />
               </div>
               <div className="xl:col-span-1 min-h-0 h-full">
-                <RecentDeployment rollbackEvents={rollbackEvents} onDismissRollback={handleDismissRollback} />
+                <RecentDeployment rollbackEvents={rollbackEvents} onDismissRollback={handleDismissRollback} platform={services[0]?.platform} />
               </div>
             </section>
 

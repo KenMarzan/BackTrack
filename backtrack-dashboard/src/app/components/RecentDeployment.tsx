@@ -46,9 +46,11 @@ type HistoryResponse = {
 function RecentDeployment({
   rollbackEvents = [],
   onDismissRollback,
+  platform,
 }: {
   rollbackEvents?: RollbackEvent[];
   onDismissRollback?: (id: string) => void;
+  platform?: string;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"k8s" | "backtrack">("k8s");
@@ -222,7 +224,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
           onClick={() => setActiveTab("k8s")}
           className={`flex-1 bt-tab text-center text-[11.5px] ${activeTab === "k8s" ? "bt-tab-active" : ""}`}
         >
-          K8s History
+          {platform === "docker" ? "Docker History" : "K8s History"}
         </button>
         <button
           type="button"
@@ -314,7 +316,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
         </div>
       )}
 
-      {/* ── K8s History tab ── */}
+      {/* ── K8s / Docker History tab ── */}
       {activeTab === "k8s" && (
         <>
           {message && (
@@ -329,7 +331,9 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
             )}
             {!isLoading && deployments.length === 0 && (
               <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-3 text-[12px] text-[var(--text-muted)]">
-                No deployment history yet. Configure a Kubernetes connection and optional GitHub repo.
+                {platform === "docker"
+                  ? "No container history yet — history populates as BackTrack monitors your containers."
+                  : "No deployment history yet. Configure a Kubernetes connection and optional GitHub repo."}
               </div>
             )}
 

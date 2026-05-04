@@ -380,39 +380,61 @@ function Nav({ healthSummary }: NavProps) {
                 </Field>
 
                 {statusMessage ? (
-                  <div className={`rounded-xl border p-3 ${
+                  <div className={`rounded-xl border overflow-hidden ${
                     discoveredCount === 0
-                      ? "border-red-500/30 bg-red-950/30"
+                      ? "border-red-500/30 bg-red-950/20"
                       : discoveryWarning
                         ? "border-yellow-500/30 bg-yellow-950/20"
-                        : "border-[var(--border-mid)] bg-[#0f1621]"
+                        : "border-[rgba(94,234,212,0.25)] bg-[rgba(94,234,212,0.04)]"
                   }`}>
-                    <p className="text-xs text-[var(--text-primary)]">{statusMessage}</p>
-                    {discoveredCount !== null && discoveredCount > 0 ? (
-                      <p className="text-xs text-[var(--accent-green)] mt-1 bt-mono">
-                        ✓ discovered {discoveredCount} service{discoveredCount === 1 ? "" : "s"}
-                      </p>
-                    ) : null}
-                    {discoveryWarning ? (
-                      <p className="text-xs text-yellow-400 mt-1">⚠ {discoveryWarning}</p>
-                    ) : null}
-                    {availableNames && availableNames.length > 0 ? (
-                      <div className="mt-2">
-                        <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider mb-1">
-                          Available names
-                        </p>
-                        <div className="flex flex-wrap gap-1">
+                    {/* Status header */}
+                    <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-white/[0.05]">
+                      {discoveredCount !== null && discoveredCount > 0 ? (
+                        <>
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[rgba(94,234,212,0.15)]">
+                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><polyline points="1.5 6 4.5 9 10.5 3" stroke="#5eead4" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          </span>
+                          <span className="text-[12px] font-semibold text-[var(--accent-teal)]">
+                            {discoveredCount} service{discoveredCount === 1 ? "" : "s"} discovered
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500/15">
+                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><line x1="2" y1="2" x2="10" y2="10" stroke="#f87171" strokeWidth="1.8" strokeLinecap="round"/><line x1="10" y1="2" x2="2" y2="10" stroke="#f87171" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                          </span>
+                          <span className="text-[12px] font-semibold text-red-400">No services found</span>
+                        </>
+                      )}
+                      {discoveryWarning && (
+                        <span className="ml-auto text-[10px] text-yellow-400 flex items-center gap-1">⚠ warning</span>
+                      )}
+                    </div>
+
+                    {/* Service chips grid */}
+                    {availableNames && availableNames.length > 0 && (
+                      <div className="px-3 py-2.5">
+                        <p className="text-[9.5px] text-[var(--text-muted)] uppercase tracking-[0.14em] mb-2">Discovered containers</p>
+                        <div className="flex flex-wrap gap-1.5">
                           {availableNames.slice(0, 12).map((name) => (
-                            <code key={name} className="text-[10px] bt-mono text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded px-1.5 py-0.5">
+                            <span key={name} className="inline-flex items-center gap-1.5 bt-mono text-[10.5px] text-[var(--accent-teal)] bg-[rgba(94,234,212,0.07)] border border-[rgba(94,234,212,0.2)] rounded-lg px-2 py-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-teal)]" />
                               {name}
-                            </code>
+                            </span>
                           ))}
-                          {availableNames.length > 12 ? (
-                            <span className="text-[10px] text-[var(--text-muted)]">+{availableNames.length - 12} more</span>
-                          ) : null}
+                          {availableNames.length > 12 && (
+                            <span className="text-[10px] text-[var(--text-muted)] self-center">+{availableNames.length - 12} more</span>
+                          )}
                         </div>
                       </div>
-                    ) : null}
+                    )}
+
+                    {/* Warning / error message */}
+                    {(discoveryWarning || (discoveredCount === 0)) && (
+                      <div className="px-3 pb-2.5">
+                        <p className="text-[11px] text-[var(--text-muted)]">{discoveryWarning || statusMessage}</p>
+                      </div>
+                    )}
                   </div>
                 ) : null}
 
