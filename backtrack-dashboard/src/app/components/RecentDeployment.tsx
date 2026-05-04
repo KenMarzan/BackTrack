@@ -325,7 +325,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
             </div>
           )}
 
-<div className="space-y-1.5 overflow-y-auto scrollbar-hide flex-1 min-h-0">
+<div className="space-y-1.5 overflow-y-auto scrollbar-hide flex-1 min-h-0 h-full">
             {isLoading && (
               <div className="text-[12px] text-[var(--text-muted)] px-1">Loading deployment history…</div>
             )}
