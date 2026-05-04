@@ -551,10 +551,10 @@ function ServiceDiagnosticsPage() {
   const pendingVersion = versions.find((v) => v.status === "PENDING");
   const currentVersion = pendingVersion || versions[0];
 
-  const cpuResiduals = tsd?.residuals.cpu ?? [];
-  const memResiduals = tsd?.residuals.memory ?? [];
-  const latResiduals = tsd?.residuals.latency ?? [];
-  const errResiduals = tsd?.residuals.error_rate ?? [];
+  const cpuResiduals = tsd?.residuals?.cpu ?? [];
+  const memResiduals = tsd?.residuals?.memory ?? [];
+  const latResiduals = tsd?.residuals?.latency ?? [];
+  const errResiduals = tsd?.residuals?.error_rate ?? [];
   const lastCpuResidual = cpuResiduals.at(-1) ?? 0;
   const lastMemResidual = memResiduals.at(-1) ?? 0;
   const lastLatResidual = latResiduals.at(-1) ?? 0;
