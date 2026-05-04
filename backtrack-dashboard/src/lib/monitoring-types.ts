@@ -48,6 +48,7 @@ export type DashboardAnomaly = {
   id: string;
   service: string;
   namespace: string;
+  platform?: PlatformType;
   severity: "critical" | "high" | "warning";
   message: string;
   metric: string;

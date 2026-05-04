@@ -1,135 +1,174 @@
-# BackTrack — Respondent Setup Checklist
+# BackTrack — Respondent Setup Guide
 
-## Prerequisites
-
-- [ ] Node.js 20 or higher installed
-- [ ] Python 3.10 or higher installed
-- [ ] `kubectl` installed and configured **OR** Docker CLI installed
-- [ ] Your application is already running (Kubernetes deployment or Docker container)
+Two ways to run BackTrack: **Docker Hub** (recommended, no setup) or **from GitHub source**.
 
 ---
 
-## Step 1 — Run BackTrack Dashboard
+## Option A — Docker Hub (Recommended)
+
+No Node.js, Python, or build tools required. Just Docker.
+
+### Prerequisites
+
+- Docker + Docker Compose installed
+- Your application is already running
+
+### 1. Download compose file
 
 ```bash
-# Clone or receive the BackTrack project folder, then:
+mkdir backtrack && cd backtrack
+curl -O https://raw.githubusercontent.com/KenMarzan/BackTrack/main/docker-compose.hub.yml
+```
+
+### 2. Start BackTrack
+
+```bash
+docker compose -f docker-compose.hub.yml up -d
+```
+
+### 3. Open dashboard
+
+```
+http://localhost:3847
+```
+
+### 4. Connect your application
+
+Click **Configure Cluster** (top-right) and fill in:
+
+**Docker mode:**
+
+| Field | Value |
+|---|---|
+| Application name | Your Docker Compose project name or container name |
+| Platform | `Docker` |
+| Architecture | `Microservices` or `Monolith` |
+| Prometheus URL | Optional — `http://host.docker.internal:<port>` |
+
+**Kubernetes mode:**
+
+| Field | Value |
+|---|---|
+| Application name | Any label |
+| Platform | `Kubernetes` |
+| Namespace | Your namespace (e.g. `default`) |
+
+For Kubernetes, first uncomment the kubeconfig mount in `docker-compose.hub.yml`:
+```yaml
+# In both services, uncomment:
+- ~/.kube:/root/.kube:ro
+```
+Then restart: `docker compose -f docker-compose.hub.yml down && docker compose -f docker-compose.hub.yml up -d`
+
+> **Note:** Kubeconfig must use a cluster address reachable from inside Docker — not `127.0.0.1`. Check `kubectl cluster-info` and use the actual IP.
+
+Click **Test Connection** → confirm services appear → **Connect**.
+
+---
+
+## Option B — From GitHub Source
+
+### Prerequisites
+
+| Tool | Version |
+|---|---|
+| Node.js | 20+ |
+| Python | 3.10+ |
+| Docker CLI | any (for Docker mode) |
+| kubectl | any (for Kubernetes mode) |
+
+### 1. Clone
+
+```bash
+git clone https://github.com/KenMarzan/BackTrack.git
+cd BackTrack
+```
+
+### 2. Start the dashboard
+
+```bash
+cd backtrack-dashboard
 npm install
 npm run dev
 ```
 
-Open **http://localhost:3847** in your browser.
+Open **http://localhost:3847**
 
----
+### 3. Start the agent
 
-## Step 2 — Connect Your Application
-
-1. Click **Configure Cluster** (top-right button)
-2. Fill in the form:
-
-| Field | What to enter |
-|-------|---------------|
-| Application name | Your app's name (e.g. `myapp`) |
-| Platform | `Kubernetes` or `Docker` |
-| Architecture | `Monolith` (single app) or `Microservices` |
-| Cluster name | Any label (e.g. `local-cluster`) |
-| API Server Endpoint | Run `kubectl cluster-info` to get this |
-| Namespace | Your deployment namespace (default: `default`) |
-| Service account token | Run: `kubectl create token default --duration=24h` |
-
-3. Click **Test Connection** first — confirm services are discovered
-4. Click **Connect**
-
----
-
-## Step 3 — Start the BackTrack Agent (Required for anomaly detection)
-
-The agent enables **LSI log analysis**, **TSD metric drift detection**, and **automatic rollback**.
-
-### For Kubernetes
+Open a second terminal:
 
 ```bash
-cd backtrack-agent
+cd BackTrack/backtrack-agent
+python3 -m venv .venv
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-BACKTRACK_MODE=kubernetes \
-BACKTRACK_K8S_NAMESPACE=<your-namespace> \
-BACKTRACK_TARGET=<your-deployment-name> \
-BACKTRACK_IMAGE_TAG=<current-image-tag> \
-python3 -m uvicorn src.main:app --host 0.0.0.0 --port 8847
+uvicorn src.main:app --host 0.0.0.0 --port 8847
 ```
 
-### For Docker
+Keep this terminal open — agent must stay running.
 
-```bash
-cd backtrack-agent
-pip install -r requirements.txt
+### 4. Connect your application
 
-BACKTRACK_MODE=docker \
-BACKTRACK_TARGET=<your-container-name> \
-BACKTRACK_IMAGE_TAG=<current-image-tag> \
-python3 -m uvicorn src.main:app --host 0.0.0.0 --port 8847
-```
-
-**Keep this terminal open.** The agent must stay running while you use BackTrack.
+Same as Option A Step 4 — click **Configure Cluster** in the dashboard.
 
 ---
 
-## Step 4 — Verify Everything Works
+## Verification Checklist
 
-| Check | Where to look |
-|-------|--------------|
-| Dashboard shows services | Home page → Active Containers table |
-| CPU/Memory charts populate | Home page → Container Health panel |
-| Agent online indicator | Anomalies page → green "Agent Online" badge |
-| TSD metrics appear | Anomalies page → right panel (takes ~2 min for baseline) |
-| LSI analysis appears | Anomalies page → right panel (takes ~3 min for corpus) |
+| Check | Where | Expected |
+|---|---|---|
+| Dashboard loads | http://localhost:3847 | BackTrack UI visible |
+| Services appear | Dashboard → Active Containers | Your app's containers listed |
+| CPU/Memory data | Dashboard → Container Health | Numbers populate within 10s |
+| Agent online | Anomalies page | Green "Agent Online" badge |
+| TSD metrics | Anomalies → service → TSD tab | Data after ~2 min |
+| LSI log stream | Anomalies → service → LSI tab | Corpus fills quickly from log history |
 
 ---
 
 ## Anomaly Detection Timing
 
-After the agent starts:
-
 | Milestone | Time |
-|-----------|------|
-| TSD starts collecting metrics | Immediately |
-| TSD ready for drift detection | ~2 minutes (12 readings) |
-| LSI corpus filled | ~3 minutes (200 log lines) |
+|---|---|
+| CPU/Memory metrics | ~10 seconds |
+| LSI corpus builds | Seconds (loads from log history) |
+| TSD drift detection ready | ~2 minutes (12 readings) |
+| LSI classification active | ~2–3 minutes (after corpus fits) |
 | Version marked STABLE | 10 minutes of clean operation |
-| Auto-rollback triggers | After 3 consecutive anomaly cycles (~90 seconds) |
-
----
-
-## Quick Reference — Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `BACKTRACK_TARGET` | _(required)_ | Docker container name or K8s deployment name |
-| `BACKTRACK_MODE` | auto-detected | `kubernetes` or `docker` |
-| `BACKTRACK_K8S_NAMESPACE` | `default` | Kubernetes namespace to watch |
-| `BACKTRACK_K8S_LABEL_SELECTOR` | _(optional)_ | e.g. `app=myapp` (overrides TARGET for K8s discovery) |
-| `BACKTRACK_IMAGE_TAG` | `unknown` | Current version tag for snapshot tracking |
-| `BACKTRACK_ROLLBACK_ENABLED` | `true` | Set to `false` to disable automatic rollback |
-| `BACKTRACK_TSD_IQR_MULTIPLIER` | `3.0` | Sensitivity for metric drift detection (lower = more sensitive) |
-| `BACKTRACK_LSI_SCORE_MULTIPLIER` | `2.0` | Sensitivity for log anomaly detection (lower = more sensitive) |
+| Auto-rollback triggers | 3 consecutive anomaly cycles (~30–90s) |
 
 ---
 
 ## Troubleshooting
 
-**Dashboard shows no services**
-→ Check kubectl context: `kubectl config current-context`
-→ Verify namespace: `kubectl get pods -n <namespace>`
+**No services found after connecting**
+- Docker: `docker ps` — confirm containers are running
+- Make sure app name matches the Docker Compose project name or a container name
+- Kubernetes: `kubectl get pods -n <namespace>` — confirm pods exist
 
-**Agent offline badge on Anomalies page**
-→ Agent not running — follow Step 3
-→ Confirm agent is on port 8847: `curl http://localhost:8847/health`
+**Agent Offline badge**
+- Source install: confirm agent terminal is still running on port 8847
+- Hub install: `docker compose -f docker-compose.hub.yml logs backtrack-agent`
+- Test: `curl http://localhost:8847/health`
 
-**TSD/LSI panels empty after 5 minutes**
-→ Check agent logs in the terminal where you ran `python3 -m uvicorn ...`
-→ Verify `BACKTRACK_TARGET` matches the actual container/deployment name exactly
+**CPU/Memory shows 0 (Docker mode)**
+- Hub install: Docker socket not accessible in container — check `docker compose -f docker-compose.hub.yml exec backtrack-agent docker ps`
+- Source install: Docker CLI must be in PATH — `which docker`
+
+**CPU/Memory shows 0 (Kubernetes mode)**
+- `metrics-server` not installed in cluster — log analysis (LSI) still works without it
+- Install: `kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml`
+
+**Prometheus URL not working (Hub install)**
+- Use `http://host.docker.internal:<port>` not `http://localhost:<port>`
+
+**TSD/LSI panels empty after 5+ minutes**
+- Source: verify agent is running — check the terminal
+- Both: verify Configure Cluster was clicked and showed discovered services
+- Check: `curl http://localhost:8847/services`
 
 **Rollback not triggering**
-→ Both TSD drift AND LSI anomaly must be true for 3 consecutive cycles
-→ Check `BACKTRACK_ROLLBACK_ENABLED` is not set to `false`
-→ View rollback history: `curl http://localhost:8847/rollback/history`
+- Check `BACKTRACK_ROLLBACK_ENABLED` is not `false`
+- Both TSD drift AND LSI anomaly must occur for 3 consecutive cycles
+- View history: `curl http://localhost:8847/rollback/history`

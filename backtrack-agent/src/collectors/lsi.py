@@ -87,7 +87,26 @@ class LSICollector:
         """Start the background log tailing loop."""
         self._running = True
         self._task = asyncio.create_task(self._tail_loop())
+        asyncio.create_task(self._partial_fit_watchdog())
         logger.info("LSI collector started for %s (mode=%s)", self.service_name, config.mode)
+
+    async def _partial_fit_watchdog(self) -> None:
+        """Fit with whatever corpus we have after 120s if still not fitted.
+        Handles sparse loggers (Prometheus, Grafana) that never reach CORPUS_SIZE."""
+        await asyncio.sleep(120)
+        if not self._running or self.fitted:
+            return
+        if len(self.corpus) >= 10:
+            logger.info(
+                "LSI partial fit for %s: corpus=%d lines (below target %d, fitting anyway)",
+                self.service_name, len(self.corpus), CORPUS_SIZE,
+            )
+            self._fit()
+        else:
+            logger.warning(
+                "LSI corpus too sparse for %s after 120s (%d lines) — skipping fit",
+                self.service_name, len(self.corpus),
+            )
 
     async def stop(self) -> None:
         """Stop the background log tailing loop."""
@@ -108,28 +127,54 @@ class LSICollector:
             await self._tail_kubernetes()
 
     async def _tail_docker(self) -> None:
-        """Tail logs from Docker container using Docker SDK."""
+        """Tail logs from Docker container using docker logs CLI (works with any socket location)."""
+        # Step 1: snapshot existing log history to fill corpus fast
         try:
-            import docker
-
-            client = docker.from_env()
-            container = client.containers.get(self.service_name)
-            log_stream = container.logs(stream=True, follow=True, tail=0)
-
-            for raw_line in log_stream:
+            snap = await asyncio.create_subprocess_exec(
+                "docker", "logs", "--tail", "500",
+                self.service_name,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            stdout, _ = await asyncio.wait_for(snap.communicate(), timeout=15)
+            for raw_line in stdout.splitlines():
                 if not self._running:
-                    break
+                    return
                 line = raw_line.decode("utf-8", errors="replace").strip()
-                if not line:
-                    continue
-                await self._process_line(line)
-                # Yield control to event loop periodically
-                await asyncio.sleep(0)
-
+                if line:
+                    await self._process_line(line)
+                    await asyncio.sleep(0)  # yield to event loop between lines
         except Exception:
-            logger.exception("Docker log tailing failed for target=%s", self.service_name)
-            # Fall back to polling logs
-            await self._poll_logs_fallback()
+            logger.warning("Docker log snapshot failed for %s", self.service_name)
+
+        # Step 2: follow live log stream for ongoing anomaly detection
+        proc = None
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "docker", "logs", "--follow", "--tail", "0",
+                self.service_name,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            assert proc.stdout is not None
+            while self._running:
+                try:
+                    raw_line = await asyncio.wait_for(proc.stdout.readline(), timeout=30)
+                    if not raw_line:
+                        break
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if line:
+                        await self._process_line(line)
+                except asyncio.TimeoutError:
+                    continue  # quiet service — keep waiting
+        except Exception:
+            logger.exception("Docker log tailing failed for %s", self.service_name)
+        finally:
+            if proc and proc.returncode is None:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
 
     async def _resolve_pod_name(self) -> Optional[str]:
         """Find a pod whose name contains the service name. More robust than label selectors."""
@@ -258,10 +303,14 @@ class LSICollector:
         while self._running:
             try:
                 if config.mode == "docker":
-                    import docker
-                    client = docker.from_env()
-                    container = client.containers.get(self.service_name)
-                    logs = container.logs(tail=20).decode("utf-8", errors="replace")
+                    proc = await asyncio.create_subprocess_exec(
+                        "docker", "logs", "--tail", "20",
+                        self.service_name,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.STDOUT,
+                    )
+                    stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+                    logs = stdout.decode("utf-8", errors="replace")
                 else:
                     proc = await asyncio.create_subprocess_exec(
                         "kubectl", "logs",
@@ -351,6 +400,28 @@ class LSICollector:
         except Exception:
             logger.exception("LSI fit failed")
 
+    _STRUCTURED_LEVELS = {
+        "ERROR": "ERROR", "FATAL": "ERROR", "CRITICAL": "ERROR",
+        "WARN": "WARN", "WARNING": "WARN",
+        "INFO": "INFO", "DEBUG": "INFO", "TRACE": "INFO",
+    }
+
+    def _extract_structured_level(self, line: str) -> Optional[str]:
+        """Parse log level from structured log formats (Spring Boot, logback, Python, etc).
+
+        Checks the first 5 whitespace tokens — covers:
+          Spring Boot:  2026-05-03T13:31:35Z INFO 1 --- ...
+          Logback:      13:31:35.668 [thread] INFO  c.example ...
+          Python:       2026-05-03 13:31:35 INFO backtrack: ...
+        """
+        parts = line.split(None, 5)
+        for token in parts[:5]:
+            upper = token.upper().rstrip(":[]")
+            mapped = self._STRUCTURED_LEVELS.get(upper)
+            if mapped:
+                return mapped
+        return None
+
     def _keyword_classify(self, line: str) -> Optional[str]:
         """Fast-path: return ERROR/WARN if seed keywords hit, else None for SVD path."""
         lower = line.lower()
@@ -360,35 +431,54 @@ class LSICollector:
         return None
 
     def _classify(self, line: str) -> str:
-        """Classify a single log line. Keyword pre-check, then SVD cosine similarity."""
-        kw = self._keyword_classify(line)
+        """Classify a single log line.
 
+        Priority order:
+          1. Structured level (INFO/WARN/ERROR embedded in the log line) — most accurate
+          2. Seed keyword match — fast path for unstructured logs
+          3. SVD cosine similarity — semantic fallback
+        """
+        # Priority 1: trust the logger — if the line says INFO it's INFO
+        structured = self._extract_structured_level(line)
+        if structured:
+            ref = structured
+            if not self.vectorizer or not self.svd or not self.centroids:
+                return structured
+            # Still run SVD to update confusion matrix, but don't override structured level
+            try:
+                vec = self.vectorizer.transform([line])
+                latent = self.svd.transform(vec)
+                scores: dict[str, float] = {}
+                for label, centroid in self.centroids.items():
+                    sim = cosine_similarity(latent, centroid.reshape(1, -1))[0][0]
+                    scores[label] = float(sim)
+                best_label = max(scores, key=scores.get)  # type: ignore[arg-type]
+                self._svd_classified_count += 1
+                self._confusion[ref][best_label] += 1
+            except Exception:
+                pass
+            return structured
+
+        # Priority 2: keyword match for unstructured logs
+        kw = self._keyword_classify(line)
         if not self.vectorizer or not self.svd or not self.centroids:
             return kw or "INFO"
 
+        # Priority 3: SVD semantic similarity
         try:
             vec = self.vectorizer.transform([line])
             latent = self.svd.transform(vec)
-
-            scores: dict[str, float] = {}
+            scores = {}
             for label, centroid in self.centroids.items():
                 sim = cosine_similarity(latent, centroid.reshape(1, -1))[0][0]
                 scores[label] = float(sim)
-
             best_label = max(scores, key=scores.get)  # type: ignore[arg-type]
             best_score = scores[best_label]
             svd_label = best_label if best_score > SVD_SIMILARITY_THRESHOLD else "NOVEL"
-
             self._svd_classified_count += 1
-
-            # Build confusion matrix: keyword = reference, SVD = predicted
-            # For lines with no keyword match, treat SVD result as INFO reference baseline
             ref = kw if kw else "INFO"
             self._confusion[ref][svd_label] += 1
-
-            # If keyword matched, return keyword (fast path takes priority)
             return kw if kw else svd_label
-
         except Exception:
             return kw or "INFO"
 

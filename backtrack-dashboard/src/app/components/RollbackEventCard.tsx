@@ -3,7 +3,7 @@
 import { Check, X } from "lucide-react";
 
 export type RollbackEvent = {
-  id: number;
+  id: string;
   service: string;
   fromVersion: string;
   toVersion: string;
@@ -16,7 +16,7 @@ export type RollbackEvent = {
 
 type Props = {
   event: RollbackEvent;
-  onDismiss: (id: number) => void;
+  onDismiss: (id: string) => void;
 };
 
 const ROW: Array<{ label: string; value: (e: RollbackEvent) => string }> = [

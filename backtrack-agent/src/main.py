@@ -46,6 +46,7 @@ STABLE_THRESHOLD_SECONDS = int(os.getenv("BACKTRACK_STABLE_SECONDS", "600"))
 consecutive_anomaly_counts: dict[str, int] = {}
 clean_seconds_map: dict[str, int] = {}
 rollback_cooldown_until: dict[str, float] = {}
+first_anomaly_at: dict[str, str] = {}  # ISO timestamp of first detection per service
 
 
 async def _discover_services() -> list[tuple[str, str]]:
@@ -87,7 +88,7 @@ ROLLBACK_COOLDOWN_SECONDS = int(os.getenv("BACKTRACK_ROLLBACK_COOLDOWN", "120"))
 
 
 async def polling_loop() -> None:
-    global consecutive_anomaly_counts, clean_seconds_map, rollback_cooldown_until, version_store, rollback_executor
+    global consecutive_anomaly_counts, clean_seconds_map, rollback_cooldown_until, first_anomaly_at, version_store, rollback_executor
 
     while True:
         await asyncio.sleep(config.scrape_interval)
@@ -95,11 +96,34 @@ async def polling_loop() -> None:
             for svc_name, (tsd, lsi) in service_monitors.items():
                 drifting = tsd.is_drifting()
                 anomalous = lsi.is_anomalous()
+                crashed = tsd.has_crashed()
 
                 count = consecutive_anomaly_counts.get(svc_name, 0)
                 clean = clean_seconds_map.get(svc_name, 0)
 
                 in_cooldown = time.time() < rollback_cooldown_until.get(svc_name, 0)
+
+                # Crash/restart detected → immediate rollback, no 3-cycle wait
+                if crashed and not in_cooldown and rollback_executor:
+                    exit_code = tsd._last_exit_code
+                    logger.critical(
+                        "CRASH ROLLBACK for %s — container restarted (exit_code=%d)",
+                        svc_name, exit_code,
+                    )
+                    if not first_anomaly_at.get(svc_name):
+                        from datetime import datetime, timezone
+                        first_anomaly_at[svc_name] = datetime.now(timezone.utc).isoformat()
+                    rollback_executor.trigger(
+                        reason=f"Container crash/restart detected for {svc_name} (exit_code={exit_code})",
+                        service_name=svc_name,
+                        first_anomaly_at=first_anomaly_at.get(svc_name),
+                    )
+                    rollback_cooldown_until[svc_name] = time.time() + ROLLBACK_COOLDOWN_SECONDS
+                    first_anomaly_at.pop(svc_name, None)
+                    consecutive_anomaly_counts[svc_name] = 0
+                    clean_seconds_map[svc_name] = 0
+                    continue
+
                 if drifting or anomalous:
                     if in_cooldown:
                         logger.info("Anomaly [%s] suppressed — rollback cooldown active.", svc_name)
@@ -107,16 +131,25 @@ async def polling_loop() -> None:
                         count += 1
                         clean = 0
                         signals = "+".join(filter(None, ["TSD" if drifting else "", "LSI" if anomalous else ""]))
+                        # Record timestamp of first detection in this anomaly run
+                        if count == 1:
+                            from datetime import datetime, timezone
+                            first_anomaly_at[svc_name] = datetime.now(timezone.utc).isoformat()
+                            logger.warning("Anomaly [%s] FIRST DETECTION at %s", svc_name, first_anomaly_at[svc_name])
                         logger.warning("Anomaly [%s] signals=%s cycle %d/3", svc_name, signals, count)
                         if count >= 3 and rollback_executor:
                             logger.critical("ROLLBACK for %s — 3 consecutive anomaly cycles (%s).", svc_name, signals)
                             rollback_executor.trigger(
                                 reason=f"{signals} anomaly on {svc_name} for 3 cycles",
                                 service_name=svc_name,
+                                first_anomaly_at=first_anomaly_at.get(svc_name),
                             )
                             rollback_cooldown_until[svc_name] = time.time() + ROLLBACK_COOLDOWN_SECONDS
+                            first_anomaly_at.pop(svc_name, None)
                             count = 0
                 else:
+                    if count > 0:
+                        first_anomaly_at.pop(svc_name, None)
                     count = 0
                     clean += config.scrape_interval
                     if clean >= STABLE_THRESHOLD_SECONDS and version_store:
@@ -189,11 +222,13 @@ async def shutdown() -> None:
 
 @app.get("/health")
 async def health() -> dict:
+    from src.collectors.tsd import MIN_READINGS_FOR_STL
     return {
         "status": "ok",
         "mode": config.mode,
         "uptime_seconds": round(time.time() - START_TIME, 1),
         "monitored_services": list(service_monitors.keys()),
+        "min_readings": MIN_READINGS_FOR_STL,
     }
 
 
@@ -210,6 +245,9 @@ async def get_services() -> list[dict]:
             "name": svc_name,
             "is_drifting": tsd.is_drifting(),
             "is_anomalous": lsi.is_anomalous(),
+            "has_crashed": tsd.has_crashed(),
+            "restart_count": tsd._last_restart_count,
+            "last_exit_code": tsd._last_exit_code,
             "readings_count": len(tsd.cpu_history),
             "lsi_fitted": lsi.fitted,
         })
@@ -294,7 +332,7 @@ async def reconfigure(body: dict) -> dict:
         d.clear()
 
     # Build service list — prefer explicit list from dashboard (one entry per service)
-    if explicit_services and config.mode != "docker":
+    if explicit_services:
         services = [(svc, f"app={svc}") for svc in explicit_services]
         logger.info("Using %d explicit services from dashboard: %s", len(services), explicit_services)
     else:

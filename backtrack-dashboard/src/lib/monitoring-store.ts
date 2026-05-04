@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { AppConnection, AppConnectionInput } from "./monitoring-types";
 
+let _writeLock: Promise<void> = Promise.resolve();
+
 const DATA_DIR = path.join(process.cwd(), ".backtrack");
 const CONNECTIONS_FILE = path.join(DATA_DIR, "connections.json");
 
@@ -103,6 +105,11 @@ function writeConnections(connections: AppConnection[]) {
 	fs.writeFileSync(CONNECTIONS_FILE, JSON.stringify(connections, null, 2));
 }
 
+function writeConnectionsQueued(connections: AppConnection[]): Promise<void> {
+	_writeLock = _writeLock.then(() => writeConnections(connections)).catch(() => writeConnections(connections));
+	return _writeLock;
+}
+
 export function listConnections() {
 	return readConnections();
 }
@@ -121,17 +128,8 @@ export function findConnectionByNamespace(namespace: string): AppConnection | nu
 }
 
 export function registerConnection(input: AppConnectionInput) {
-	const connections = readConnections();
-	const existingIndex = connections.findIndex(
-		(connection) =>
-			(connection.appName || "").toLowerCase() === input.appName.toLowerCase() &&
-			(connection.namespace || "").toLowerCase() === input.namespace.toLowerCase() &&
-			connection.platform === input.platform,
-	);
-
-	if (existingIndex >= 0) {
-		connections.splice(existingIndex, 1);
-	}
+	// Replace all existing connections of the same platform — one active cluster per platform.
+	const surviving = readConnections().filter((c) => c.platform !== input.platform);
 
 	const connection: AppConnection = {
 		id: crypto.randomUUID(),
@@ -140,8 +138,8 @@ export function registerConnection(input: AppConnectionInput) {
 		...input,
 	};
 
-	connections.unshift(connection);
-	writeConnections(connections);
+	surviving.unshift(connection);
+	writeConnectionsQueued(surviving);
 
 	return connection;
 }

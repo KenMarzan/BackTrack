@@ -71,9 +71,9 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
   }, [services]);
 
   const serviceOptions = useMemo(() => {
-    const unique = new Map<string, { name: string; namespace: string }>();
+    const unique = new Map<string, { name: string; namespace: string; platform: string }>();
     for (const s of services) {
-      if (!unique.has(s.id)) unique.set(s.id, { name: s.name, namespace: s.namespace });
+      if (!unique.has(s.id)) unique.set(s.id, { name: s.name, namespace: s.namespace, platform: s.platform });
     }
     return Array.from(unique.entries()).map(([id, v]) => ({ id, ...v }));
   }, [services]);
@@ -133,8 +133,8 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
   const totalRate   = services.reduce((a, s) => a + s.requestRate, 0);
   const running     = services.filter((s) => s.status === "running").length;
 
-  const handleServiceClick = (svc: { name: string; namespace: string }) => {
-    router.push(`/anomalies/${encodeURIComponent(svc.name)}?namespace=${encodeURIComponent(svc.namespace)}&severity=warning&metric=cpu&current=—&baseline=—&message=Inspecting+service`);
+  const handleServiceClick = (svc: { name: string; namespace: string; platform?: string }) => {
+    router.push(`/anomalies/${encodeURIComponent(svc.name)}?namespace=${encodeURIComponent(svc.namespace)}&severity=warning&metric=cpu&current=—&baseline=—&message=Inspecting+service&platform=${encodeURIComponent(svc.platform ?? "kubernetes")}`);
   };
 
   return (

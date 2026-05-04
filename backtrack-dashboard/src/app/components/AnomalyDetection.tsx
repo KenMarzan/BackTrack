@@ -111,7 +111,7 @@ function AnomalyDetection({ anomalies, onAnomalyRollback }: { anomalies: Dashboa
             const sev = (anomaly.severity as Severity) in SEV ? (anomaly.severity as Severity) : "warning";
             const t = SEV[sev];
 
-            const href = `/anomalies/${encodeURIComponent(anomaly.service)}?namespace=${encodeURIComponent(anomaly.namespace)}&severity=${encodeURIComponent(anomaly.severity)}&metric=${encodeURIComponent(anomaly.metric)}&current=${encodeURIComponent(anomaly.current)}&baseline=${encodeURIComponent(anomaly.baseline)}&message=${encodeURIComponent(anomaly.message)}`;
+            const href = `/anomalies/${encodeURIComponent(anomaly.service)}?namespace=${encodeURIComponent(anomaly.namespace)}&severity=${encodeURIComponent(anomaly.severity)}&metric=${encodeURIComponent(anomaly.metric)}&current=${encodeURIComponent(anomaly.current)}&baseline=${encodeURIComponent(anomaly.baseline)}&message=${encodeURIComponent(anomaly.message)}&platform=${encodeURIComponent(anomaly.platform ?? "kubernetes")}`;
 
             return (
               <Link

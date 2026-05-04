@@ -129,6 +129,7 @@ export default function AnomaliesPage() {
   const [agentOnline, setAgentOnline] = useState(false);
   const [metricsError, setMetricsError] = useState(false);
   const [clusterName, setClusterName] = useState<string>("local");
+  const [minReadings, setMinReadings] = useState<number>(12);
 
   useEffect(() => {
     fetch("/api/connections")
@@ -166,6 +167,10 @@ export default function AnomaliesPage() {
           if (!data.error) setLsi(data);
         }
 
+        if (healthRes.ok) {
+          const hData = await healthRes.json();
+          if (typeof hData.min_readings === "number") setMinReadings(hData.min_readings);
+        }
         setAgentOnline(healthRes.ok);
       } catch {
         if (active) setAgentOnline(false);
@@ -302,16 +307,16 @@ export default function AnomaliesPage() {
                         <span className="text-[9px] uppercase tracking-[0.12em] text-[var(--text-muted)] flex items-center gap-1.5">
                           <BarChart2 size={9} />STL Baseline
                         </span>
-                        <span className="bt-mono text-[9px] text-[var(--text-muted)]">{tsd.readings_count}/12</span>
+                        <span className="bt-mono text-[9px] text-[var(--text-muted)]">{tsd.readings_count}/{minReadings}</span>
                       </div>
                       <div className="h-[3px] w-full rounded-full bg-[rgba(148,163,184,0.1)] overflow-hidden">
                         <div className="h-full rounded-full transition-all duration-700" style={{
-                          width: `${Math.min((tsd.readings_count / 12) * 100, 100)}%`,
-                          background: tsd.readings_count >= 12 ? "var(--accent-teal)" : "rgba(94,234,212,0.5)",
+                          width: `${Math.min((tsd.readings_count / minReadings) * 100, 100)}%`,
+                          background: tsd.readings_count >= minReadings ? "var(--accent-teal)" : "rgba(94,234,212,0.5)",
                         }} />
                       </div>
                       <p className="text-[9px] text-[var(--text-muted)] bt-mono mt-1">
-                        {tsd.readings_count >= 12 ? "Decomposition active — Season · Trend · Residual" : `${12 - tsd.readings_count} more readings needed`}
+                        {tsd.readings_count >= minReadings ? "Decomposition active — Season · Trend · Residual" : `${minReadings - tsd.readings_count} more readings needed`}
                       </p>
                     </div>
                     {tsd.tsd_confidence !== undefined && (
@@ -413,8 +418,9 @@ export default function AnomaliesPage() {
                   })()}
 
                   {/* Anomaly Score History chart */}
-                  {lsi.score_history.length > 1 && (() => {
-                    const pts = lsi.score_history.slice(-30);
+                  {lsi.score_history.length > 0 && (() => {
+                    const rawPts = lsi.score_history.slice(-30);
+                    const pts = rawPts.length === 1 ? [rawPts[0], rawPts[0]] : rawPts;
                     const maxV = Math.max(...pts, lsi.threshold, 0.1);
                     const W = 300, H = 72, pad = 4;
                     const toX = (i: number) => pad + (i / (pts.length - 1)) * (W - pad * 2);
