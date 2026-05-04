@@ -1,6 +1,6 @@
   "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import {
   Activity,
@@ -235,7 +235,7 @@ function SparkLine({
   const P = { t: 8, b: 8, l: 4, r: 4 };
   const iW = W - P.l - P.r; const iH = H - P.t - P.b;
 
-  if (values.length < 2) {
+  if (values.length < 1) {
     return (
       <div
         className="flex items-center justify-center rounded-xl border border-white/5 bg-[#0b101a] text-[10px] text-white/25"
@@ -245,6 +245,7 @@ function SparkLine({
       </div>
     );
   }
+  if (values.length === 1) values = [values[0], values[0]];
 
   const allRef = [threshold, baseline].filter((v): v is number => v !== undefined);
   const vMin = Math.min(...values, ...allRef);
@@ -313,7 +314,7 @@ function ResidualSparkline({
   const P = { t: 8, b: 8, l: 4, r: 4 };
   const iW = W - P.l - P.r; const iH = H - P.t - P.b;
 
-  if (values.length < 2) {
+  if (values.length < 1) {
     return (
       <div
         className="flex items-center justify-center rounded-xl border border-white/5 bg-[#0b101a] text-[10px] text-white/25"
@@ -323,6 +324,7 @@ function ResidualSparkline({
       </div>
     );
   }
+  if (values.length === 1) values = [values[0], values[0]];
 
   const absMax = Math.max(...values.map(Math.abs), threshold, 0.001);
   const vMin = -absMax * 1.2; const vMax = absMax * 1.2;
@@ -423,7 +425,7 @@ function ResidualTile({
 
 // --- Main page ---
 
-export default function ServiceDiagnosticsPage() {
+function ServiceDiagnosticsPage() {
   const params = useParams();
   const searchParams = useSearchParams();
 
@@ -715,17 +717,22 @@ export default function ServiceDiagnosticsPage() {
                   <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-white/40">Residuals</div>
                   <div className="grid grid-cols-4 gap-1.5 mb-3">
                     {[
-                      { label: "CPU", value: lastCpuResidual, thr: 3 * estimateIQR(cpuResiduals) },
-                      { label: "Mem", value: lastMemResidual, thr: 3 * estimateIQR(memResiduals) },
-                      { label: "Lat", value: lastLatResidual, thr: 3 * estimateIQR(latResiduals) },
-                      { label: "Err", value: lastErrResidual, thr: 3 * estimateIQR(errResiduals) },
+                      { label: "CPU", residuals: cpuResiduals },
+                      { label: "Mem", residuals: memResiduals },
+                      { label: "Lat", residuals: latResiduals },
+                      { label: "Err", residuals: errResiduals },
                     ].map((r) => {
-                      const hot = r.thr > 0 && Math.abs(r.value) > r.thr;
+                      const iqr = estimateIQR(r.residuals);
+                      const thr = 3 * iqr;
+                      const lastAbs = Math.abs(r.residuals.at(-1) ?? 0);
+                      const hot = thr > 0 && lastAbs > thr;
+                      // Show IQR spread — more informative than last value which STL anchors to ~0
+                      const display = iqr > 0 ? `±${iqr.toFixed(3)}` : "—";
                       return (
                         <div key={r.label} className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2 text-center">
                           <div className="text-[9px] uppercase tracking-wide text-white/30">{r.label}</div>
                           <div className={`mt-0.5 text-xs font-bold ${hot ? "text-red-400" : "text-emerald-400"}`}>
-                            {(r.value > 0 ? "+" : "") + r.value.toFixed(3)}
+                            {display}
                           </div>
                         </div>
                       );
@@ -873,7 +880,9 @@ export default function ServiceDiagnosticsPage() {
                     </div>
                     <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
                       <div className="text-[9px] uppercase tracking-wide text-white/30">Baseline Mean</div>
-                      <div className="mt-0.5 text-base font-bold text-white/75">{lsi?.baseline_mean.toFixed(4) ?? "—"}</div>
+                      <div className="mt-0.5 text-base font-bold text-white/75">
+                        {(lsi && lsi.baseline_mean > 0) ? lsi.baseline_mean.toFixed(4) : <span className="text-[11px] text-white/30">warming up…</span>}
+                      </div>
                     </div>
                     <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
                       <div className="text-[9px] uppercase tracking-wide text-white/30">Threshold</div>
@@ -1491,7 +1500,9 @@ export default function ServiceDiagnosticsPage() {
           </div>
           <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
             <div className="text-[11px] uppercase tracking-wide text-white/40">Baseline Mean</div>
-            <div className="mt-1 text-2xl font-bold text-white/80">{lsi?.baseline_mean.toFixed(4) ?? "—"}</div>
+            <div className="mt-1 text-2xl font-bold text-white/80">
+              {(lsi && lsi.baseline_mean > 0) ? lsi.baseline_mean.toFixed(4) : <span className="text-sm text-white/30">warming up…</span>}
+            </div>
           </div>
           <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
             <div className="text-[11px] uppercase tracking-wide text-white/40">Threshold</div>
@@ -1696,5 +1707,13 @@ export default function ServiceDiagnosticsPage() {
         </div>
       </AnomalyModal>
     </div>
+  );
+}
+
+export default function ServiceDiagnosticsPageWrapper() {
+  return (
+    <Suspense>
+      <ServiceDiagnosticsPage />
+    </Suspense>
   );
 }

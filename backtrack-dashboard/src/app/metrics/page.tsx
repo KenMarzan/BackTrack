@@ -67,6 +67,9 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
 }
 
 function MatrixBlock({ label, cell, color }: { label: string; cell: MatrixCell; color: string }) {
+  // Detect "no anomaly events yet" — valid for healthy systems, not a bug
+  const noEvents = cell.tp === 0 && cell.fp === 0 && cell.fn === 0 && cell.tn > 0;
+
   return (
     <div className="bt-panel p-4 flex flex-col gap-3">
       <p className="text-[12px] font-semibold text-[var(--text-primary)] flex items-center gap-2">
@@ -86,19 +89,26 @@ function MatrixBlock({ label, cell, color }: { label: string; cell: MatrixCell; 
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-2 text-center">
-        {[
-          { k: "Precision", v: cell.precision },
-          { k: "Recall", v: cell.recall },
-          { k: "F1 Score", v: cell.f1 },
-          { k: "Accuracy", v: cell.accuracy },
-        ].map(({ k, v }) => (
-          <div key={k} className="rounded-lg bg-white/[0.03] border border-[var(--border-soft)] p-2">
-            <p className="text-[10px] text-[var(--text-muted)]">{k}</p>
-            <p className="text-[14px] font-semibold text-[var(--text-primary)]">{fmtPct(v)}</p>
-          </div>
-        ))}
-      </div>
+      {noEvents ? (
+        <div className="rounded-lg bg-emerald-500/[0.07] border border-emerald-500/20 px-3 py-2 text-center">
+          <p className="text-[11px] text-emerald-400 font-medium">No anomaly events — system operating nominally</p>
+          <p className="text-[10px] text-white/30 mt-0.5">Precision / Recall / F1 require at least one anomaly event to compute. Accuracy: {fmtPct(cell.accuracy)}</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 text-center">
+          {[
+            { k: "Precision", v: cell.precision },
+            { k: "Recall", v: cell.recall },
+            { k: "F1 Score", v: cell.f1 },
+            { k: "Accuracy", v: cell.accuracy },
+          ].map(({ k, v }) => (
+            <div key={k} className="rounded-lg bg-white/[0.03] border border-[var(--border-soft)] p-2">
+              <p className="text-[10px] text-[var(--text-muted)]">{k}</p>
+              <p className="text-[14px] font-semibold text-[var(--text-primary)]">{fmtPct(v)}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -476,7 +486,7 @@ export default function MetricsPage() {
               <span className="bt-chip bt-chip-violet">Manual test runs</span>
             )}
             {matrixSource === "agent" && (
-              <span className="text-[11px] text-[var(--text-muted)]">— TSD uses sustained vs spike drift · LSI uses ERROR+NOVEL keyword-vs-SVD comparison</span>
+              <span className="text-[11px] text-[var(--text-muted)]">— TSD uses sustained vs spike drift · LSI uses ERROR keyword-vs-SVD comparison</span>
             )}
           </div>
         )}

@@ -403,8 +403,8 @@ class TSDCollector:
         """
         drifting_now = False
 
-        # Flat-zero crash detection: catches containers that die and produce 0 metrics.
-        # IQR-based detection misses this because residuals of an all-zero series are 0.
+        # Raw-history anomaly detection: catches step changes that STL absorbs into trend.
+        # Uses first half of the deque as the stable baseline (oldest = pre-fault readings).
         raw_histories: dict[str, list[float]] = {
             "cpu": list(self.cpu_history),
             "memory": list(self.memory_history),
@@ -412,15 +412,33 @@ class TSDCollector:
         for name, series in raw_histories.items():
             if len(series) < MIN_READINGS_FOR_STL:
                 continue
-            historical = series[:-3]
+
+            n = len(series)
+            baseline_window = max(6, n // 2)
+            baseline_series = series[:baseline_window]  # oldest readings = pre-fault
             recent = series[-3:]
-            hist_mean = float(np.mean(historical))
-            # Thresholds: CPU >1% historical, memory >1 MiB historical
-            threshold = 1.0 if name == "cpu" else 1.0
-            if hist_mean > threshold and all(v < 0.01 for v in recent):
+
+            hist_mean = float(np.mean(baseline_series))
+            hist_q1, hist_q3 = float(np.percentile(baseline_series, 25)), float(np.percentile(baseline_series, 75))
+            hist_iqr = hist_q3 - hist_q1
+            hist_std = float(np.std(baseline_series))
+            spread = max(hist_iqr, hist_std, 0.01)
+
+            # Flat-zero crash: was active, now near-zero
+            if hist_mean > 1.0 and all(v < 0.01 for v in recent):
                 logger.warning(
-                    "TSD FLAT-ZERO DRIFT on %s: historical mean=%.2f dropped to near-zero %s",
+                    "TSD FLAT-ZERO DRIFT on %s: baseline_mean=%.2f dropped to near-zero %s",
                     name, hist_mean, [round(v, 4) for v in recent],
+                )
+                self._per_metric_drifts[name] = self._per_metric_drifts.get(name, 0) + 1
+                drifting_now = True
+
+            # Spike detection: recent readings are far above baseline (sustained step-up)
+            spike_threshold = hist_mean + 5.0 * spread
+            if spike_threshold > 0 and all(v > spike_threshold for v in recent):
+                logger.warning(
+                    "TSD SPIKE DRIFT on %s: baseline_mean=%.2f recent=%s threshold=%.2f",
+                    name, hist_mean, [round(v, 2) for v in recent], spike_threshold,
                 )
                 self._per_metric_drifts[name] = self._per_metric_drifts.get(name, 0) + 1
                 drifting_now = True
