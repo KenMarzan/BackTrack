@@ -17,11 +17,8 @@ services:
       - KUBECONFIG=/root/.kube/config
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - backtrack-data:/.backtrack
-      - /home/andy/.kube:/root/.kube:ro
-    networks:
-      - default
-      - kind
+      - backtrack-data:/app/.backtrack
+      - ${KUBE_DIR:-~/.kube}:/root/.kube:ro
     depends_on:
       backtrack-agent:
         condition: service_healthy
@@ -54,7 +51,7 @@ services:
     volumes:
       - backtrack-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
-      - /home/andy/.kube:/root/.kube:ro
+      - ${KUBE_DIR:-~/.kube}:/root/.kube:ro
     ports:
       - "8847:8847"
     healthcheck:
@@ -64,9 +61,10 @@ services:
       retries: 5
       start_period: 30s
 
-networks:
-  kind:
-    external: true
+# Uncomment if using kind cluster:
+#networks:
+#  kind:
+#    external: true
 
 volumes:
   backtrack-data:
