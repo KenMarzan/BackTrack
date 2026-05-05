@@ -167,7 +167,7 @@ function generateInsight(tsd: TSDMetrics | null, lsi: LSIData | null): RootCause
   const driftingMetrics: RootCauseInsight["driftingMetrics"] = [];
   if (tsd?.is_drifting) {
     for (const def of METRIC_DEFS) {
-      const residuals = tsd.residuals[def.key];
+      const residuals = tsd.residuals?.[def.key] ?? [];
       const lastResidual = residuals.at(-1) ?? 0;
       const iqrThreshold = 3.0 * estimateIQR(residuals);
       const ratio = Math.abs(lastResidual) / iqrThreshold;
@@ -699,10 +699,10 @@ function ServiceDiagnosticsPage() {
                   </div>
                   <div className="grid grid-cols-4 gap-1.5">
                     {[
-                      { label: "CPU", value: `${tsd?.current.cpu_percent.toFixed(1) ?? "—"}%`, color: "text-emerald-400" },
-                      { label: "Memory", value: `${tsd?.current.memory_mb.toFixed(1) ?? "—"} MB`, color: "text-sky-400" },
-                      { label: "Latency", value: `${tsd?.current.latency_ms.toFixed(0) ?? "—"} ms`, color: "text-violet-400" },
-                      { label: "Err Rate", value: `${tsd?.current.error_rate_percent.toFixed(2) ?? "—"}%`, color: "text-rose-400" },
+                      { label: "CPU", value: `${tsd?.current?.cpu_percent?.toFixed(1) ?? "—"}%`, color: "text-emerald-400" },
+                      { label: "Memory", value: `${tsd?.current?.memory_mb?.toFixed(1) ?? "—"} MB`, color: "text-sky-400" },
+                      { label: "Latency", value: `${tsd?.current?.latency_ms?.toFixed(0) ?? "—"} ms`, color: "text-violet-400" },
+                      { label: "Err Rate", value: `${tsd?.current?.error_rate_percent?.toFixed(2) ?? "—"}%`, color: "text-rose-400" },
                     ].map((s) => (
                       <div key={s.label} className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2 text-center">
                         <div className="text-[9px] uppercase tracking-wide text-white/30">{s.label}</div>
@@ -781,12 +781,12 @@ function ServiceDiagnosticsPage() {
                       Memory History
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono text-sky-400">{tsd?.history.memory.at(-1)?.toFixed(1) ?? "—"} MB</span>
+                      <span className="text-[10px] font-mono text-sky-400">{tsd?.history?.memory?.at(-1)?.toFixed(1) ?? "—"} MB</span>
                       <Maximize2 size={11} className="text-white/30" />
                     </div>
                   </div>
                   <SparkLine
-                    values={tsd?.history.memory ?? []}
+                    values={tsd?.history?.memory ?? []}
                     lineColor="#7dd3fc"
                     id="mem-hist"
                     height={80}
@@ -813,12 +813,12 @@ function ServiceDiagnosticsPage() {
                       Latency History
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono text-violet-400">{tsd?.history.latency.at(-1)?.toFixed(0) ?? "—"} ms</span>
+                      <span className="text-[10px] font-mono text-violet-400">{tsd?.history?.latency?.at(-1)?.toFixed(0) ?? "—"} ms</span>
                       <Maximize2 size={11} className="text-white/30" />
                     </div>
                   </div>
                   <SparkLine
-                    values={tsd?.history.latency ?? []}
+                    values={tsd?.history?.latency ?? []}
                     lineColor="#c4b5fd"
                     id="lat-hist"
                     height={80}
@@ -848,7 +848,7 @@ function ServiceDiagnosticsPage() {
                   ) : tsd ? (
                     (() => {
                       const allZero = tsd.readings_count >= 12 &&
-                        tsd.current.cpu_percent === 0 && tsd.current.memory_mb === 0 && tsd.current.latency_ms === 0;
+                        tsd?.current?.cpu_percent === 0 && tsd?.current?.memory_mb === 0 && tsd?.current?.latency_ms === 0;
                       return allZero
                         ? <span className="text-amber-400">{platform === "docker"
                             ? "All metrics are zero — agent may still be warming up for this container, or Docker stats are unavailable."
@@ -889,7 +889,7 @@ function ServiceDiagnosticsPage() {
                     <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
                       <div className="text-[9px] uppercase tracking-wide text-white/30">Current Score</div>
                       <div className={`mt-0.5 text-base font-bold ${lsi?.is_anomalous ? "text-red-400" : "text-cyan-300"}`}>
-                        {lsi?.current_score.toFixed(4) ?? "—"}
+                        {lsi?.current_score?.toFixed(4) ?? "—"}
                       </div>
                     </div>
                     <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
@@ -900,7 +900,7 @@ function ServiceDiagnosticsPage() {
                     </div>
                     <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
                       <div className="text-[9px] uppercase tracking-wide text-white/30">Threshold</div>
-                      <div className="mt-0.5 text-base font-bold text-red-300/80">{lsi?.threshold.toFixed(4) ?? "—"}</div>
+                      <div className="mt-0.5 text-base font-bold text-red-300/80">{lsi?.threshold?.toFixed(4) ?? "—"}</div>
                     </div>
                   </div>
 
@@ -911,7 +911,7 @@ function ServiceDiagnosticsPage() {
                         return (
                           <div key={label} className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2 text-center">
                             <div className="text-[9px] uppercase tracking-wide text-white/30">{label}</div>
-                            <div className={`mt-0.5 text-sm font-bold ${colors[label]}`}>{lsi.window_counts[label] ?? 0}</div>
+                            <div className={`mt-0.5 text-sm font-bold ${colors[label]}`}>{lsi.window_counts?.[label] ?? 0}</div>
                           </div>
                         );
                       })}
@@ -939,8 +939,8 @@ function ServiceDiagnosticsPage() {
                     </div>
                     <div className="flex items-center gap-2 text-[9px]">
                       <span className="text-white/30">Baseline</span>
-                      <span className="font-mono text-white/50">{lsi?.baseline_mean.toFixed(3) ?? "—"}</span>
-                      <span className="text-red-400/60">Threshold {lsi?.threshold.toFixed(3) ?? "—"}</span>
+                      <span className="font-mono text-white/50">{lsi?.baseline_mean?.toFixed(3) ?? "—"}</span>
+                      <span className="text-red-400/60">Threshold {lsi?.threshold?.toFixed(3) ?? "—"}</span>
                       <Maximize2 size={11} className="text-white/30" />
                     </div>
                   </div>
@@ -960,7 +960,7 @@ function ServiceDiagnosticsPage() {
                 </div>
 
                 {/* Recent lines */}
-                {lsi && lsi.recent_lines.length > 0 && (
+                {lsi && (lsi.recent_lines?.length ?? 0) > 0 && (
                   <div
                     role="button"
                     tabIndex={0}
@@ -1009,7 +1009,7 @@ function ServiceDiagnosticsPage() {
                 <div className="rounded-xl border border-white/[0.05] bg-[#0d1117] px-3 py-2.5 text-[11px] leading-5 text-white/60">
                   <span className="font-semibold text-white/80">LSI Status: </span>
                   {lsi?.is_anomalous ? (
-                    <span className="text-red-400">Anomalous — score {lsi.current_score.toFixed(4)} exceeds {lsi.threshold.toFixed(4)} threshold ({lsi.baseline_mean.toFixed(4)} × {(lsi.threshold / Math.max(lsi.baseline_mean, 0.0001)).toFixed(1)}).</span>
+                    <span className="text-red-400">Anomalous — score {lsi.current_score?.toFixed(4) ?? "—"} exceeds {lsi.threshold?.toFixed(4) ?? "—"} threshold ({lsi.baseline_mean?.toFixed(4) ?? "—"} × {(lsi.threshold / Math.max(lsi.baseline_mean ?? 0.0001, 0.0001)).toFixed(1)}).</span>
                   ) : lsi?.fitted ? (
                     <span className="text-emerald-400">Log patterns within normal baseline.</span>
                   ) : (
@@ -1031,10 +1031,10 @@ function ServiceDiagnosticsPage() {
               <div className="flex items-center gap-3 text-[9px] text-white/25">
                 {lsi && (
                   <span className="flex items-center gap-1.5">
-                    <span className="text-purple-400">{lsi.window_counts.NOVEL} novel</span>
-                    <span className="text-red-400">{lsi.window_counts.ERROR} error</span>
-                    <span className="text-yellow-400">{lsi.window_counts.WARN} warn</span>
-                    <span className="text-emerald-400">{lsi.window_counts.INFO} info</span>
+                    <span className="text-purple-400">{lsi.window_counts?.NOVEL ?? 0} novel</span>
+                    <span className="text-red-400">{lsi.window_counts?.ERROR ?? 0} error</span>
+                    <span className="text-yellow-400">{lsi.window_counts?.WARN ?? 0} warn</span>
+                    <span className="text-emerald-400">{lsi.window_counts?.INFO ?? 0} info</span>
                   </span>
                 )}
                 <span>{recentLines.length} lines (live)</span>
@@ -1369,10 +1369,10 @@ function ServiceDiagnosticsPage() {
       >
         <div className="grid grid-cols-2 gap-3 mb-4">
           {[
-            { label: "CPU", value: `${tsd?.current.cpu_percent.toFixed(1) ?? "—"}%`, color: "text-emerald-400" },
-            { label: "Memory", value: `${tsd?.current.memory_mb.toFixed(1) ?? "—"} MB`, color: "text-sky-400" },
-            { label: "Latency", value: `${tsd?.current.latency_ms.toFixed(0) ?? "—"} ms`, color: "text-violet-400" },
-            { label: "Error Rate", value: `${tsd?.current.error_rate_percent.toFixed(2) ?? "—"}%`, color: "text-rose-400" },
+            { label: "CPU", value: `${tsd?.current?.cpu_percent?.toFixed(1) ?? "—"}%`, color: "text-emerald-400" },
+            { label: "Memory", value: `${tsd?.current?.memory_mb?.toFixed(1) ?? "—"} MB`, color: "text-sky-400" },
+            { label: "Latency", value: `${tsd?.current?.latency_ms?.toFixed(0) ?? "—"} ms`, color: "text-violet-400" },
+            { label: "Error Rate", value: `${tsd?.current?.error_rate_percent?.toFixed(2) ?? "—"}%`, color: "text-rose-400" },
           ].map((s) => (
             <div key={s.label} className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
               <div className="text-[11px] uppercase tracking-wide text-white/40">{s.label}</div>
@@ -1382,10 +1382,10 @@ function ServiceDiagnosticsPage() {
         </div>
         <div className="space-y-3">
           {[
-            { label: "CPU history", values: tsd?.history.cpu ?? [], color: "#6ee7b7", id: "m-cpu" },
-            { label: "Memory history", values: tsd?.history.memory ?? [], color: "#7dd3fc", id: "m-mem" },
-            { label: "Latency history", values: tsd?.history.latency ?? [], color: "#c4b5fd", id: "m-lat" },
-            { label: "Error rate history", values: tsd?.history.error_rate ?? [], color: "#fca5a5", id: "m-err" },
+            { label: "CPU history", values: tsd?.history?.cpu ?? [], color: "#6ee7b7", id: "m-cpu" },
+            { label: "Memory history", values: tsd?.history?.memory ?? [], color: "#7dd3fc", id: "m-mem" },
+            { label: "Latency history", values: tsd?.history?.latency ?? [], color: "#c4b5fd", id: "m-lat" },
+            { label: "Error rate history", values: tsd?.history?.error_rate ?? [], color: "#fca5a5", id: "m-err" },
           ].map((h) => (
             <div key={h.id} className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
               <div className="mb-2 flex items-center justify-between text-[11px]">
@@ -1407,7 +1407,7 @@ function ServiceDiagnosticsPage() {
       >
         {activeModal?.kind === "residual" && (() => {
           const m = activeModal.metric;
-          const values = tsd?.residuals[m] ?? [];
+          const values = tsd?.residuals?.[m] ?? [];
           const meta = RESIDUAL_META[m];
           const last = values.at(-1) ?? 0;
           const thr = 3 * estimateIQR(values);
@@ -1476,7 +1476,7 @@ function ServiceDiagnosticsPage() {
       >
         {activeModal?.kind === "tsd-history" && (() => {
           const m = activeModal.metric;
-          const values = tsd?.history[m] ?? [];
+          const values = tsd?.history?.[m] ?? [];
           const color = m === "memory" ? "#7dd3fc" : "#c4b5fd";
           const unit = m === "memory" ? "MB" : "ms";
           const stats = values.length
@@ -1523,7 +1523,7 @@ function ServiceDiagnosticsPage() {
           <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
             <div className="text-[11px] uppercase tracking-wide text-white/40">Current Score</div>
             <div className={`mt-1 text-2xl font-bold ${lsi?.is_anomalous ? "text-red-400" : "text-cyan-300"}`}>
-              {lsi?.current_score.toFixed(4) ?? "—"}
+              {lsi?.current_score?.toFixed(4) ?? "—"}
             </div>
           </div>
           <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
@@ -1534,7 +1534,7 @@ function ServiceDiagnosticsPage() {
           </div>
           <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
             <div className="text-[11px] uppercase tracking-wide text-white/40">Threshold</div>
-            <div className="mt-1 text-2xl font-bold text-red-300/80">{lsi?.threshold.toFixed(4) ?? "—"}</div>
+            <div className="mt-1 text-2xl font-bold text-red-300/80">{lsi?.threshold?.toFixed(4) ?? "—"}</div>
           </div>
         </div>
         <div className="grid grid-cols-4 gap-2">
@@ -1543,7 +1543,7 @@ function ServiceDiagnosticsPage() {
             return (
               <div key={label} className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3 text-center">
                 <div className="text-[10px] uppercase tracking-wide text-white/40">{label}</div>
-                <div className={`mt-1 text-2xl font-bold ${colors[label]}`}>{lsi?.window_counts[label] ?? 0}</div>
+                <div className={`mt-1 text-2xl font-bold ${colors[label]}`}>{lsi?.window_counts?.[label] ?? 0}</div>
               </div>
             );
           })}
@@ -1561,9 +1561,9 @@ function ServiceDiagnosticsPage() {
           <SparkLine values={scoreHistory} threshold={lsi?.threshold} baseline={lsi?.baseline_mean} lineColor="#67e8f9" id="big-lsi-score" height={300} />
         </div>
         <div className="mt-3 flex items-center gap-4 text-[11px] text-white/40">
-          <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t border-dashed border-red-400/60" /> Threshold {lsi?.threshold.toFixed(4) ?? "—"}</span>
-          <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t border-dashed border-white/25" /> Baseline mean {lsi?.baseline_mean.toFixed(4) ?? "—"}</span>
-          <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-cyan-400" /> Current {lsi?.current_score.toFixed(4) ?? "—"}</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t border-dashed border-red-400/60" /> Threshold {lsi?.threshold?.toFixed(4) ?? "—"}</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t border-dashed border-white/25" /> Baseline mean {lsi?.baseline_mean?.toFixed(4) ?? "—"}</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-cyan-400" /> Current {lsi?.current_score?.toFixed(4) ?? "—"}</span>
         </div>
       </AnomalyModal>
 
@@ -1571,7 +1571,7 @@ function ServiceDiagnosticsPage() {
         open={activeModal?.kind === "lsi-window"}
         onClose={() => setActiveModal(null)}
         title="Recent Window Lines"
-        subtitle={`${lsi?.recent_lines.length ?? 0} lines · classified by trained SVD model`}
+        subtitle={`${lsi?.recent_lines?.length ?? 0} lines · classified by trained SVD model`}
         size="xl"
       >
         <div className="space-y-0.5 font-mono text-[12px] leading-6">
@@ -1618,7 +1618,7 @@ function ServiceDiagnosticsPage() {
           <div className="mb-4 rounded-xl border border-purple-500/20 bg-purple-500/[0.05] px-3 py-2.5">
             <div className="text-[11px] uppercase tracking-wide text-white/40 mb-1">Log Anomaly</div>
             <div className="text-[12px] text-white/80">
-              LSI score {lsi.current_score.toFixed(4)} is {(insight.scoreRatio).toFixed(2)}× the threshold ({lsi.threshold.toFixed(4)}).
+              LSI score {lsi.current_score?.toFixed(4) ?? "—"} is {(insight.scoreRatio).toFixed(2)}× the threshold ({lsi.threshold?.toFixed(4) ?? "—"}).
               NOVEL ratio {(insight.novelRatio * 100).toFixed(0)}% · ERROR ratio {(insight.errorRatio * 100).toFixed(0)}%.
             </div>
           </div>
