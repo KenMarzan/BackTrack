@@ -157,14 +157,14 @@ export default function AnomaliesPage() {
 
         if (metricsRes.ok) {
           const data = await metricsRes.json();
-          if (!data.error) { setTsd(data); setMetricsError(false); }
+          if (!data.error && typeof data.readings_count === "number") { setTsd(data); setMetricsError(false); }
           else setMetricsError(true);
         } else {
           setMetricsError(true);
         }
         if (lsiRes.ok) {
           const data = await lsiRes.json();
-          if (!data.error) setLsi(data);
+          if (!data.error && typeof data.current_score === "number") setLsi(data);
         }
 
         if (healthRes.ok) {
