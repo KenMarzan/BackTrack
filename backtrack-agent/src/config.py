@@ -28,7 +28,13 @@ class BacktrackConfig:
         self.rollback_enabled: bool = os.getenv("BACKTRACK_ROLLBACK_ENABLED", "true").lower() == "true"
         self.image_tag: str = os.getenv("BACKTRACK_IMAGE_TAG", "unknown")
         self.clusters: list[dict] = self._parse_clusters()
-        # Set by /reconfigure — overrides env var without mutating os.environ (thread-safe)
+        # GitHub integration
+        self.github_token: str = os.getenv("GITHUB_TOKEN", "")
+        self.github_repo: str = os.getenv("GITHUB_REPO", "")   # "owner/repo"
+        self.backtrack_public_url: str = os.getenv("BACKTRACK_PUBLIC_URL", "")
+        # API key for /deployment/notify auth (empty = disabled)
+        self.api_key: str = os.getenv("BACKTRACK_API_KEY", "")
+        # Set by /reconfigure — overrides env var without mutating os.environ
         self._forced_mode: str = ""
 
     @property
@@ -78,24 +84,25 @@ class BacktrackConfig:
             )
 
     def log_startup_summary(self) -> None:
-        """Print a clear startup table to stdout."""
-        border = "=" * 55
+        border = "=" * 60
         logger.info(border)
-        logger.info("  BACKTRACK AGENT — CONFIGURATION SUMMARY")
+        logger.info("  BACKTRACK AGENT v0.3 — CONFIGURATION SUMMARY")
         logger.info(border)
-        logger.info("  Mode:                %s", self.mode)
-        logger.info("  Target:              %s", self.target or "(not set)")
-        logger.info("  K8s Namespace:       %s", self.k8s_namespace)
-        logger.info("  K8s Label Selector:  %s", self.k8s_label_selector or "(not set)")
-        logger.info("  Scrape Interval:     %ds", self.scrape_interval)
-        logger.info("  TSD IQR Multiplier:  %.1f", self.tsd_iqr_multiplier)
-        logger.info("  LSI Score Multiplier:%.1f", self.lsi_score_multiplier)
-        logger.info("  Rollback Enabled:    %s", self.rollback_enabled)
-        logger.info("  Image Tag:           %s", self.image_tag)
+        logger.info("  Mode:                  %s", self.mode)
+        logger.info("  Target:                %s", self.target or "(not set)")
+        logger.info("  K8s Namespace:         %s", self.k8s_namespace)
+        logger.info("  K8s Label Selector:    %s", self.k8s_label_selector or "(not set)")
+        logger.info("  Scrape Interval:       %ds", self.scrape_interval)
+        logger.info("  TSD IQR Multiplier:    %.1f", self.tsd_iqr_multiplier)
+        logger.info("  LSI Score Multiplier:  %.1f", self.lsi_score_multiplier)
+        logger.info("  Rollback Enabled:      %s", self.rollback_enabled)
+        logger.info("  Image Tag:             %s", self.image_tag)
+        logger.info("  GitHub Repo:           %s", self.github_repo or "(not set)")
+        logger.info("  BackTrack Public URL:  %s", self.backtrack_public_url or "(not set)")
+        logger.info("  API Key Auth:          %s", "enabled" if self.api_key else "disabled")
         logger.info(border)
 
     def to_dict(self) -> dict:
-        """Serialise config for the /config endpoint."""
         return {
             "mode": self.mode,
             "target": self.target,
@@ -106,9 +113,9 @@ class BacktrackConfig:
             "lsi_score_multiplier": self.lsi_score_multiplier,
             "rollback_enabled": self.rollback_enabled,
             "image_tag": self.image_tag,
+            "github_repo": self.github_repo,
             "clusters": self.clusters,
         }
 
 
-# Module-level singleton
 config = BacktrackConfig()

@@ -39,6 +39,17 @@ services:
       - BACKTRACK_STABLE_SECONDS=${BACKTRACK_STABLE_SECONDS:-600}
       - BACKTRACK_ROLLBACK_ENABLED=${BACKTRACK_ROLLBACK_ENABLED:-true}
       - BACKTRACK_DATA_DIR=/data
+      # Anomaly scoring
+      - BACKTRACK_ROLLBACK_THRESHOLD=${BACKTRACK_ROLLBACK_THRESHOLD:-0.75}
+      - BACKTRACK_WATCH_WINDOW=${BACKTRACK_WATCH_WINDOW:-300}
+      - BACKTRACK_WATCH_MULTIPLIER=${BACKTRACK_WATCH_MULTIPLIER:-1.5}
+      - BACKTRACK_ROLLBACK_COOLDOWN=${BACKTRACK_ROLLBACK_COOLDOWN:-120}
+      # GitHub integration (optional — leave blank to disable)
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_REPO=${GITHUB_REPO:-}
+      - BACKTRACK_PUBLIC_URL=${BACKTRACK_PUBLIC_URL:-}
+      # API key for /deployment/notify (optional — leave blank to disable auth)
+      - BACKTRACK_API_KEY=${BACKTRACK_API_KEY:-}
       # Kubernetes mode: uncomment after enabling the kube volume above.
       - KUBECONFIG=/root/.kube/config
     volumes:
