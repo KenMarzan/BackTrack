@@ -2,6 +2,7 @@
 Auto-configuration for Backtrack agent.
 Detects Docker vs Kubernetes mode and reads all settings from environment variables.
 """
+import json
 import os
 import logging
 
@@ -26,6 +27,7 @@ class BacktrackConfig:
         self.scrape_interval: int = int(os.getenv("BACKTRACK_SCRAPE_INTERVAL", "10"))
         self.rollback_enabled: bool = os.getenv("BACKTRACK_ROLLBACK_ENABLED", "true").lower() == "true"
         self.image_tag: str = os.getenv("BACKTRACK_IMAGE_TAG", "unknown")
+        self.clusters: list[dict] = self._parse_clusters()
         # Set by /reconfigure — overrides env var without mutating os.environ (thread-safe)
         self._forced_mode: str = ""
 
@@ -40,6 +42,31 @@ class BacktrackConfig:
         if os.path.exists(K8S_SERVICE_ACCOUNT_PATH):
             return "kubernetes"
         return "docker"
+
+    def _parse_clusters(self) -> list[dict]:
+        raw = os.getenv("BACKTRACK_CLUSTERS", "")
+        if raw:
+            try:
+                clusters = json.loads(raw)
+                if isinstance(clusters, list):
+                    return [
+                        {
+                            "name": str(c.get("name", "default")),
+                            "kubeconfig": str(c.get("kubeconfig", "")),
+                            "namespace": str(c.get("namespace", "default")),
+                        }
+                        for c in clusters
+                        if isinstance(c, dict)
+                    ]
+            except json.JSONDecodeError:
+                logger.warning("BACKTRACK_CLUSTERS is not valid JSON — falling back to single cluster")
+        return [
+            {
+                "name": "default",
+                "kubeconfig": os.getenv("KUBECONFIG", ""),
+                "namespace": self.k8s_namespace,
+            }
+        ]
 
     def validate(self) -> None:
         """Raises ValueError if no target is configured."""
@@ -79,6 +106,7 @@ class BacktrackConfig:
             "lsi_score_multiplier": self.lsi_score_multiplier,
             "rollback_enabled": self.rollback_enabled,
             "image_tag": self.image_tag,
+            "clusters": self.clusters,
         }
 
 

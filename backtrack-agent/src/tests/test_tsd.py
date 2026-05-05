@@ -103,7 +103,8 @@ def test_get_metrics_structure():
     result = collector.get_metrics()
     assert set(result.keys()) == {
         "current", "history", "decomposition", "residuals",
-        "readings_count", "is_drifting",
+        "readings_count", "is_drifting", "has_crashed",
+        "restart_count", "last_exit_code", "container_status",
         "z_scores", "trend_directions", "tsd_confidence", "tsd_status",
         "evaluation",
     }
@@ -127,34 +128,14 @@ def test_get_metrics_readings_count():
 async def test_scrape_docker_cpu_and_memory(mock_config):
     collector = TSDCollector(service_name="test")
 
-    fake_stats = {
-        "cpu_stats": {
-            "cpu_usage": {"total_usage": 200_000_000},
-            "system_cpu_usage": 2_000_000_000,
-            "online_cpus": 4,
-        },
-        "precpu_stats": {
-            "cpu_usage": {"total_usage": 100_000_000},
-            "system_cpu_usage": 1_000_000_000,
-        },
-        "memory_stats": {
-            "usage": 200 * 1024 * 1024,   # 200 MiB
-            "stats": {"cache": 50 * 1024 * 1024},  # 50 MiB cache
-        },
-    }
+    fake_cache = {"test": {"cpu": 40.0, "mem_mb": 150.0}}
 
-    mock_container = MagicMock()
-    mock_container.stats.return_value = fake_stats
-    mock_client = MagicMock()
-    mock_client.containers.get.return_value = mock_container
+    with patch("src.collectors.tsd._refresh_docker_stats", new_callable=AsyncMock):
+        with patch("src.collectors.tsd._stats_cache", fake_cache):
+            with patch("src.collectors.tsd.TSDCollector._probe_latency", new_callable=AsyncMock, return_value=10.0):
+                await collector._scrape_docker()
 
-    with patch("src.collectors.tsd.TSDCollector._probe_latency", new_callable=AsyncMock, return_value=10.0):
-        with patch("docker.from_env", return_value=mock_client):
-            await collector._scrape_docker()
-
-    # cpu_delta=100M, system_delta=1B, cpus=4 → (0.1) * 4 * 100 = 40%
     assert abs(collector.current_cpu - 40.0) < 1e-6
-    # memory = (200 - 50) MiB = 150 MB
     assert abs(collector.current_memory - 150.0) < 1e-6
     assert collector.current_latency == 10.0
     assert len(collector.cpu_history) == 1
@@ -162,9 +143,10 @@ async def test_scrape_docker_cpu_and_memory(mock_config):
 
 async def test_scrape_docker_failure_zeroes_metrics(mock_config):
     collector = TSDCollector(service_name="test")
-    with patch("docker.from_env", side_effect=Exception("docker unavailable")):
-        with patch("src.collectors.tsd.TSDCollector._probe_latency", new_callable=AsyncMock, return_value=0.0):
-            await collector._scrape_docker()
+    with patch("src.collectors.tsd._refresh_docker_stats", new_callable=AsyncMock):
+        with patch("src.collectors.tsd._stats_cache", {}):
+            with patch("src.collectors.tsd.TSDCollector._probe_latency", new_callable=AsyncMock, return_value=0.0):
+                await collector._scrape_docker()
     assert collector.current_cpu == 0.0
     assert collector.current_memory == 0.0
     # readings still appended (even on failure)

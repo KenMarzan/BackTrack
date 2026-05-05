@@ -64,7 +64,7 @@ class RollbackExecutor:
             if config.mode == "docker":
                 self._rollback_docker(last_stable, target)
             else:
-                self._rollback_kubernetes(target)
+                self._rollback_kubernetes(target, stable_revision=last_stable.k8s_revision)
 
             rollback_completed_at = datetime.now(timezone.utc).isoformat()
 
@@ -104,11 +104,25 @@ class RollbackExecutor:
         return result
 
     def _rollback_docker(self, stable: Snapshot, target: str = "") -> None:
-        """Docker mode: recreate container from previous image using docker CLI subprocess."""
+        """Docker mode: pre-pull image, then recreate container.
+
+        Pre-pulling before stopping eliminates the downtime window that existed
+        when the container was removed before the new image was available.
+        """
         container_name = target or config.target
         image = stable.image_tag
 
-        # Inspect current container config via CLI (no Docker SDK socket dependency)
+        # Step 1: pre-pull target image BEFORE touching the running container.
+        # Failure here aborts rollback with no impact on the running service.
+        logger.info("Pre-pulling rollback image %s ...", image)
+        pull_result = subprocess.run(
+            ["docker", "pull", image],
+            capture_output=True, text=True, timeout=120,
+        )
+        if pull_result.returncode != 0:
+            raise RuntimeError(f"docker pull failed for {image}: {pull_result.stderr.strip()}")
+
+        # Step 2: inspect running container config
         inspect = subprocess.run(
             ["docker", "inspect", container_name],
             capture_output=True, text=True,
@@ -126,11 +140,12 @@ class RollbackExecutor:
         binds: list[str] = host_config.get("Binds") or []
         port_bindings: dict = host_config.get("PortBindings") or {}
 
+        # Step 3: stop and remove — image is already local, minimising downtime window
         logger.info("Stopping container %s ...", container_name)
         subprocess.run(["docker", "stop", container_name], check=True)
         subprocess.run(["docker", "rm", container_name], check=True)
 
-        # Build docker run command
+        # Step 4: start container with rollback image
         cmd = ["docker", "run", "-d", "--name", container_name, "--network", network_mode]
         for e in env_list:
             cmd += ["-e", e]
@@ -150,12 +165,15 @@ class RollbackExecutor:
             raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
         logger.info("Docker rollback complete.")
 
-    def _rollback_kubernetes(self, target: str = "") -> None:
-        """K8s mode: kubectl rollout undo the specific deployment, then restore replicas if needed."""
+    def _rollback_kubernetes(self, target: str = "", stable_revision: int = 0) -> None:
+        """K8s mode: kubectl rollout undo to a known-good revision.
+
+        Uses --to-revision=N when a stable revision number is recorded, preventing
+        oscillation between two bad revisions (rollout undo without --to-revision
+        always goes to the immediately previous revision, which may also be bad).
+        """
         name = target or config.target
         if not name and config.k8s_label_selector:
-            # Parse deployment name from first key=value pair only
-            # "app=frontend,env=prod" → "frontend"
             first_pair = config.k8s_label_selector.split(",")[0]
             name = first_pair.split("=")[-1] if "=" in first_pair else first_pair
         if not name:
@@ -176,9 +194,26 @@ class RollbackExecutor:
             f"deployment/{name}",
             "-n", config.k8s_namespace,
         ]
+        if stable_revision > 0:
+            cmd += [f"--to-revision={stable_revision}"]
+            logger.info("Rolling back to revision %d", stable_revision)
+
         logger.info("Running: %s", " ".join(cmd))
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
         logger.info("kubectl rollout undo output: %s", result.stdout.strip())
+
+        # Wait for rollout to complete (up to 120s) so we know it actually succeeded
+        status_cmd = [
+            "kubectl", "rollout", "status", f"deployment/{name}",
+            "-n", config.k8s_namespace, "--timeout=120s",
+        ]
+        logger.info("Waiting for rollout status...")
+        status_result = subprocess.run(status_cmd, capture_output=True, text=True)
+        if status_result.returncode != 0:
+            raise RuntimeError(
+                f"Rollout did not complete within 120s: {status_result.stderr.strip()}"
+            )
+        logger.info("Rollout complete: %s", status_result.stdout.strip())
 
         if current_replicas == 0:
             logger.warning("Deployment was scaled to 0 — restoring to 1 replica.")
@@ -228,8 +263,12 @@ class RollbackExecutor:
 
         entries.insert(0, log_entry)
 
-        with open(ROLLBACK_LOG_FILE, "w") as f:
+        # Atomic write: write to tmp then rename — prevents JSON corruption if process
+        # crashes mid-write or two rollbacks trigger simultaneously.
+        tmp_file = ROLLBACK_LOG_FILE + ".tmp"
+        with open(tmp_file, "w") as f:
             json.dump(entries, f, indent=2)
+        os.replace(tmp_file, ROLLBACK_LOG_FILE)
 
     @staticmethod
     def get_history() -> list[dict]:
