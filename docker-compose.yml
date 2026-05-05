@@ -19,6 +19,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - backtrack-data:/app/.backtrack
       - ${KUBE_DIR:-~/.kube}:/root/.kube:ro
+    networks:
+      - default
+      - kind
     depends_on:
       backtrack-agent:
         condition: service_healthy
@@ -52,9 +55,9 @@ services:
       start_period: 30s
 
 # Uncomment if using kind cluster:
-#networks:
-#  kind:
-#    external: true
+networks:
+  kind:
+    external: true
 
 volumes:
   backtrack-data:
