@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listConnections } from "@/lib/monitoring-store";
 import { runCommand } from "@/lib/command";
+import { getCached } from "@/lib/overview-cache";
 import type { DashboardService, DashboardAnomaly } from "@/lib/monitoring-types";
 
 const MEMORY_THRESHOLD_MIB = Number(process.env.BACKTRACK_MEMORY_THRESHOLD_MIB) || 120;
@@ -251,21 +252,30 @@ export async function GET() {
 		const connectionPlatform = (connection.platform || connection.kind || "kubernetes") as "kubernetes" | "docker";
 		const connectionNamespace = connection.namespace || "default";
 		const normalizedServices = normalizeConnectionServices(connection);
+		const ttlMs = SCRAPE_INTERVAL_SECONDS * 1000;
+		const containerNames = normalizedServices.map((s) => s.name);
+
 		const dockerStatsByService = connectionPlatform === "docker"
-			? await getDockerStatsByService(normalizedServices.map((service) => service.name))
+			? await getCached(
+				`docker-stats-${containerNames.join(",")}`,
+				ttlMs,
+				() => getDockerStatsByService(containerNames),
+			)
 			: new Map<string, { cpuCores: number; memoryMiB: number }>();
 
 		const kubectlTopByService = connectionPlatform === "kubernetes"
-			? await getKubectlTopByService(
-				connectionNamespace,
-				normalizedServices.map((service) => service.name),
+			? await getCached(
+				`kubectl-top-${connectionNamespace}`,
+				ttlMs,
+				() => getKubectlTopByService(connectionNamespace, containerNames),
 			)
 			: new Map<string, { cpuCores: number; memoryMiB: number }>();
 
 		const kubectlStatusByService = connectionPlatform === "kubernetes"
-			? await getKubectlStatusByService(
-				connectionNamespace,
-				normalizedServices.map((service) => service.name),
+			? await getCached(
+				`kubectl-status-${connectionNamespace}`,
+				ttlMs,
+				() => getKubectlStatusByService(connectionNamespace, containerNames),
 			)
 			: new Map<string, "running" | "down">();
 

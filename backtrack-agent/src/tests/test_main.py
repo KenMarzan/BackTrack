@@ -48,9 +48,11 @@ def mock_config():
         yield cfg
 
 
-def make_tsd(drifting=False, readings=2):
+def make_tsd(drifting=False, readings=2, crashed=False):
     tsd = MagicMock()
     tsd.is_drifting.return_value = drifting
+    tsd.has_crashed.return_value = crashed
+    tsd._last_exit_code = 1
     tsd.cpu_history = [1.0] * readings
     tsd.get_metrics.return_value = {"current": {"cpu_percent": 5.0}}
     return tsd
@@ -193,9 +195,9 @@ async def test_rollback_trigger_delegates_to_executor():
     mock_exec = MagicMock()
     mock_exec.trigger.return_value = {"success": True, "message": "done"}
     main_module.rollback_executor = mock_exec
-    result = await rollback_trigger()
+    result = await rollback_trigger(body={})
     assert result["success"] is True
-    mock_exec.trigger.assert_called_once_with(reason="Manual trigger via dashboard")
+    mock_exec.trigger.assert_called_once_with(reason="Manual trigger via dashboard", service_name="")
 
 
 # --- _discover_services ---
@@ -334,4 +336,5 @@ async def test_polling_loop_marks_stable_after_threshold(mock_config):
         "pending-id",
         tsd_baseline=tsd.get_metrics().get("current", {}),
         lsi_baseline=lsi.get_lsi().get("baseline_mean", 0.0),
+        k8s_revision=0,
     )

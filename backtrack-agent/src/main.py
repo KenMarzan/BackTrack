@@ -48,6 +48,43 @@ clean_seconds_map: dict[str, int] = {}
 rollback_cooldown_until: dict[str, float] = {}
 first_anomaly_at: dict[str, str] = {}  # ISO timestamp of first detection per service
 
+_DATA_DIR = os.getenv("BACKTRACK_DATA_DIR", "/data")
+_COOLDOWN_FILE = os.path.join(_DATA_DIR, "cooldowns.json")
+
+
+def _load_cooldowns() -> None:
+    """Restore rollback cooldowns from disk after agent restart.
+
+    Without this, a crashed agent would immediately re-trigger rollback on restart
+    even though a rollback was executed moments before.
+    """
+    if not os.path.exists(_COOLDOWN_FILE):
+        return
+    try:
+        import json as _json
+        with open(_COOLDOWN_FILE) as f:
+            data: dict[str, float] = _json.load(f)
+        now = time.time()
+        for svc, until in data.items():
+            if until > now:
+                rollback_cooldown_until[svc] = until
+                logger.info("Restored cooldown for %s: %.0fs remaining", svc, until - now)
+    except Exception:
+        logger.warning("Failed to load cooldowns file")
+
+
+def _persist_cooldowns() -> None:
+    """Write current cooldowns atomically."""
+    try:
+        import json as _json
+        os.makedirs(_DATA_DIR, exist_ok=True)
+        tmp = _COOLDOWN_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            _json.dump(rollback_cooldown_until, f)
+        os.replace(tmp, _COOLDOWN_FILE)
+    except Exception:
+        logger.warning("Failed to persist cooldowns")
+
 
 async def _discover_services() -> list[tuple[str, str]]:
     """Returns list of (service_name, label_selector) tuples."""
@@ -119,6 +156,7 @@ async def polling_loop() -> None:
                         first_anomaly_at=first_anomaly_at.get(svc_name),
                     )
                     rollback_cooldown_until[svc_name] = time.time() + ROLLBACK_COOLDOWN_SECONDS
+                    _persist_cooldowns()
                     first_anomaly_at.pop(svc_name, None)
                     consecutive_anomaly_counts[svc_name] = 0
                     clean_seconds_map[svc_name] = 0
@@ -145,6 +183,7 @@ async def polling_loop() -> None:
                                 first_anomaly_at=first_anomaly_at.get(svc_name),
                             )
                             rollback_cooldown_until[svc_name] = time.time() + ROLLBACK_COOLDOWN_SECONDS
+                            _persist_cooldowns()
                             first_anomaly_at.pop(svc_name, None)
                             count = 0
                 else:
@@ -155,13 +194,27 @@ async def polling_loop() -> None:
                     if clean >= STABLE_THRESHOLD_SECONDS and version_store:
                         pending = version_store.get_current_pending()
                         if pending and pending.status == "PENDING":
+                            k8s_rev = 0
+                            if config.mode == "kubernetes" and svc_name:
+                                try:
+                                    import subprocess as _sp
+                                    r = _sp.run(
+                                        ["kubectl", "get", "deployment", svc_name,
+                                         "-n", config.k8s_namespace,
+                                         "-o", "jsonpath={.metadata.annotations.deployment\\.kubernetes\\.io/revision}"],
+                                        capture_output=True, text=True, timeout=5,
+                                    )
+                                    k8s_rev = int(r.stdout.strip() or "0")
+                                except Exception:
+                                    pass
                             version_store.mark_stable(
                                 pending.id,
                                 tsd_baseline=tsd.get_metrics().get("current", {}),
                                 lsi_baseline=lsi.get_lsi().get("baseline_mean", 0.0),
+                                k8s_revision=k8s_rev,
                             )
                             clean = 0
-                            logger.info("[%s] Version marked STABLE.", svc_name)
+                            logger.info("[%s] Version marked STABLE (k8s_revision=%d).", svc_name, k8s_rev)
 
                 consecutive_anomaly_counts[svc_name] = count
                 clean_seconds_map[svc_name] = clean
@@ -175,12 +228,17 @@ async def startup() -> None:
     global version_store, rollback_executor, _polling_task
 
     config.log_startup_summary()
+    _load_cooldowns()
 
     version_store = VersionStore(image_tag=config.image_tag)
     rollback_executor = RollbackExecutor(version_store)
 
     services = await _discover_services()
     logger.info("Discovered %d services: %s", len(services), [s[0] for s in services])
+
+    if config.mode == "kubernetes":
+        from src.collectors.k8s_pod_cache import pod_cache
+        await pod_cache.start(namespace=config.k8s_namespace)
 
     for svc_name, label_sel in services:
         tsd = TSDCollector(service_name=svc_name, label_selector=label_sel)
@@ -214,6 +272,8 @@ async def shutdown() -> None:
     for tsd, lsi in service_monitors.values():
         await tsd.stop()
         await lsi.stop()
+    from src.collectors.k8s_pod_cache import pod_cache
+    await pod_cache.stop()
     logger.info("Backtrack agent shut down.")
 
 
@@ -337,6 +397,11 @@ async def reconfigure(body: dict) -> dict:
         logger.info("Using %d explicit services from dashboard: %s", len(services), explicit_services)
     else:
         services = await _discover_services()
+
+    if config.mode == "kubernetes":
+        from src.collectors.k8s_pod_cache import pod_cache
+        await pod_cache.stop()
+        await pod_cache.start(namespace=config.k8s_namespace)
 
     for svc_name, label_sel in services:
         tsd = TSDCollector(service_name=svc_name, label_selector=label_sel)
