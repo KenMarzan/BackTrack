@@ -4,7 +4,11 @@ Rollback Executor.
 Docker mode: Docker SDK — pull previous image tag, stop current container, run previous.
 K8s mode: subprocess call to kubectl rollout undo deployment/<name> -n <namespace>.
 Appends rollback events to /data/rollback_log.json.
+Git/CI integration: fires a webhook after successful rollback so the CI pipeline can
+re-deploy the last stable commit (BACKTRACK_GIT_WEBHOOK_URL + BACKTRACK_GIT_WEBHOOK_SECRET).
 """
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -12,6 +16,7 @@ import subprocess
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.request import Request, urlopen
 
 from src.config import config
 from src.versions import Snapshot, VersionStore
@@ -47,7 +52,9 @@ class RollbackExecutor:
 
         current_pending = self.version_store.get_current_pending()
         from_tag = current_pending.image_tag if current_pending else "unknown"
+        from_sha = current_pending.git_sha if current_pending else ""
         to_tag = last_stable.image_tag
+        to_sha = last_stable.git_sha
 
         # Use the specific service name if provided, otherwise fall back to config.target
         target = service_name or config.target
@@ -56,6 +63,12 @@ class RollbackExecutor:
             "EXECUTING ROLLBACK: %s → %s (service: %s, reason: %s)",
             from_tag, to_tag, target, reason,
         )
+        if from_sha or to_sha:
+            logger.warning(
+                "GIT SHA: %s → %s",
+                from_sha[:12] if from_sha else "(unknown)",
+                to_sha[:12] if to_sha else "(unknown)",
+            )
 
         rollback_triggered_at = datetime.now(timezone.utc).isoformat()
         rollback_completed_at = rollback_triggered_at
@@ -64,7 +77,11 @@ class RollbackExecutor:
             if config.mode == "docker":
                 self._rollback_docker(last_stable, target)
             else:
-                self._rollback_kubernetes(target, stable_revision=last_stable.k8s_revision)
+                self._rollback_kubernetes(
+                    target,
+                    stable_revision=last_stable.k8s_revision,
+                    stable_image=last_stable.image_tag,
+                )
 
             rollback_completed_at = datetime.now(timezone.utc).isoformat()
 
@@ -77,7 +94,21 @@ class RollbackExecutor:
                 "message": f"Rolled back from {from_tag} to {to_tag}",
                 "from_tag": from_tag,
                 "to_tag": to_tag,
+                "from_sha": from_sha,
+                "to_sha": to_sha,
             }
+
+            # Fire CI webhook so the pipeline can re-deploy the stable commit
+            if config.git_webhook_url and to_sha:
+                self._fire_webhook(
+                    stable_sha=to_sha,
+                    bad_sha=from_sha,
+                    service=target,
+                    reason=reason,
+                    from_tag=from_tag,
+                    to_tag=to_tag,
+                    triggered_at=rollback_triggered_at,
+                )
 
         except Exception as exc:
             rollback_completed_at = datetime.now(timezone.utc).isoformat()
@@ -86,6 +117,8 @@ class RollbackExecutor:
                 "message": f"Rollback failed: {exc}",
                 "from_tag": from_tag,
                 "to_tag": to_tag,
+                "from_sha": from_sha,
+                "to_sha": to_sha,
             }
             logger.exception("Rollback execution failed")
 
@@ -99,6 +132,8 @@ class RollbackExecutor:
             rollback_triggered_at=rollback_triggered_at,
             rollback_completed_at=rollback_completed_at,
             first_anomaly_at=first_anomaly_at or rollback_triggered_at,
+            from_sha=from_sha,
+            to_sha=to_sha,
         )
 
         return result
@@ -165,12 +200,17 @@ class RollbackExecutor:
             raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
         logger.info("Docker rollback complete.")
 
-    def _rollback_kubernetes(self, target: str = "", stable_revision: int = 0) -> None:
-        """K8s mode: kubectl rollout undo to a known-good revision.
+    def _rollback_kubernetes(self, target: str = "", stable_revision: int = 0, stable_image: str = "") -> None:
+        """K8s mode rollback — two strategies, chosen based on available information.
 
-        Uses --to-revision=N when a stable revision number is recorded, preventing
-        oscillation between two bad revisions (rollout undo without --to-revision
-        always goes to the immediately previous revision, which may also be bad).
+        Strategy A — kubectl set image (preferred for kubectl apply workflows):
+          Used when a concrete stable image tag is known. Works regardless of revision
+          history, revisionHistoryLimit, or whether the manifest was applied server-side.
+          Creates a new revision so the rollback itself is auditable.
+
+        Strategy B — kubectl rollout undo (fallback):
+          Used when no image tag is available. Requires at least two revisions in history.
+          Still uses --to-revision=N when recorded to avoid landing on a previously bad revision.
         """
         name = target or config.target
         if not name and config.k8s_label_selector:
@@ -181,7 +221,7 @@ class RollbackExecutor:
                 "Cannot determine deployment name for rollback — service_name must be passed."
             )
 
-        # Check current replica count — scale-to-0 defeats rollout undo
+        # Check current replica count — scale-to-0 defeats both rollout undo and set image
         rep_result = subprocess.run(
             ["kubectl", "get", "deployment", name, "-n", config.k8s_namespace,
              "-o", "jsonpath={.spec.replicas}"],
@@ -189,18 +229,41 @@ class RollbackExecutor:
         )
         current_replicas = int(rep_result.stdout.strip() or "1")
 
-        cmd = [
-            "kubectl", "rollout", "undo",
-            f"deployment/{name}",
-            "-n", config.k8s_namespace,
-        ]
-        if stable_revision > 0:
-            cmd += [f"--to-revision={stable_revision}"]
-            logger.info("Rolling back to revision %d", stable_revision)
+        if stable_image and stable_image != "unknown":
+            # Strategy A: set image directly — compatible with kubectl apply workflows
+            logger.info("Using image-based rollback: kubectl set image → %s", stable_image)
 
-        logger.info("Running: %s", " ".join(cmd))
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        logger.info("kubectl rollout undo output: %s", result.stdout.strip())
+            # Resolve container name (defaults to deployment name if not found)
+            cname_result = subprocess.run(
+                ["kubectl", "get", "deployment", name, "-n", config.k8s_namespace,
+                 "-o", "jsonpath={.spec.template.spec.containers[0].name}"],
+                capture_output=True, text=True,
+            )
+            container_name = cname_result.stdout.strip() or name
+
+            set_result = subprocess.run(
+                ["kubectl", "set", "image",
+                 f"deployment/{name}",
+                 f"{container_name}={stable_image}",
+                 "-n", config.k8s_namespace],
+                check=True, capture_output=True, text=True,
+            )
+            logger.info("kubectl set image output: %s", set_result.stdout.strip())
+        else:
+            # Strategy B: revision-based rollback — requires history in ReplicaSets
+            logger.info("No stable image tag recorded — falling back to kubectl rollout undo")
+            cmd = [
+                "kubectl", "rollout", "undo",
+                f"deployment/{name}",
+                "-n", config.k8s_namespace,
+            ]
+            if stable_revision > 0:
+                cmd += [f"--to-revision={stable_revision}"]
+                logger.info("Rolling back to revision %d", stable_revision)
+
+            logger.info("Running: %s", " ".join(cmd))
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            logger.info("kubectl rollout undo output: %s", result.stdout.strip())
 
         # Wait for rollout to complete (up to 120s) so we know it actually succeeded
         status_cmd = [
@@ -223,6 +286,48 @@ class RollbackExecutor:
                 check=True, capture_output=True, text=True,
             )
 
+    def _fire_webhook(
+        self,
+        stable_sha: str,
+        bad_sha: str,
+        service: str,
+        reason: str,
+        from_tag: str,
+        to_tag: str,
+        triggered_at: str,
+    ) -> None:
+        """POST a rollback event to the configured CI webhook URL.
+
+        The CI system uses `stable_sha` to re-deploy the last good commit.
+        The request is HMAC-SHA256 signed when BACKTRACK_GIT_WEBHOOK_SECRET is set —
+        the receiver should verify the X-BackTrack-Signature-256 header.
+        """
+        payload = json.dumps({
+            "event": "rollback",
+            "service": service,
+            "stable_sha": stable_sha,
+            "bad_sha": bad_sha,
+            "from_image": from_tag,
+            "to_image": to_tag,
+            "reason": reason,
+            "timestamp": triggered_at,
+            "namespace": config.k8s_namespace,
+            "mode": config.mode,
+        }).encode()
+
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if config.git_webhook_secret:
+            sig = hmac.new(config.git_webhook_secret.encode(), payload, hashlib.sha256).hexdigest()
+            headers["X-BackTrack-Signature-256"] = f"sha256={sig}"
+
+        try:
+            req = Request(config.git_webhook_url, data=payload, headers=headers, method="POST")
+            with urlopen(req, timeout=10) as resp:
+                status = resp.status
+            logger.info("Git webhook fired → %s (HTTP %d)", config.git_webhook_url, status)
+        except Exception as exc:
+            logger.warning("Git webhook failed (non-fatal): %s", exc)
+
     def _append_log(
         self,
         reason: str,
@@ -233,6 +338,8 @@ class RollbackExecutor:
         rollback_triggered_at: str = "",
         rollback_completed_at: str = "",
         first_anomaly_at: str = "",
+        from_sha: str = "",
+        to_sha: str = "",
     ) -> None:
         """Append a rollback event to the log file."""
         log_dir = os.path.dirname(ROLLBACK_LOG_FILE)
@@ -248,6 +355,8 @@ class RollbackExecutor:
             "reason": reason,
             "from_tag": from_tag,
             "to_tag": to_tag,
+            "from_sha": from_sha,
+            "to_sha": to_sha,
             "service_name": service_name,
             "mode": config.mode,
             "success": success,

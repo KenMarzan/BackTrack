@@ -55,6 +55,8 @@ export async function POST(request: NextRequest) {
           ok: true,
           message: "Docker rollback triggered via agent.",
           output: agentResult.message || "Rollback initiated.",
+          from_sha: agentResult.from_sha ?? null,
+          to_sha: agentResult.to_sha ?? null,
         });
       } catch {
         return NextResponse.json(
@@ -64,8 +66,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Kubernetes rollback: restore replicas if scaled to 0, then rollout undo
+    // Kubernetes rollback: restore replicas if scaled to 0, then roll back
     const ns = connection.namespace || "default";
+
+    // Fetch version snapshots from agent (best-effort — non-fatal if unavailable).
+    // Used for: git SHA metadata + stable image tag (enables kubectl set image strategy).
+    let fromSha = "";
+    let toSha = "";
+    let stableImage = "";
+    try {
+      const versionsResp = await fetch(`${AGENT_URL}/versions`, { signal: AbortSignal.timeout(4000) });
+      if (versionsResp.ok) {
+        const versions: Array<{ status: string; git_sha?: string; image_tag?: string }> = await versionsResp.json();
+        const pending = versions.find((v) => v.status === "PENDING");
+        const stable = versions.find((v) => v.status === "STABLE");
+        fromSha = pending?.git_sha ?? "";
+        toSha = stable?.git_sha ?? "";
+        stableImage = stable?.image_tag && stable.image_tag !== "unknown" ? stable.image_tag : "";
+      }
+    } catch {
+      // Non-fatal — proceed without version metadata
+    }
 
     const replicaCheck = await runCommand("kubectl", [
       "get", "deployment", payload.service, "-n", ns,
@@ -79,19 +100,28 @@ export async function POST(request: NextRequest) {
       ]);
     }
 
-    const args = [
-      "rollout",
-      "undo",
-      `deployment/${payload.service}`,
-      "-n",
-      ns,
-    ];
-
-    if (payload.revision && Number.isFinite(payload.revision)) {
-      args.push(`--to-revision=${payload.revision}`);
+    let rollbackResult;
+    if (stableImage) {
+      // Strategy A: kubectl set image — works with kubectl apply workflows, no revision history needed
+      const containerNameResult = await runCommand("kubectl", [
+        "get", "deployment", payload.service, "-n", ns,
+        "-o", "jsonpath={.spec.template.spec.containers[0].name}",
+      ]);
+      const containerName = containerNameResult.stdout.trim() || payload.service;
+      rollbackResult = await runCommand("kubectl", [
+        "set", "image",
+        `deployment/${payload.service}`,
+        `${containerName}=${stableImage}`,
+        "-n", ns,
+      ]);
+    } else {
+      // Strategy B: kubectl rollout undo — requires revision history in ReplicaSets
+      const args = ["rollout", "undo", `deployment/${payload.service}`, "-n", ns];
+      if (payload.revision && Number.isFinite(payload.revision)) {
+        args.push(`--to-revision=${payload.revision}`);
+      }
+      rollbackResult = await runCommand("kubectl", args);
     }
-
-    const rollbackResult = await runCommand("kubectl", args);
 
     if (rollbackResult.code !== 0) {
       return NextResponse.json(
@@ -125,6 +155,8 @@ export async function POST(request: NextRequest) {
         (new Date(rollbackCompletedAt).getTime() - new Date(detectedAt).getTime()) / 1000,
       ),
       success: statusResult.code === 0,
+      ...(fromSha && { from_sha: fromSha }),
+      ...(toSha && { to_sha: toSha }),
     });
 
     // Ensure app is accessible after rollback — create NodePort service if none exists
@@ -192,6 +224,8 @@ export async function POST(request: NextRequest) {
       output: rollbackResult.stdout,
       rolloutStatus: statusResult.stdout || statusResult.stderr,
       accessUrl,
+      from_sha: fromSha || null,
+      to_sha: toSha || null,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";

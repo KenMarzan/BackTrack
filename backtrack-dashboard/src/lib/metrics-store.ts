@@ -17,6 +17,9 @@ export type MttrEntry = {
   mttr_seconds: number;
   success: boolean;
   source?: "manual" | "agent";
+  // Git commit SHAs recorded at rollback time — populated when BACKTRACK_GIT_SHA is set in CI.
+  from_sha?: string;
+  to_sha?: string;
 };
 
 export type DetectionEntry = {

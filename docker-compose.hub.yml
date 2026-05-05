@@ -40,6 +40,15 @@ services:
       - BACKTRACK_DATA_DIR=/data
       # Kubernetes mode: uncomment after enabling the kube volume above.
       - KUBECONFIG=/root/.kube/config
+      # Git / CI integration (optional):
+      # Set BACKTRACK_GIT_SHA to the current deploy commit SHA so rollback history
+      # records which git revision each deployment corresponds to.
+      # Set BACKTRACK_GIT_WEBHOOK_URL to receive a POST after each successful rollback —
+      # your CI pipeline can use the `stable_sha` field to re-deploy the good commit.
+      # Set BACKTRACK_GIT_WEBHOOK_SECRET for HMAC-SHA256 request signing.
+      - BACKTRACK_GIT_SHA=${BACKTRACK_GIT_SHA:-}
+      - BACKTRACK_GIT_WEBHOOK_URL=${BACKTRACK_GIT_WEBHOOK_URL:-}
+      - BACKTRACK_GIT_WEBHOOK_SECRET=${BACKTRACK_GIT_WEBHOOK_SECRET:-}
     volumes:
       - backtrack-data:/data
       - /var/run/docker.sock:/var/run/docker.sock

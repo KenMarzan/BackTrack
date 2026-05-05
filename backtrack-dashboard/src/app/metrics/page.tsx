@@ -14,6 +14,8 @@ type MttrEntry = {
   mttr_seconds: number;
   success: boolean;
   source?: "manual" | "agent";
+  from_sha?: string;
+  to_sha?: string;
 };
 
 type MttrStats = { count: number; avg: number | null; min: number | null; max: number | null };
@@ -301,33 +303,49 @@ export default function MetricsPage() {
         {mttrEntries.length > 0 ? (
           <div className="bt-panel overflow-hidden">
             <div className="max-h-[42vh] overflow-y-auto scrollbar-hide">
-            <table className="w-full text-[12px]">
-              <thead>
-                <tr className="border-b border-[var(--border-soft)]">
-                  {["Service", "Type", "Detected At", "Completed At", "MTTR", "Status"].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-[11px] text-[var(--text-muted)] uppercase tracking-wide font-medium">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[...mttrEntries].reverse().map((e) => (
-                  <tr key={e.id} className="border-b border-[var(--border-soft)] last:border-0 hover:bg-white/[0.02]">
-                    <td className="px-4 py-3 font-mono text-[var(--accent-teal)]">{e.service}</td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/[0.06] border border-[var(--border-soft)]">{e.anomaly_type}</span>
-                    </td>
-                    <td className="px-4 py-3 text-[var(--text-muted)]">{fmtDate(e.anomaly_detected_at)}</td>
-                    <td className="px-4 py-3 text-[var(--text-muted)]">{fmtDate(e.rollback_completed_at)}</td>
-                    <td className="px-4 py-3 font-semibold">{fmtSeconds(e.mttr_seconds)}</td>
-                    <td className="px-4 py-3">
-                      {e.success
-                        ? <span className="flex items-center gap-1 text-emerald-400"><CheckCircle2 size={12} /> Success</span>
-                        : <span className="flex items-center gap-1 text-rose-400"><XCircle size={12} /> Failed</span>}
-                    </td>
+            {(() => {
+              const hasGitSha = mttrEntries.some((e) => e.to_sha || e.from_sha);
+              return (
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="border-b border-[var(--border-soft)]">
+                    {["Service", "Type", "Detected At", "Completed At", "MTTR", ...(hasGitSha ? ["Commit (bad → stable)"] : []), "Status"].map((h) => (
+                      <th key={h} className="text-left px-4 py-3 text-[11px] text-[var(--text-muted)] uppercase tracking-wide font-medium">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {[...mttrEntries].reverse().map((e) => (
+                    <tr key={e.id} className="border-b border-[var(--border-soft)] last:border-0 hover:bg-white/[0.02]">
+                      <td className="px-4 py-3 font-mono text-[var(--accent-teal)]">{e.service}</td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/[0.06] border border-[var(--border-soft)]">{e.anomaly_type}</span>
+                      </td>
+                      <td className="px-4 py-3 text-[var(--text-muted)]">{fmtDate(e.anomaly_detected_at)}</td>
+                      <td className="px-4 py-3 text-[var(--text-muted)]">{fmtDate(e.rollback_completed_at)}</td>
+                      <td className="px-4 py-3 font-semibold">{fmtSeconds(e.mttr_seconds)}</td>
+                      {hasGitSha && (
+                        <td className="px-4 py-3 font-mono text-[10.5px]">
+                          {(e.from_sha || e.to_sha) ? (
+                            <span className="flex items-center gap-1">
+                              <span className="text-rose-400" title={e.from_sha}>{e.from_sha ? e.from_sha.slice(0, 7) : "——"}</span>
+                              <span className="text-[var(--text-muted)]">→</span>
+                              <span className="text-emerald-400" title={e.to_sha}>{e.to_sha ? e.to_sha.slice(0, 7) : "——"}</span>
+                            </span>
+                          ) : <span className="text-[var(--text-muted)]">—</span>}
+                        </td>
+                      )}
+                      <td className="px-4 py-3">
+                        {e.success
+                          ? <span className="flex items-center gap-1 text-emerald-400"><CheckCircle2 size={12} /> Success</span>
+                          : <span className="flex items-center gap-1 text-rose-400"><XCircle size={12} /> Failed</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              );
+            })()}
             </div>
           </div>
         ) : (

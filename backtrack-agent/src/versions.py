@@ -29,12 +29,14 @@ class Snapshot:
     # K8s deployment revision number recorded when this snapshot was marked STABLE.
     # Used for --to-revision rollback to avoid landing on a previously bad revision.
     k8s_revision: int = 0
+    # Git commit SHA at deployment time — injected by CI via BACKTRACK_GIT_SHA.
+    git_sha: str = ""
 
 
 class VersionStore:
     """Manages version snapshots with file-backed persistence."""
 
-    def __init__(self, image_tag: str) -> None:
+    def __init__(self, image_tag: str, git_sha: str = "") -> None:
         self.snapshots: list[Snapshot] = []
         self._ensure_data_dir()
         self._load()
@@ -45,10 +47,11 @@ class VersionStore:
             timestamp=datetime.now(timezone.utc).isoformat(),
             image_tag=image_tag,
             status="PENDING",
+            git_sha=git_sha,
         )
         self.snapshots.insert(0, pending)
         self._persist()
-        logger.info("Created PENDING snapshot: tag=%s id=%s", image_tag, pending.id)
+        logger.info("Created PENDING snapshot: tag=%s sha=%s id=%s", image_tag, git_sha or "(none)", pending.id)
 
     def _ensure_data_dir(self) -> None:
         os.makedirs(os.path.dirname(VERSIONS_FILE), exist_ok=True)
@@ -61,7 +64,8 @@ class VersionStore:
         try:
             with open(VERSIONS_FILE, "r") as f:
                 raw = json.load(f)
-            self.snapshots = [Snapshot(**item) for item in raw]
+            # setdefault for fields added after initial schema — keeps old snapshots loadable
+            self.snapshots = [Snapshot(**{**{"git_sha": ""}, **item}) for item in raw]
         except Exception:
             logger.warning("Failed to load versions file, starting fresh")
             self.snapshots = []

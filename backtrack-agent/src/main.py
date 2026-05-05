@@ -230,7 +230,7 @@ async def startup() -> None:
     config.log_startup_summary()
     _load_cooldowns()
 
-    version_store = VersionStore(image_tag=config.image_tag)
+    version_store = VersionStore(image_tag=config.image_tag, git_sha=config.git_sha)
     rollback_executor = RollbackExecutor(version_store)
 
     services = await _discover_services()

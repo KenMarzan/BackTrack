@@ -28,6 +28,14 @@ class BacktrackConfig:
         self.rollback_enabled: bool = os.getenv("BACKTRACK_ROLLBACK_ENABLED", "true").lower() == "true"
         self.image_tag: str = os.getenv("BACKTRACK_IMAGE_TAG", "unknown")
         self.clusters: list[dict] = self._parse_clusters()
+        # Git / CI integration
+        # BACKTRACK_GIT_SHA: full commit SHA of the current deployment (set by CI during deploy).
+        # BACKTRACK_GIT_WEBHOOK_URL: endpoint to POST to after a successful rollback, so the
+        #   CI pipeline can re-deploy the last stable commit (GitHub Actions, GitLab CI, etc.).
+        # BACKTRACK_GIT_WEBHOOK_SECRET: optional HMAC-SHA256 signing key for the webhook.
+        self.git_sha: str = os.getenv("BACKTRACK_GIT_SHA", "")
+        self.git_webhook_url: str = os.getenv("BACKTRACK_GIT_WEBHOOK_URL", "")
+        self.git_webhook_secret: str = os.getenv("BACKTRACK_GIT_WEBHOOK_SECRET", "")
         # Set by /reconfigure — overrides env var without mutating os.environ (thread-safe)
         self._forced_mode: str = ""
 
@@ -92,6 +100,8 @@ class BacktrackConfig:
         logger.info("  LSI Score Multiplier:%.1f", self.lsi_score_multiplier)
         logger.info("  Rollback Enabled:    %s", self.rollback_enabled)
         logger.info("  Image Tag:           %s", self.image_tag)
+        logger.info("  Git SHA:             %s", self.git_sha[:12] if self.git_sha else "(not set)")
+        logger.info("  Git Webhook URL:     %s", self.git_webhook_url or "(not set)")
         logger.info(border)
 
     def to_dict(self) -> dict:
@@ -106,6 +116,8 @@ class BacktrackConfig:
             "lsi_score_multiplier": self.lsi_score_multiplier,
             "rollback_enabled": self.rollback_enabled,
             "image_tag": self.image_tag,
+            "git_sha": self.git_sha,
+            "git_webhook_url": self.git_webhook_url,
             "clusters": self.clusters,
         }
 
