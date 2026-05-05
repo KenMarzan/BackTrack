@@ -179,7 +179,7 @@ def test_to_dict_has_all_keys():
     expected = {
         "mode", "target", "k8s_namespace", "k8s_label_selector",
         "scrape_interval", "tsd_iqr_multiplier", "lsi_score_multiplier",
-        "rollback_enabled", "image_tag",
+        "rollback_enabled", "image_tag", "clusters",
     }
     assert set(result.keys()) == expected
 

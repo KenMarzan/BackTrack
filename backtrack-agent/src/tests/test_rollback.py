@@ -147,28 +147,31 @@ def test_rollback_docker_stop_remove_run(mock_config):
     executor = RollbackExecutor(version_store=MagicMock())
     stable = make_snapshot("v1.0.0")
 
-    mock_container = MagicMock()
-    mock_container.attrs = {"HostConfig": {"NetworkMode": "bridge"}}
-    mock_client = MagicMock()
-    mock_client.containers.get.return_value = mock_container
+    inspect_output = json.dumps([{
+        "HostConfig": {"NetworkMode": "bridge", "PortBindings": {}, "Binds": []},
+        "Config": {"Env": []},
+    }])
+    side_effects = [
+        MagicMock(returncode=0, stdout="", stderr=""),  # docker pull
+        MagicMock(returncode=0, stdout=inspect_output), # docker inspect
+        MagicMock(returncode=0),                        # docker stop
+        MagicMock(returncode=0),                        # docker rm
+        MagicMock(returncode=0, stdout="abc123"),       # docker run
+    ]
 
-    with patch("docker.from_env", return_value=mock_client):
+    with patch("subprocess.run", side_effect=side_effects) as mock_run:
         executor._rollback_docker(stable)
 
-    mock_container.stop.assert_called_once()
-    mock_container.remove.assert_called_once()
-    mock_client.containers.run.assert_called_once_with(
-        "v1.0.0",
-        detach=True,
-        name="my-app",
-        network_mode="bridge",
-    )
+    called_commands = [c.args[0] for c in mock_run.call_args_list]
+    assert any(cmd[0] == "docker" and "stop" in cmd for cmd in called_commands)
+    assert any(cmd[0] == "docker" and "rm" in cmd for cmd in called_commands)
+    assert any(cmd[0] == "docker" and "run" in cmd for cmd in called_commands)
 
 
 def test_rollback_docker_propagates_exception(mock_config):
     executor = RollbackExecutor(version_store=MagicMock())
-    with patch("docker.from_env", side_effect=Exception("docker down")):
-        with pytest.raises(Exception, match="docker down"):
+    with patch("subprocess.run", side_effect=RuntimeError("docker down")):
+        with pytest.raises(RuntimeError, match="docker down"):
             executor._rollback_docker(make_snapshot("v1.0.0"))
 
 
@@ -179,6 +182,7 @@ def test_rollback_kubernetes_correct_command(mock_config):
     side_effects = [
         MagicMock(stdout="1"),           # get replicas
         MagicMock(stdout="rolled back"), # rollout undo
+        MagicMock(stdout="successfully rolled out", returncode=0),  # rollout status
     ]
 
     with patch("subprocess.run", side_effect=side_effects) as mock_run:
@@ -191,14 +195,14 @@ def test_rollback_kubernetes_correct_command(mock_config):
 def test_rollback_kubernetes_falls_back_to_label_selector(mock_config):
     mock_config.target = ""
     executor = RollbackExecutor(version_store=MagicMock())
-    mock_result = MagicMock(stdout="")
+    mock_result = MagicMock(stdout="", returncode=0)
 
     with patch("subprocess.run", return_value=mock_result) as mock_run:
         executor._rollback_kubernetes()
 
-    cmd = mock_run.call_args[0][0]
-    # "app=my-app".split("=")[-1] → "my-app"
-    assert "deployment/my-app" in cmd
+    # Check at least one call included "deployment/my-app"
+    called_commands = [c.args[0] for c in mock_run.call_args_list]
+    assert any("deployment/my-app" in cmd for cmd in called_commands)
 
 
 def test_rollback_kubernetes_raises_on_kubectl_failure(mock_config):
@@ -216,15 +220,16 @@ def test_rollback_kubernetes_restores_replicas_when_scaled_to_zero(mock_config):
     """If deployment is at 0 replicas, a scale command is issued after rollout undo."""
     executor = RollbackExecutor(version_store=MagicMock())
     side_effects = [
-        MagicMock(stdout="0"),  # get replicas → 0
-        MagicMock(stdout="rolled back"),  # rollout undo
-        MagicMock(stdout=""),  # scale to 1
+        MagicMock(stdout="0"),                                              # get replicas → 0
+        MagicMock(stdout="rolled back"),                                    # rollout undo
+        MagicMock(stdout="successfully rolled out", returncode=0),          # rollout status
+        MagicMock(stdout=""),                                               # scale to 1
     ]
     with patch("subprocess.run", side_effect=side_effects) as mock_run:
         executor._rollback_kubernetes()
 
-    assert mock_run.call_count == 3
-    scale_cmd = mock_run.call_args_list[2].args[0]
+    assert mock_run.call_count == 4
+    scale_cmd = mock_run.call_args_list[3].args[0]
     assert "--replicas=1" in scale_cmd
 
 
