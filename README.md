@@ -115,6 +115,8 @@ No Node.js, no Python. Requires Docker only.
 
 **Step 1 — Download the compose file**
 
+> **Windows note:** Use **Command Prompt** or **Git Bash** for this command. In PowerShell, `curl` is an alias for `Invoke-WebRequest`, which may behave differently with `-O`.
+
 ```bash
 mkdir backtrack && cd backtrack
 curl -O https://raw.githubusercontent.com/KenMarzan/BackTrack/main/docker-compose.hub.yml
@@ -125,6 +127,42 @@ curl -O https://raw.githubusercontent.com/KenMarzan/BackTrack/main/docker-compos
 ```bash
 docker compose -f docker-compose.hub.yml up -d
 ```
+
+If the dashboard does not open on http://localhost:3847 and you see an error or message referring to port `3000`, this usually means one of the following:
+
+- You're running the local Next.js development server (which defaults to `3000`) instead of the production container image.
+- The container started with a different `PORT` environment variable (or a stale image) and is listening on a different port.
+
+Quick checks and fixes:
+
+- Verify the dashboard container is running and bound to port 3847:
+
+```bash
+docker compose -f docker-compose.hub.yml ps
+docker compose -f docker-compose.hub.yml logs backtrack-dashboard --tail 100
+```
+
+- Confirm the image's `PORT` in the built image (the official image sets `PORT=3847`):
+
+```bash
+docker compose -f docker-compose.hub.yml exec backtrack-dashboard sh -c 'echo $PORT || cat /app/.env || ps aux'
+```
+
+- If you are running the app from source (not the image), the Next.js dev server defaults to `3000`. Run the dev server on `3847` explicitly:
+
+```bash
+PORT=3847 npm run dev
+```
+
+- To force a fresh production container using the Docker Hub image:
+
+```bash
+docker compose -f docker-compose.hub.yml down
+docker compose -f docker-compose.hub.yml pull
+docker compose -f docker-compose.hub.yml up -d --force-recreate --build
+```
+
+Do not set `PORT=3000` for the production image — that port is commonly used by other apps and is not required for BackTrack. The supported production port is `3847` (the image sets `PORT=3847`).
 
 **Step 3 — Connect your app**
 
