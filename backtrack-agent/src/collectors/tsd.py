@@ -554,18 +554,27 @@ class TSDCollector:
         """Run STL decomposition on each metric series."""
         from statsmodels.tsa.seasonal import STL
 
-        metrics = {
-            "cpu": list(self.cpu_history),
-            "memory": list(self.memory_history),
-            "latency": list(self.latency_history),
-            "error_rate": list(self.error_rate_history),
+        # Convert deques to numpy arrays once; reuse across all metrics
+        arrays: dict[str, np.ndarray] = {
+            "cpu":        np.array(self.cpu_history),
+            "memory":     np.array(self.memory_history),
+            "latency":    np.array(self.latency_history),
+            "error_rate": np.array(self.error_rate_history),
         }
 
-        for name, series in metrics.items():
-            if len(series) < MIN_READINGS_FOR_STL:
+        for name, arr in arrays.items():
+            if len(arr) < MIN_READINGS_FOR_STL:
                 continue
             try:
-                result = STL(series, period=STL_PERIOD, robust=True).fit()
+                if arr.std() < 1e-6:
+                    # Constant/zero series — STL would produce trivially zero residuals.
+                    # Skip the expensive LOESS fit and write zeros directly.
+                    zeros = [0.0] * len(arr)
+                    self.residuals[name] = zeros
+                    self.seasonal[name] = zeros
+                    self.trend[name] = arr.tolist()
+                    continue
+                result = STL(arr, period=STL_PERIOD, robust=True).fit()
                 self.residuals[name] = result.resid.tolist()
                 self.seasonal[name] = result.seasonal.tolist()
                 self.trend[name] = result.trend.tolist()
@@ -641,11 +650,15 @@ class TSDCollector:
         # Local counter accumulator — only applied to self if mutate_counters=True
         _metric_hits: dict[str, int] = {k: 0 for k in self._per_metric_drifts}
 
+        # Convert deques once; reused for raw-history check AND memory-leak check below
+        cpu_series = list(self.cpu_history)
+        mem_series = list(self.memory_history)
+
         # Raw-history anomaly detection: catches step changes that STL absorbs into trend.
         # Uses first half of the deque as the stable baseline (oldest = pre-fault readings).
         raw_histories: dict[str, list[float]] = {
-            "cpu": list(self.cpu_history),
-            "memory": list(self.memory_history),
+            "cpu": cpu_series,
+            "memory": mem_series,
         }
         for name, series in raw_histories.items():
             if len(series) < MIN_READINGS_FOR_STL:
@@ -682,7 +695,6 @@ class TSDCollector:
                 drifting_now = True
 
         # Memory leak: monotonically increasing for 6+ consecutive readings AND >15% above baseline
-        mem_series = list(self.memory_history)
         if len(mem_series) >= 8:
             recent_mem = mem_series[-6:]
             if all(recent_mem[i] < recent_mem[i + 1] for i in range(len(recent_mem) - 1)):
