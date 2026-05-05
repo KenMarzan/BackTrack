@@ -515,7 +515,7 @@ function ServiceDiagnosticsPage() {
         if (!active) return;
         if (metricsRes.ok) {
           const d = await metricsRes.json();
-          if (!d.error) {
+          if (!d.error && typeof d.readings_count === "number") {
             setTsd(d);
             const tsdDrift = d.is_drifting === true || (d.drifting_metrics && d.drifting_metrics.length > 0);
             if (tsdDrift && !anomalyDetectedAtRef.current) {
@@ -526,7 +526,7 @@ function ServiceDiagnosticsPage() {
         }
         if (lsiRes.ok) {
           const d = await lsiRes.json();
-          if (!d.error) {
+          if (!d.error && typeof d.current_score === "number") {
             setLsi(d);
             const lsiAnomaly = d.is_anomalous === true;
             if (lsiAnomaly && !anomalyDetectedAtRef.current) {
