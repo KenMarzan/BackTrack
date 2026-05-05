@@ -96,7 +96,18 @@ class LSICollector:
         self._task = asyncio.create_task(self._tail_loop())
         asyncio.create_task(self._consume_log_queue())
         asyncio.create_task(self._partial_fit_watchdog())
+        asyncio.create_task(self._window_timer())
         logger.info("LSI collector started for %s (mode=%s)", self.service_name, config.mode)
+
+    async def _window_timer(self) -> None:
+        """Close stale windows when no log lines arrive to trigger _close_window."""
+        while self._running:
+            await asyncio.sleep(WINDOW_SECONDS)
+            if not self._running or not self.fitted:
+                continue
+            now = time.time()
+            if now - self.window_start >= WINDOW_SECONDS:
+                self._close_window()
 
     async def _partial_fit_watchdog(self) -> None:
         """Fit with whatever corpus we have after 120s if still not fitted.
