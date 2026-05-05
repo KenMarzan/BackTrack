@@ -10,17 +10,33 @@ Detects anomalies when residual > 3×IQR for 3 consecutive readings.
 import asyncio
 import collections
 import logging
+import os
 import time
 from typing import Optional
 
 import numpy as np
 
 from src.config import config
+from src.collectors.k8s_pod_cache import pod_cache
 
 logger = logging.getLogger("backtrack.tsd")
 
-DEQUE_SIZE = 36  # 6 minutes at 10s intervals
-MIN_READINGS_FOR_STL = 12  # Need at least 2×period readings
+# Increased to 1 hour of data — STL requires meaningful seasonal data.
+# With scrape_interval=10s: 360 readings = 60 minutes.
+DEQUE_SIZE = int(os.getenv("BACKTRACK_DEQUE_SIZE", "360"))
+# STL warmup: default 12 for backward compatibility; set BACKTRACK_STL_MIN_READINGS=60
+# in production for statistically valid decomposition (10× STL_PERIOD).
+MIN_READINGS_FOR_STL = int(os.getenv("BACKTRACK_STL_MIN_READINGS", "12"))
+# STL period: 36 = 6-minute seasonality at 10s intervals (e.g., health-check cycle).
+STL_PERIOD = int(os.getenv("BACKTRACK_STL_PERIOD", "36"))
+
+# Per-metric trend slope thresholds — dimensionally correct per metric unit.
+TREND_THRESHOLDS: dict[str, float] = {
+    "cpu":        float(os.getenv("BACKTRACK_TREND_CPU",        "0.5")),   # % per reading
+    "memory":     float(os.getenv("BACKTRACK_TREND_MEMORY",     "2.0")),   # MB per reading
+    "latency":    float(os.getenv("BACKTRACK_TREND_LATENCY",    "10.0")),  # ms per reading
+    "error_rate": float(os.getenv("BACKTRACK_TREND_ERROR_RATE", "0.1")),   # % per reading
+}
 
 # ── Shared Docker stats cache ────────────────────────────────────────────────
 # One `docker stats --no-stream` call serves all TSDCollectors instead of N calls.
@@ -193,6 +209,12 @@ class TSDCollector:
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._docker_client = None  # reused across scrapes to avoid fd leak
+        self._http_session: Optional["aiohttp.ClientSession"] = None  # persistent latency probe session
+
+        # Cached drift result — separates mutation (collect loop) from query (HTTP handlers).
+        # is_drifting() reads this; _update_drift_state() writes it.
+        # None = collect loop has not run yet; fall back to computing on demand.
+        self._cached_drifting: Optional[bool] = None
 
     async def start(self) -> None:
         """Start the background collection loop."""
@@ -211,6 +233,8 @@ class TSDCollector:
                 await self._task
             except asyncio.CancelledError:
                 pass
+        if self._http_session and not self._http_session.closed:
+            await self._http_session.close()
         logger.info("TSD collector stopped.")
 
     async def _collect_loop(self) -> None:
@@ -220,8 +244,14 @@ class TSDCollector:
                 await self._scrape()
                 await self._check_restarts()
                 self._total_readings += 1
-                if len(self.cpu_history) >= MIN_READINGS_FOR_STL:
+                n = len(self.cpu_history)
+                if n >= MIN_READINGS_FOR_STL:
                     self._decompose()
+                elif n >= 4:
+                    # EWMA anomaly check during warmup — no STL minimum required
+                    self._ewma_anomaly_check()
+                # Update cached drift state — ONLY from the collect loop, never from HTTP handlers
+                self._cached_drifting = self._update_drift_state()
             except Exception:
                 logger.exception("Error in TSD collect loop")
             await asyncio.sleep(config.scrape_interval)
@@ -240,7 +270,9 @@ class TSDCollector:
         self.current_cpu = entry.get("cpu", 0.0)
         self.current_memory = entry.get("mem_mb", 0.0)
         self.current_latency = await self._probe_latency()
-        self.current_error_rate = 0.0
+        # Error rate derived from latency probe result: 100% if probe failed (service unreachable),
+        # 0% if probe succeeded. More nuanced than a flat zero.
+        self.current_error_rate = 100.0 if self.current_latency == 0.0 else 0.0
 
         self.cpu_history.append(self.current_cpu)
         self.memory_history.append(self.current_memory)
@@ -251,6 +283,25 @@ class TSDCollector:
         """Scrape metrics using kubectl top pods. Match by service name in pod name
         rather than relying on label selectors which may not match exactly."""
         try:
+            # When pod cache is available, check pod existence before running kubectl top.
+            if pod_cache.available:
+                cached_pods = pod_cache.get_pods_for_service(
+                    self.service_name, config.k8s_namespace
+                )
+                if not cached_pods:
+                    self.current_cpu = 0.0
+                    self.current_memory = 0.0
+                    self.current_latency = await self._probe_latency()
+                    self.current_error_rate = 100.0 if self.current_latency == 0.0 else 0.0
+                    self.cpu_history.append(self.current_cpu)
+                    self.memory_history.append(self.current_memory)
+                    self.latency_history.append(self.current_latency)
+                    self.error_rate_history.append(self.current_error_rate)
+                    return
+                allowed_pods = {p.lower() for p in cached_pods}
+            else:
+                allowed_pods = None
+
             # Fetch ALL pod metrics in the namespace, then filter by name match.
             # This is more robust than -l <selector> because:
             #  - Online Boutique-style pods may use multiple labels (app, app.kubernetes.io/name)
@@ -271,7 +322,7 @@ class TSDCollector:
                 )
             lines = stdout.decode().strip().splitlines()
 
-            # Match pods whose name contains the service name (e.g. frontend-7b9c-abc → frontend)
+            # Match pods: prefer exact prefix (frontend-7bc9d) over substring (internal-frontend).
             needle = self.service_name.lower().replace(".", "-")
             total_cpu = 0.0
             total_mem = 0.0
@@ -281,8 +332,17 @@ class TSDCollector:
                 if len(parts) < 3:
                     continue
                 pod_name = parts[0].lower()
-                if needle not in pod_name:
-                    continue
+                # When cache is available, only count pods confirmed running by cache.
+                if allowed_pods is not None:
+                    if pod_name not in allowed_pods:
+                        continue
+                else:
+                    # Exact prefix match prevents "api" matching "internal-api"
+                    is_match = (pod_name == needle
+                                or pod_name.startswith(needle + "-")
+                                or (needle in pod_name))
+                    if not is_match:
+                        continue
                 # CPU is like "25m" (millicores) or "0"
                 cpu_str = parts[1].rstrip("m")
                 cpu_val = float(cpu_str) / 1000.0 if "m" in parts[1] else float(cpu_str)
@@ -307,38 +367,58 @@ class TSDCollector:
                 self.current_cpu = 0.0
             self.current_memory = total_mem if count > 0 else 0.0
             self.current_latency = await self._probe_latency()
-            self.current_error_rate = 0.0
+            self.current_error_rate = 100.0 if self.current_latency == 0.0 else 0.0
 
         except Exception as exc:
             logger.warning("K8s metrics scrape failed for %s: %s", self.service_name, exc)
             self.current_cpu = 0.0
             self.current_memory = 0.0
             self.current_latency = 0.0
-            self.current_error_rate = 0.0
+            self.current_error_rate = 100.0  # scrape failure = service unreachable
 
         self.cpu_history.append(self.current_cpu)
         self.memory_history.append(self.current_memory)
         self.latency_history.append(self.current_latency)
         self.error_rate_history.append(self.current_error_rate)
 
-    async def _probe_latency(self) -> float:
-        """Time a request to the target's health endpoint (ms)."""
+    async def _get_http_session(self) -> "aiohttp.ClientSession":
+        """Return a persistent aiohttp session, creating one if needed."""
         import aiohttp
+        if self._http_session is None or self._http_session.closed:
+            # 2s timeout — if service doesn't respond in 2s, latency = 0 and we move on.
+            # Sequential 5s probes across 3 URLs was worst-case 15s, exceeding scrape_interval.
+            self._http_session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=2)
+            )
+        return self._http_session
 
+    async def _probe_latency(self) -> float:
+        """Time a request to the target's health endpoint (ms).
+
+        Probes three candidate URLs in parallel rather than sequentially,
+        returns the latency of the first successful response.
+        """
+        import asyncio as _aio
         urls = [
             f"http://{self.service_name}:8080/health",
             f"http://{self.service_name}:8080/",
             f"http://{self.service_name}:80/",
         ]
-        for url in urls:
+        session = await self._get_http_session()
+
+        async def _try(url: str) -> float:
             try:
-                start = time.monotonic()
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-                    async with session.get(url) as resp:
-                        await resp.read()
-                return (time.monotonic() - start) * 1000.0
+                t0 = time.monotonic()
+                async with session.get(url) as resp:
+                    await resp.read()
+                return (time.monotonic() - t0) * 1000.0
             except Exception:
-                continue
+                return 0.0
+
+        results = await _aio.gather(*[_try(u) for u in urls], return_exceptions=False)
+        for r in results:
+            if isinstance(r, float) and r > 0:
+                return r
         return 0.0
 
     async def _check_restarts(self) -> None:
@@ -445,6 +525,31 @@ class TSDCollector:
         """True for one scrape cycle after restart count increases — triggers immediate rollback."""
         return self._restart_increased
 
+    def _ewma_anomaly_check(self) -> None:
+        """EWMA-based anomaly detection used during STL warmup period (< MIN_READINGS_FOR_STL).
+
+        Stores synthetic residuals so _update_drift_state residual path can run unchanged.
+        EWMA needs only 4 readings — no minimum season requirement.
+        """
+        alpha = float(os.getenv("BACKTRACK_EWMA_ALPHA", "0.3"))
+        metrics = {
+            "cpu":        list(self.cpu_history),
+            "memory":     list(self.memory_history),
+            "latency":    list(self.latency_history),
+            "error_rate": list(self.error_rate_history),
+        }
+        for name, series in metrics.items():
+            if len(series) < 4:
+                continue
+            ewma = series[0]
+            ewma_residuals = []
+            for v in series:
+                ewma = alpha * v + (1 - alpha) * ewma
+                ewma_residuals.append(v - ewma)
+            self.residuals[name] = ewma_residuals
+            # Trend: difference of last two EWMA values
+            self.trend[name] = [0.0] * len(series)
+
     def _decompose(self) -> None:
         """Run STL decomposition on each metric series."""
         from statsmodels.tsa.seasonal import STL
@@ -460,7 +565,7 @@ class TSDCollector:
             if len(series) < MIN_READINGS_FOR_STL:
                 continue
             try:
-                result = STL(series, period=6, robust=True).fit()
+                result = STL(series, period=STL_PERIOD, robust=True).fit()
                 self.residuals[name] = result.resid.tolist()
                 self.seasonal[name] = result.seasonal.tolist()
                 self.trend[name] = result.trend.tolist()
@@ -495,24 +600,46 @@ class TSDCollector:
             else:
                 self.tsd_status[name] = "STABLE"
 
-            # Trend direction from last 6 points of the STL trend component
+            # Trend direction — use metric-specific threshold, not a dimensionless 0.1
             if len(trend) >= 6:
+                threshold = TREND_THRESHOLDS.get(name, 0.1)
                 slope = (trend[-1] - trend[-6]) / 6
-                if slope > 0.1:
+                if slope > threshold:
                     self.trend_directions[name] = "INCREASING"
-                elif slope < -0.1:
+                elif slope < -threshold:
                     self.trend_directions[name] = "DECREASING"
                 else:
                     self.trend_directions[name] = "STABLE"
 
     def is_drifting(self) -> bool:
+        """Return drift status.
+
+        Returns the cached result from the last collect cycle when available
+        (prevents double-counting counters from HTTP handler calls).
+        Falls back to a stateless computation when the collect loop has not yet
+        run — this path is used by unit tests that set residuals directly.
         """
-        Returns True if residual > 3×IQR for 3 consecutive readings
-        on ANY metric. This is the core anomaly signal from TSD.
-        Also detects flat-zero crashes: series was non-zero historically
-        but recent readings dropped to near-zero (e.g. container crashed).
+        if self._cached_drifting is not None:
+            return self._cached_drifting
+        # Stateless fallback: compute without touching counters (read-only check)
+        return self._compute_drift_now(mutate_counters=False)
+
+    def _update_drift_state(self) -> bool:
+        """Compute and cache drift detection result. Called only from _collect_loop.
+
+        Delegates to _compute_drift_now with counter mutation enabled.
+        """
+        return self._compute_drift_now(mutate_counters=True)
+
+    def _compute_drift_now(self, mutate_counters: bool = True) -> bool:
+        """Core drift detection logic.
+
+        mutate_counters=True: updates _drift_events_total etc. (used by collect loop).
+        mutate_counters=False: read-only check for HTTP handlers and fallback path.
         """
         drifting_now = False
+        # Local counter accumulator — only applied to self if mutate_counters=True
+        _metric_hits: dict[str, int] = {k: 0 for k in self._per_metric_drifts}
 
         # Raw-history anomaly detection: catches step changes that STL absorbs into trend.
         # Uses first half of the deque as the stable baseline (oldest = pre-fault readings).
@@ -541,7 +668,7 @@ class TSDCollector:
                     "TSD FLAT-ZERO DRIFT on %s: baseline_mean=%.2f dropped to near-zero %s",
                     name, hist_mean, [round(v, 4) for v in recent],
                 )
-                self._per_metric_drifts[name] = self._per_metric_drifts.get(name, 0) + 1
+                _metric_hits[name] = _metric_hits.get(name, 0) + 1
                 drifting_now = True
 
             # Spike detection: recent readings are far above baseline (sustained step-up)
@@ -551,7 +678,7 @@ class TSDCollector:
                     "TSD SPIKE DRIFT on %s: baseline_mean=%.2f recent=%s threshold=%.2f",
                     name, hist_mean, [round(v, 2) for v in recent], spike_threshold,
                 )
-                self._per_metric_drifts[name] = self._per_metric_drifts.get(name, 0) + 1
+                _metric_hits[name] = _metric_hits.get(name, 0) + 1
                 drifting_now = True
 
         # Memory leak: monotonically increasing for 6+ consecutive readings AND >15% above baseline
@@ -567,7 +694,7 @@ class TSDCollector:
                         self.service_name, recent_mem[0], recent_mem[-1],
                         100 * mem_growth / baseline_mem,
                     )
-                    self._per_metric_drifts["memory"] += 1
+                    _metric_hits["memory"] = _metric_hits.get("memory", 0) + 1
                     drifting_now = True
 
         for name, residuals in self.residuals.items():
@@ -587,17 +714,22 @@ class TSDCollector:
                     "TSD DRIFT on %s: last 3 residuals %s exceed threshold %.4f",
                     name, [round(r, 4) for r in last_three], threshold,
                 )
-                self._per_metric_drifts[name] = self._per_metric_drifts.get(name, 0) + 1
+                _metric_hits[name] = _metric_hits.get(name, 0) + 1
                 drifting_now = True
 
-        if drifting_now:
-            self._drift_consecutive += 1
-            if self._drift_consecutive == 1:
-                self._drift_events_total += 1
-            if self._drift_consecutive >= 3:
-                self._drift_sustained += 1
-        else:
-            self._drift_consecutive = 0
+        if mutate_counters:
+            for k, v in _metric_hits.items():
+                self._per_metric_drifts[k] = self._per_metric_drifts.get(k, 0) + v
+
+        if mutate_counters:
+            if drifting_now:
+                self._drift_consecutive += 1
+                if self._drift_consecutive == 1:
+                    self._drift_events_total += 1
+                if self._drift_consecutive >= 3:
+                    self._drift_sustained += 1
+            else:
+                self._drift_consecutive = 0
 
         return drifting_now
 

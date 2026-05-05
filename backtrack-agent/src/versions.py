@@ -26,6 +26,9 @@ class Snapshot:
     status: Literal["PENDING", "STABLE", "ROLLED_BACK"]
     tsd_baseline: dict = field(default_factory=dict)
     lsi_baseline: float = 0.0
+    # K8s deployment revision number recorded when this snapshot was marked STABLE.
+    # Used for --to-revision rollback to avoid landing on a previously bad revision.
+    k8s_revision: int = 0
 
 
 class VersionStore:
@@ -71,14 +74,22 @@ class VersionStore:
         except Exception:
             logger.exception("Failed to persist versions")
 
-    def mark_stable(self, snapshot_id: str, tsd_baseline: Optional[dict] = None, lsi_baseline: float = 0.0) -> None:
+    def mark_stable(
+        self,
+        snapshot_id: str,
+        tsd_baseline: Optional[dict] = None,
+        lsi_baseline: float = 0.0,
+        k8s_revision: int = 0,
+    ) -> None:
         """Mark a snapshot as STABLE. Prune to keep only MAX_STABLE stable snapshots."""
         for snap in self.snapshots:
             if snap.id == snapshot_id:
                 snap.status = "STABLE"
                 snap.tsd_baseline = tsd_baseline or {}
                 snap.lsi_baseline = lsi_baseline
-                logger.info("Marked STABLE: tag=%s id=%s", snap.image_tag, snap.id)
+                snap.k8s_revision = k8s_revision
+                logger.info("Marked STABLE: tag=%s id=%s revision=%d",
+                            snap.image_tag, snap.id, k8s_revision)
                 break
 
         # Prune: keep only the newest MAX_STABLE stable snapshots

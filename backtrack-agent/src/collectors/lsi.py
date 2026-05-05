@@ -22,6 +22,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from src.config import config
+from src.collectors.k8s_pod_cache import pod_cache
 
 logger = logging.getLogger("backtrack.lsi")
 
@@ -56,10 +57,13 @@ class LSICollector:
         self.window_counts: dict[str, int] = {"INFO": 0, "WARN": 0, "ERROR": 0, "NOVEL": 0}
         self.window_total: int = 0
 
-        # Score history for baseline
-        self.score_history: list[float] = []
+        # Bounded score history — prevents unbounded memory growth
+        self.score_history: collections.deque[float] = collections.deque(maxlen=500)
         self.baseline_scores: list[float] = []
         self.baseline_locked = False
+
+        # Re-fit counter — triggers vocabulary refresh every N windows
+        self._windows_since_fit: int = 0
 
         # Recent classified lines for the /lsi endpoint
         self.recent_lines: collections.deque[dict] = collections.deque(maxlen=50)
@@ -82,11 +86,15 @@ class LSICollector:
 
         self._running = False
         self._task: Optional[asyncio.Task] = None
+        # Backpressure queue — tail tasks are producers, consumer is a separate task.
+        # maxsize=1000: explicit drop policy under load rather than blocking the event loop.
+        self._log_queue: asyncio.Queue[str] = asyncio.Queue(maxsize=1000)
 
     async def start(self) -> None:
         """Start the background log tailing loop."""
         self._running = True
         self._task = asyncio.create_task(self._tail_loop())
+        asyncio.create_task(self._consume_log_queue())
         asyncio.create_task(self._partial_fit_watchdog())
         logger.info("LSI collector started for %s (mode=%s)", self.service_name, config.mode)
 
@@ -119,6 +127,47 @@ class LSICollector:
                 pass
         logger.info("LSI collector stopped.")
 
+    # ── Log normalization ────────────────────────────────────────────────────
+
+    _UUID_RE = re.compile(
+        r'\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b', re.I
+    )
+    _IP_RE   = re.compile(r'\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b')
+    _TS_RE   = re.compile(r'\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\b')
+    _HEX_RE  = re.compile(r'\b0x[0-9a-fA-F]{4,}\b')
+    _NUM_RE  = re.compile(r'\b\d{5,}\b')  # long numeric tokens (request IDs, port numbers)
+
+    @classmethod
+    def _normalize_line(cls, line: str) -> str:
+        """Strip high-cardinality tokens before TF-IDF to reduce vocabulary noise."""
+        line = cls._TS_RE.sub('TIMESTAMP', line)
+        line = cls._UUID_RE.sub('UUID', line)
+        line = cls._IP_RE.sub('IP', line)
+        line = cls._HEX_RE.sub('HEX', line)
+        line = cls._NUM_RE.sub('NUM', line)
+        return line
+
+    # ── Queue consumer ───────────────────────────────────────────────────────
+
+    async def _consume_log_queue(self) -> None:
+        """Drain the log queue and process each line. Separate from tail tasks."""
+        while self._running:
+            try:
+                line = await asyncio.wait_for(self._log_queue.get(), timeout=5.0)
+                await self._process_line(line)
+                self._log_queue.task_done()
+            except asyncio.TimeoutError:
+                continue
+            except Exception:
+                logger.exception("Log queue consumer error for %s", self.service_name)
+
+    async def _enqueue(self, line: str) -> None:
+        """Put a line onto the queue; drop silently if full (backpressure)."""
+        try:
+            self._log_queue.put_nowait(line)
+        except asyncio.QueueFull:
+            pass  # explicit drop — better than blocking the tail coroutine
+
     async def _tail_loop(self) -> None:
         """Tail container logs and classify each line."""
         if config.mode == "docker":
@@ -137,13 +186,16 @@ class LSICollector:
                 stderr=asyncio.subprocess.STDOUT,
             )
             stdout, _ = await asyncio.wait_for(snap.communicate(), timeout=15)
-            for raw_line in stdout.splitlines():
+            BATCH = 50
+            lines_raw = stdout.splitlines()
+            for i in range(0, len(lines_raw), BATCH):
                 if not self._running:
                     return
-                line = raw_line.decode("utf-8", errors="replace").strip()
-                if line:
-                    await self._process_line(line)
-                    await asyncio.sleep(0)  # yield to event loop between lines
+                for raw_line in lines_raw[i:i + BATCH]:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if line:
+                        await self._enqueue(line)
+                await asyncio.sleep(0)  # yield once per batch, not per line
         except Exception:
             logger.warning("Docker log snapshot failed for %s", self.service_name)
 
@@ -164,7 +216,7 @@ class LSICollector:
                         break
                     line = raw_line.decode("utf-8", errors="replace").strip()
                     if line:
-                        await self._process_line(line)
+                        await self._enqueue(line)
                 except asyncio.TimeoutError:
                     continue  # quiet service — keep waiting
         except Exception:
@@ -178,6 +230,8 @@ class LSICollector:
 
     async def _resolve_pod_name(self) -> Optional[str]:
         """Find a pod whose name contains the service name. More robust than label selectors."""
+        if pod_cache.available:
+            return pod_cache.get_running_pod(self.service_name, config.k8s_namespace)
         try:
             proc = await asyncio.create_subprocess_exec(
                 "kubectl", "get", "pods",
@@ -194,12 +248,21 @@ class LSICollector:
                                self.service_name, proc.returncode, err[:300])
                 return None
             needle = self.service_name.lower().replace(".", "-")
+            candidates = []
             for line in stdout.decode("utf-8", errors="replace").splitlines():
                 parts = line.split()
-                if len(parts) >= 1 and needle in parts[0].lower():
-                    if len(parts) < 2 or parts[1].lower() == "running":
-                        return parts[0]
-            return None
+                if len(parts) < 1:
+                    continue
+                pod_name = parts[0].lower()
+                status = parts[1].lower() if len(parts) >= 2 else "running"
+                if status != "running":
+                    continue
+                # Prefer exact prefix match (frontend-7bc9d) over substring (internal-frontend-7bc9d)
+                if pod_name == needle or pod_name.startswith(needle + "-"):
+                    candidates.insert(0, parts[0])  # exact prefix first
+                elif needle in pod_name:
+                    candidates.append(parts[0])
+            return candidates[0] if candidates else None
         except Exception as exc:
             logger.warning("Pod resolution failed for %s: %s", self.service_name, exc)
             return None
@@ -236,7 +299,7 @@ class LSICollector:
                     line = raw_line.decode("utf-8", errors="replace").strip()
                     if line:
                         got_any_line = True
-                        await self._process_line(line)
+                        await self._enqueue(line)
 
                 if proc.returncode is None:
                     proc.kill()
@@ -282,13 +345,16 @@ class LSICollector:
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=20)
             if stdout:
-                lines = stdout.decode("utf-8", errors="replace").splitlines()
+                raw_lines = stdout.decode("utf-8", errors="replace").splitlines()
                 count = 0
-                for raw in lines:
-                    line = raw.strip()
-                    if line:
-                        await self._process_line(line)
-                        count += 1
+                BATCH = 50
+                for i in range(0, len(raw_lines), BATCH):
+                    for raw in raw_lines[i:i + BATCH]:
+                        line = raw.strip()
+                        if line:
+                            await self._enqueue(line)
+                            count += 1
+                    await asyncio.sleep(0)
                 logger.info("kubectl logs snapshot: %d lines from %s/%s",
                             count, self.service_name, pod_name)
             elif proc.returncode != 0:
@@ -335,15 +401,17 @@ class LSICollector:
 
     async def _process_line(self, line: str) -> None:
         """Process a single log line: collect for corpus, classify, score."""
+        normalized = self._normalize_line(line)
+
         # Phase 1: collect corpus
         if not self.fitted:
-            self.corpus.append(line)
+            self.corpus.append(normalized)
             if len(self.corpus) >= max(CORPUS_SIZE, 2):
                 self._fit()
             return
 
         # Phase 2: classify and score
-        label = self._classify(line)
+        label = self._classify(normalized)
         self.window_counts[label] += 1
         self.window_total += 1
         self.recent_lines.append({
@@ -399,6 +467,42 @@ class LSICollector:
 
         except Exception:
             logger.exception("LSI fit failed")
+
+    def _maybe_refit(self) -> None:
+        """Re-fit using recent_lines as the new corpus to handle vocabulary drift.
+
+        Only fires every BACKTRACK_REFIT_WINDOWS windows (default: 20 = ~10 minutes).
+        Requires at least 50 recent lines to avoid degrading the model.
+        Does not reset the baseline — drift in log vocabulary should not reset anomaly history.
+        """
+        if len(self.recent_lines) < 50:
+            return
+        new_corpus = [self._normalize_line(e["line"]) for e in self.recent_lines]
+        old_fitted = self.fitted
+        self.fitted = False  # temporarily mark unfitted to allow _fit to run
+        self.corpus = new_corpus
+        self._fit()
+        if not self.fitted:
+            # Re-fit failed — restore previous state
+            self.fitted = old_fitted
+            logger.warning("LSI re-fit failed for %s — keeping previous model", self.service_name)
+        else:
+            logger.info("LSI model re-fitted for %s on %d recent lines", self.service_name, len(new_corpus))
+
+    def _novelty_score(self, vec_array: "np.ndarray") -> float:
+        """SVD reconstruction error — high value means the line is genuinely novel.
+
+        More robust than cosine similarity: doesn't depend on centroid positioning,
+        measures how well the current vocabulary explains the new line.
+        """
+        if self.svd is None:
+            return 0.0
+        try:
+            latent = self.svd.transform(vec_array)
+            reconstructed = self.svd.inverse_transform(latent)
+            return float(np.linalg.norm(vec_array.toarray() - reconstructed))
+        except Exception:
+            return 0.0
 
     _STRUCTURED_LEVELS = {
         "ERROR": "ERROR", "FATAL": "ERROR", "CRITICAL": "ERROR",
@@ -464,17 +568,26 @@ class LSICollector:
         if not self.vectorizer or not self.svd or not self.centroids:
             return kw or "INFO"
 
-        # Priority 3: SVD semantic similarity
+        # Priority 3: SVD — use reconstruction error for NOVEL, cosine sim for class assignment
         try:
             vec = self.vectorizer.transform([line])
-            latent = self.svd.transform(vec)
-            scores = {}
-            for label, centroid in self.centroids.items():
-                sim = cosine_similarity(latent, centroid.reshape(1, -1))[0][0]
-                scores[label] = float(sim)
-            best_label = max(scores, key=scores.get)  # type: ignore[arg-type]
-            best_score = scores[best_label]
-            svd_label = best_label if best_score > SVD_SIMILARITY_THRESHOLD else "NOVEL"
+
+            # Reconstruction error: high value = genuinely novel vocabulary not in corpus
+            recon_error = self._novelty_score(vec)
+            # Threshold calibrated against corpus variance; env-configurable for tuning
+            novel_threshold = float(os.getenv("BACKTRACK_NOVEL_RECON_THRESHOLD", "0.8"))
+            if recon_error > novel_threshold:
+                svd_label = "NOVEL"
+            else:
+                latent = self.svd.transform(vec)
+                scores = {}
+                for label, centroid in self.centroids.items():
+                    sim = cosine_similarity(latent, centroid.reshape(1, -1))[0][0]
+                    scores[label] = float(sim)
+                best_label = max(scores, key=scores.get)  # type: ignore[arg-type]
+                best_score = scores[best_label]
+                svd_label = best_label if best_score > SVD_SIMILARITY_THRESHOLD else "NOVEL"
+
             self._svd_classified_count += 1
             ref = kw if kw else "INFO"
             self._confusion[ref][svd_label] += 1
@@ -497,7 +610,8 @@ class LSICollector:
 
         # Lock baseline after first BASELINE_WINDOWS windows
         if not self.baseline_locked and len(self.score_history) >= BASELINE_WINDOWS:
-            self.baseline_scores = list(self.score_history[:BASELINE_WINDOWS])
+            # score_history is a deque — convert to list before slicing
+            self.baseline_scores = list(self.score_history)[:BASELINE_WINDOWS]
             self.baseline_locked = True
             logger.info("LSI baseline locked: mean=%.4f", np.mean(self.baseline_scores))
         elif self.baseline_locked and self.baseline_scores:
@@ -511,6 +625,12 @@ class LSICollector:
                 self.baseline_scores = self.baseline_scores[-BASELINE_WINDOWS:]
 
         self._compute_semantics(error_count, warning_count, self.window_total)
+
+        # Periodic re-fit to handle vocabulary drift
+        self._windows_since_fit += 1
+        if self._windows_since_fit >= int(os.getenv("BACKTRACK_REFIT_WINDOWS", "20")):
+            self._maybe_refit()
+            self._windows_since_fit = 0
 
         # Reset window
         self.window_start = time.time()
@@ -766,7 +886,7 @@ class LSICollector:
             "threshold": round(1.5 if baseline_mean <= 0 else config.lsi_score_multiplier * baseline_mean, 4),
             "is_anomalous": self.is_anomalous(),
             "window_counts": dict(self.window_counts),
-            "score_history": [round(s, 4) for s in self.score_history[-20:]],
+            "score_history": [round(s, 4) for s in list(self.score_history)[-20:]],
             "recent_lines": list(self.recent_lines),
             "topics": self.topics,
             "error_patterns": self.error_patterns,
