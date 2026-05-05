@@ -247,9 +247,9 @@ export default function AnomaliesPage() {
                   {/* Metric tiles with icons + trend sparkline */}
                   {TSD_METRICS.map((m) => {
                     const decomp       = tsd.decomposition?.[m.key];
-                    const lastTrend    = decomp?.trend.at(-1);
-                    const lastSeasonal = decomp?.seasonal.at(-1);
-                    const lastResidual = decomp?.residual.at(-1);
+                    const lastTrend    = decomp?.trend?.at(-1);
+                    const lastSeasonal = decomp?.seasonal?.at(-1);
+                    const lastResidual = decomp?.residual?.at(-1);
                     const zScore       = tsd.z_scores?.[m.shortKey];
                     const trendDir     = tsd.trend_directions?.[m.shortKey];
                     const metricStatus = tsd.tsd_status?.[m.shortKey];
@@ -268,7 +268,7 @@ export default function AnomaliesPage() {
                                 {metricStatus}
                               </span>
                             )}
-                            {decomp && <MiniSparkline values={decomp.trend.slice(-20)} color={m.color} />}
+                            {decomp?.trend && <MiniSparkline values={decomp.trend.slice(-20)} color={m.color} />}
                           </div>
                         </div>
                         <div className="bt-mono text-[17px] font-semibold" style={{ color: m.color }}>
@@ -379,13 +379,13 @@ export default function AnomaliesPage() {
                       <div className="text-[9px] uppercase tracking-[0.12em] text-[var(--text-muted)]">Score</div>
                       <div className="bt-mono text-[15px] font-semibold mt-1"
                         style={{ color: lsi.is_anomalous ? "var(--accent-rose)" : "var(--accent-cyan)" }}>
-                        {lsi.current_score.toFixed(4)}
+                        {lsi.current_score?.toFixed(4) ?? "—"}
                       </div>
                     </div>
                     <div className="rounded-[10px] border border-[var(--border-soft)] bg-[rgba(11,16,32,0.9)] p-3">
                       <div className="text-[9px] uppercase tracking-[0.12em] text-[var(--text-muted)]">Threshold</div>
                       <div className="bt-mono text-[15px] font-semibold mt-1 text-[var(--text-secondary)]">
-                        {lsi.threshold.toFixed(4)}
+                        {lsi.threshold?.toFixed(4) ?? "—"}
                       </div>
                     </div>
                   </div>
@@ -418,7 +418,7 @@ export default function AnomaliesPage() {
                   })()}
 
                   {/* Anomaly Score History chart */}
-                  {lsi.score_history.length > 0 && (() => {
+                  {(lsi.score_history?.length ?? 0) > 0 && (() => {
                     const rawPts = lsi.score_history.slice(-30);
                     const pts = rawPts.length === 1 ? [rawPts[0], rawPts[0]] : rawPts;
                     const maxV = Math.max(...pts, lsi.threshold, 0.1);
@@ -440,7 +440,7 @@ export default function AnomaliesPage() {
                         <div className="flex items-center justify-between">
                           <p className="text-[9px] uppercase tracking-[0.18em] text-[var(--text-muted)]">Score History</p>
                           <p className="bt-mono text-[9px] text-[var(--text-muted)]">
-                            {lsi.fitted ? `baseline ${lsi.baseline_mean.toFixed(2)}` : `corpus ${lsi.corpus_size}/200`}
+                            {lsi.fitted ? `baseline ${lsi.baseline_mean?.toFixed(2) ?? "—"}` : `corpus ${lsi.corpus_size}/200`}
                           </p>
                         </div>
                         <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: "block", height: 60 }}>
