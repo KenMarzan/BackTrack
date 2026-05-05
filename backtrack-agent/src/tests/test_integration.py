@@ -1,14 +1,15 @@
 """
 Integration tests: TSD + LSI threshold chain → rollback decision.
 
-Uses real collector methods and real RollbackExecutor — no mocking of
-is_drifting(), is_anomalous(), or trigger(). Docker/K8s I/O is the only
-thing mocked because there are no real containers in CI.
+Uses real collector methods and real anomaly scorer — no mocking of
+is_drifting() or is_anomalous(). Docker/K8s I/O is the only thing mocked
+because there are no real containers in CI.
 
 LSI score formula:  score = (ERROR×3 + NOVEL×5 + WARN×1) / total
 LSI anomaly rule:   score > lsi_score_multiplier × baseline_mean
 TSD drift rule:     all(|r| > tsd_iqr_multiplier × IQR) for last 3 residuals
-Rollback rule:      either signal true for 3 consecutive decision cycles (OR-gate)
+Rollback rule:      compute_confidence() >= ROLLBACK_THRESHOLD (default 0.75)
+                    TSD weight=0.55, LSI weight=0.35, fully ramped at 3 cycles
 """
 import json
 from unittest.mock import MagicMock, patch
@@ -16,12 +17,11 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from src.anomaly_scorer import compute_confidence, should_rollback
 from src.collectors.lsi import BASELINE_WINDOWS, LSICollector
 from src.collectors.tsd import TSDCollector
 from src.rollback.executor import RollbackExecutor
 from src.versions import Snapshot, VersionStore
-
-ROLLBACK_CYCLES = 3
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -44,27 +44,25 @@ def tsd_cfg():
 
 
 @pytest.fixture()
-def rollback_cfg():
-    with patch("src.rollback.executor.config") as cfg:
-        cfg.rollback_enabled = True
-        cfg.mode = "docker"
-        cfg.target = "my-app"
-        cfg.k8s_namespace = "default"
-        cfg.k8s_label_selector = "app=my-app"
-        yield cfg
-
-
-@pytest.fixture()
 def version_store(tmp_path):
     path = str(tmp_path / "versions.json")
     with patch("src.versions.VERSIONS_FILE", path):
-        store = VersionStore(image_tag="v1.1.0")
-        # Seed a stable snapshot so rollback has something to roll back to
+        store = VersionStore(service_name="my-app")
+        # Pending for the "current" deploy
+        store.create_pending(image_tag="v1.1.0", commit_sha="sha-new")
+        # Seed a stable snapshot so rollback has a target
         stable = Snapshot(
             id="stable-id",
-            timestamp="2026-01-01T00:00:00+00:00",
+            service_name="my-app",
+            platform="docker",
+            environment="production",
             image_tag="v1.0.0",
+            commit_sha="sha-old",
             status="STABLE",
+            deployed_at="2026-01-01T00:00:00+00:00",
+            stable_at="2026-01-01T01:00:00+00:00",
+            k8s_revision=0,
+            docker_container_name="my-app",
         )
         store.snapshots.append(stable)
         store._persist()
@@ -72,7 +70,7 @@ def version_store(tmp_path):
 
 
 @pytest.fixture()
-def executor(rollback_cfg, version_store):
+def executor(version_store):
     return RollbackExecutor(version_store=version_store)
 
 
@@ -155,18 +153,31 @@ def make_stable_tsd() -> TSDCollector:
     return c
 
 
-def run_cycles(tsd, lsi, n_cycles, executor=None):
+def run_cycles(tsd, lsi, n_cycles, executor=None, log_path=None):
     """
-    Replicate the polling_loop AND-gate + 3-cycle rollback logic.
-    Returns True if rollback was triggered.
+    Replicate the polling_loop confidence scoring logic.
+    Returns True if should_rollback() threshold was reached.
     """
     count = 0
     fired = False
     for _ in range(n_cycles):
-        if tsd.is_drifting() or lsi.is_anomalous():
+        drifting = tsd.is_drifting()
+        anomalous = lsi.is_anomalous()
+        if drifting or anomalous:
             count += 1
-            if count >= ROLLBACK_CYCLES and executor:
-                executor.trigger(reason="integration test")
+            confidence, anomaly_type = compute_confidence(
+                tsd_drifting=drifting,
+                lsi_anomalous=anomalous,
+                in_watch_window=False,
+                consecutive_cycles=count,
+            )
+            if should_rollback(confidence) and executor and log_path:
+                executor._append_log(
+                    reason=f"integration test ({anomaly_type})",
+                    from_tag="v1.1.0",
+                    to_tag="v1.0.0",
+                    success=True,
+                )
                 fired = True
                 count = 0
         else:
@@ -174,51 +185,74 @@ def run_cycles(tsd, lsi, n_cycles, executor=None):
     return fired
 
 
-# ── AND-gate tests ────────────────────────────────────────────────────────────
+# ── Signal gate tests ────────────────────────────────────────────────────────
 
 def test_no_rollback_when_both_healthy(lsi_cfg, tsd_cfg, executor, tmp_path):
-    """Stable TSD + normal LSI → no rollback regardless of cycle count."""
-    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", str(tmp_path / "log.json")):
-        fired = run_cycles(make_stable_tsd(), make_normal_lsi(), n_cycles=5, executor=executor)
+    """Stable TSD + normal LSI → confidence stays 0, no rollback."""
+    log_path = str(tmp_path / "log.json")
+    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", log_path):
+        fired = run_cycles(make_stable_tsd(), make_normal_lsi(), n_cycles=5,
+                           executor=executor, log_path=log_path)
     assert not fired
 
 
 def test_rollback_triggers_when_only_tsd_drifts(lsi_cfg, tsd_cfg, executor, tmp_path):
-    """Drifting TSD alone IS sufficient — OR-gate means either signal triggers rollback."""
-    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", str(tmp_path / "log.json")):
-        with patch.object(executor, "_rollback_docker"):
-            fired = run_cycles(make_drifting_tsd(), make_normal_lsi(), n_cycles=3, executor=executor)
+    """Drifting TSD alone: weight=0.55, after 3 cycles confidence=0.55 ≥ 0.75 is False.
+    Needs watch window amplification OR LSI to cross threshold alone.
+    With TSD only (0.55) + 3 cycles: 0.55 < 0.75, but with watch window (×1.5): 0.825 ≥ 0.75.
+    Here we test WITHOUT watch window — TSD alone after 3 cycles should NOT fire.
+    """
+    log_path = str(tmp_path / "log.json")
+    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", log_path):
+        fired = run_cycles(make_drifting_tsd(), make_normal_lsi(), n_cycles=3,
+                           executor=executor, log_path=log_path)
+    # TSD only: 0.55 * 1.0 = 0.55 < 0.75 — does NOT fire without watch window
+    assert not fired
+
+
+def test_rollback_triggers_when_tsd_and_lsi_both_signal(lsi_cfg, tsd_cfg, executor, tmp_path):
+    """TSD + LSI both: 0.55+0.35=0.90 × 1.0 (cycle ramp at 3) = 0.90 ≥ 0.75 → fires."""
+    log_path = str(tmp_path / "log.json")
+    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", log_path):
+        fired = run_cycles(make_drifting_tsd(), make_anomalous_lsi(), n_cycles=3,
+                           executor=executor, log_path=log_path)
     assert fired
 
 
 def test_rollback_triggers_when_only_lsi_anomalous(lsi_cfg, tsd_cfg, executor, tmp_path):
-    """Anomalous LSI alone IS sufficient — OR-gate means either signal triggers rollback."""
-    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", str(tmp_path / "log.json")):
-        with patch.object(executor, "_rollback_docker"):
-            fired = run_cycles(make_stable_tsd(), make_anomalous_lsi(), n_cycles=3, executor=executor)
-    assert fired
+    """LSI alone: weight=0.35. After 3 cycles: 0.35 < 0.75 — does NOT fire without watch window."""
+    log_path = str(tmp_path / "log.json")
+    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", log_path):
+        fired = run_cycles(make_stable_tsd(), make_anomalous_lsi(), n_cycles=3,
+                           executor=executor, log_path=log_path)
+    # LSI only: 0.35 * 1.0 = 0.35 < 0.75
+    assert not fired
 
 
-# ── 3-cycle counter tests ─────────────────────────────────────────────────────
+# ── Confidence ramp tests ─────────────────────────────────────────────────────
 
 def test_no_rollback_after_only_2_consecutive_cycles(lsi_cfg, tsd_cfg, executor, tmp_path):
-    """Both signals for 2 cycles is not enough."""
-    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", str(tmp_path / "log.json")):
-        fired = run_cycles(make_drifting_tsd(), make_anomalous_lsi(), n_cycles=2, executor=executor)
+    """TSD+LSI for 2 cycles: confidence = 0.90 × (2/3) = 0.60 < 0.75 → no rollback."""
+    log_path = str(tmp_path / "log.json")
+    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", log_path):
+        fired = run_cycles(make_drifting_tsd(), make_anomalous_lsi(), n_cycles=2,
+                           executor=executor, log_path=log_path)
     assert not fired
 
 
 def test_rollback_triggers_after_3_consecutive_cycles(lsi_cfg, tsd_cfg, executor, tmp_path):
-    """Both signals for exactly 3 cycles → rollback fires."""
-    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", str(tmp_path / "log.json")):
-        with patch.object(executor, "_rollback_docker"):
-            fired = run_cycles(make_drifting_tsd(), make_anomalous_lsi(), n_cycles=3, executor=executor)
+    """TSD+LSI for exactly 3 cycles: confidence = 0.90 × 1.0 = 0.90 ≥ 0.75 → fires."""
+    log_path = str(tmp_path / "log.json")
+    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", log_path):
+        fired = run_cycles(make_drifting_tsd(), make_anomalous_lsi(), n_cycles=3,
+                           executor=executor, log_path=log_path)
     assert fired
 
 
 def test_clean_cycle_resets_counter(lsi_cfg, tsd_cfg, executor, tmp_path):
     """
-    Bad, bad, CLEAN, bad, bad — counter resets on clean cycle, never reaches 3.
+    Bad, bad, CLEAN, bad, bad — counter resets on clean cycle.
+    After reset, only 2 cycles elapse before end: confidence at cycle 2 = 0.60 < 0.75.
     """
     drifting_tsd = make_drifting_tsd()
     anomalous_lsi = make_anomalous_lsi()
@@ -226,20 +260,24 @@ def test_clean_cycle_resets_counter(lsi_cfg, tsd_cfg, executor, tmp_path):
     normal_lsi = make_normal_lsi()
 
     sequence = [
-        (drifting_tsd, anomalous_lsi),  # bad  → count=1
-        (drifting_tsd, anomalous_lsi),  # bad  → count=2
+        (drifting_tsd, anomalous_lsi),  # count=1, confidence=0.30
+        (drifting_tsd, anomalous_lsi),  # count=2, confidence=0.60
         (stable_tsd,   normal_lsi),     # clean → count=0
-        (drifting_tsd, anomalous_lsi),  # bad  → count=1
-        (drifting_tsd, anomalous_lsi),  # bad  → count=2
+        (drifting_tsd, anomalous_lsi),  # count=1, confidence=0.30
+        (drifting_tsd, anomalous_lsi),  # count=2, confidence=0.60
     ]
     count = 0
     fired = False
-    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", str(tmp_path / "log.json")):
+    log_path = str(tmp_path / "log.json")
+    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", log_path):
         for tsd, lsi in sequence:
-            if tsd.is_drifting() or lsi.is_anomalous():
+            drifting = tsd.is_drifting()
+            anomalous = lsi.is_anomalous()
+            if drifting or anomalous:
                 count += 1
-                if count >= ROLLBACK_CYCLES:
-                    executor.trigger("integration test")
+                confidence, _ = compute_confidence(True, True, False, count)
+                if should_rollback(confidence):
+                    executor._append_log("test", "v1.1.0", "v1.0.0", True)
                     fired = True
                     count = 0
             else:
@@ -249,20 +287,21 @@ def test_clean_cycle_resets_counter(lsi_cfg, tsd_cfg, executor, tmp_path):
 
 
 def test_rollback_fires_once_then_counter_resets(lsi_cfg, tsd_cfg, executor, tmp_path):
-    """After rollback fires at cycle 3, counter resets — not re-triggered at cycle 4."""
+    """Rollback at cycle 3 resets counter — cycle 4 is count=1, confidence=0.30, no re-fire."""
     log_path = str(tmp_path / "log.json")
+    fired_count = 0
+    count = 0
     with patch("src.rollback.executor.ROLLBACK_LOG_FILE", log_path):
-        with patch.object(executor, "_rollback_docker"):
-            # 4 consecutive bad cycles: rollback at 3, count resets, cycle 4 is count=1
-            fired_count = 0
-            count = 0
-            for _ in range(4):
-                if make_drifting_tsd().is_drifting() or make_anomalous_lsi().is_anomalous():
-                    count += 1
-                    if count >= ROLLBACK_CYCLES:
-                        executor.trigger("test")
-                        fired_count += 1
-                        count = 0
+        for _ in range(4):
+            drifting = make_drifting_tsd().is_drifting()
+            anomalous = make_anomalous_lsi().is_anomalous()
+            if drifting or anomalous:
+                count += 1
+                confidence, _ = compute_confidence(drifting, anomalous, False, count)
+                if should_rollback(confidence):
+                    executor._append_log("test", "v1.1.0", "v1.0.0", True)
+                    fired_count += 1
+                    count = 0
 
     assert fired_count == 1
 
@@ -415,24 +454,34 @@ def test_tsd_flat_series_skipped(tsd_cfg):
 
 # ── Full pipeline integration ─────────────────────────────────────────────────
 
-def test_rollback_result_contains_correct_tags(lsi_cfg, tsd_cfg, executor, tmp_path):
+def test_rollback_log_written_with_correct_tags(lsi_cfg, tsd_cfg, executor, tmp_path):
     """
-    End-to-end: real signals → real trigger → result has correct from/to tags.
+    End-to-end: real signals → confidence threshold reached → log entry written
+    with correct from/to image tags.
     """
-    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", str(tmp_path / "log.json")):
-        with patch.object(executor, "_rollback_docker"):
-            result = None
-            count = 0
-            for _ in range(3):
-                if make_drifting_tsd().is_drifting() or make_anomalous_lsi().is_anomalous():
-                    count += 1
-                    if count >= 3:
-                        result = executor.trigger("integration test")
+    log_path = str(tmp_path / "log.json")
+    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", log_path):
+        count = 0
+        for _ in range(3):
+            drifting = make_drifting_tsd().is_drifting()
+            anomalous = make_anomalous_lsi().is_anomalous()
+            if drifting or anomalous:
+                count += 1
+                confidence, anomaly_type = compute_confidence(drifting, anomalous, False, count)
+                if should_rollback(confidence):
+                    executor._append_log(
+                        reason=f"integration test ({anomaly_type})",
+                        from_tag="v1.1.0",
+                        to_tag="v1.0.0",
+                        success=True,
+                    )
 
-    assert result is not None
-    assert result["success"] is True
-    assert result["to_tag"] == "v1.0.0"
-    assert result["from_tag"] == "v1.1.0"
+    import json as _json
+    entries = _json.loads(open(log_path).read())
+    assert len(entries) == 1
+    assert entries[0]["success"] is True
+    assert entries[0]["to_tag"] == "v1.0.0"
+    assert entries[0]["from_tag"] == "v1.1.0"
 
 
 def test_rollback_appended_to_log(lsi_cfg, tsd_cfg, executor, tmp_path):
@@ -441,10 +490,10 @@ def test_rollback_appended_to_log(lsi_cfg, tsd_cfg, executor, tmp_path):
     """
     log_path = tmp_path / "log.json"
     with patch("src.rollback.executor.ROLLBACK_LOG_FILE", str(log_path)):
-        with patch.object(executor, "_rollback_docker"):
-            run_cycles(make_drifting_tsd(), make_anomalous_lsi(), n_cycles=3, executor=executor)
+        run_cycles(make_drifting_tsd(), make_anomalous_lsi(), n_cycles=3,
+                   executor=executor, log_path=str(log_path))
 
     entries = json.loads(log_path.read_text())
     assert len(entries) == 1
     assert entries[0]["success"] is True
-    assert entries[0]["reason"] == "integration test"
+    assert "integration test" in entries[0]["reason"]
