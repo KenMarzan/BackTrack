@@ -29,12 +29,13 @@ class Snapshot:
     # K8s deployment revision number recorded when this snapshot was marked STABLE.
     # Used for --to-revision rollback to avoid landing on a previously bad revision.
     k8s_revision: int = 0
+    git_sha: str = ""
 
 
 class VersionStore:
     """Manages version snapshots with file-backed persistence."""
 
-    def __init__(self, image_tag: str) -> None:
+    def __init__(self, image_tag: str, git_sha: str = "") -> None:
         self.snapshots: list[Snapshot] = []
         self._ensure_data_dir()
         self._load()
@@ -45,6 +46,7 @@ class VersionStore:
             timestamp=datetime.now(timezone.utc).isoformat(),
             image_tag=image_tag,
             status="PENDING",
+            git_sha=git_sha,
         )
         self.snapshots.insert(0, pending)
         self._persist()
@@ -61,7 +63,9 @@ class VersionStore:
         try:
             with open(VERSIONS_FILE, "r") as f:
                 raw = json.load(f)
-            self.snapshots = [Snapshot(**item) for item in raw]
+            # Backward-compat: older snapshots lack git_sha / k8s_revision
+            defaults = {"git_sha": "", "k8s_revision": 0}
+            self.snapshots = [Snapshot(**{**defaults, **item}) for item in raw]
         except Exception:
             logger.warning("Failed to load versions file, starting fresh")
             self.snapshots = []
@@ -99,6 +103,20 @@ class VersionStore:
             self.snapshots = [s for s in self.snapshots if s.id not in remove_ids]
 
         self._persist()
+
+    def add_pending(self, image_tag: str, git_sha: str = "") -> "Snapshot":
+        """Create a new PENDING snapshot for a mid-run deployment event."""
+        pending = Snapshot(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            image_tag=image_tag,
+            status="PENDING",
+            git_sha=git_sha,
+        )
+        self.snapshots.insert(0, pending)
+        self._persist()
+        logger.info("Created PENDING snapshot: tag=%s id=%s", image_tag, pending.id)
+        return pending
 
     def mark_rolled_back(self, snapshot_id: str) -> None:
         """Mark a snapshot as ROLLED_BACK."""

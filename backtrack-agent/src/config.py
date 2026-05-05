@@ -27,6 +27,9 @@ class BacktrackConfig:
         self.scrape_interval: int = int(os.getenv("BACKTRACK_SCRAPE_INTERVAL", "10"))
         self.rollback_enabled: bool = os.getenv("BACKTRACK_ROLLBACK_ENABLED", "true").lower() == "true"
         self.image_tag: str = os.getenv("BACKTRACK_IMAGE_TAG", "unknown")
+        self.git_sha: str = os.getenv("BACKTRACK_GIT_SHA", "")
+        self.git_webhook_url: str = os.getenv("BACKTRACK_GIT_WEBHOOK_URL", "")
+        self.git_webhook_secret: str = os.getenv("BACKTRACK_GIT_WEBHOOK_SECRET", "")
         self.clusters: list[dict] = self._parse_clusters()
         # Set by /reconfigure — overrides env var without mutating os.environ (thread-safe)
         self._forced_mode: str = ""

@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.collectors.lsi import LSICollector
 from src.collectors.tsd import TSDCollector
 from src.config import config
+from src.deployment_watcher import DeploymentEvent, DeploymentWatcher
 from src.rollback.executor import RollbackExecutor
 from src.versions import VersionStore
 
@@ -41,6 +42,7 @@ service_monitors: dict[str, tuple[TSDCollector, LSICollector]] = {}
 version_store: Optional[VersionStore] = None
 rollback_executor: Optional[RollbackExecutor] = None
 _polling_task: Optional[asyncio.Task] = None
+_deployment_watcher: Optional[DeploymentWatcher] = None
 
 STABLE_THRESHOLD_SECONDS = int(os.getenv("BACKTRACK_STABLE_SECONDS", "600"))
 consecutive_anomaly_counts: dict[str, int] = {}
@@ -122,6 +124,53 @@ async def _discover_services() -> list[tuple[str, str]]:
 
 
 ROLLBACK_COOLDOWN_SECONDS = int(os.getenv("BACKTRACK_ROLLBACK_COOLDOWN", "120"))
+
+
+async def _infer_image_tag(service: str) -> str:
+    """Best-effort image tag from the running container/deployment."""
+    try:
+        if config.mode == "kubernetes":
+            proc = await asyncio.create_subprocess_exec(
+                "kubectl", "get", "deployment", service,
+                "-n", config.k8s_namespace,
+                "-o", "jsonpath={.spec.template.spec.containers[0].image}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            return stdout.decode().strip() if proc.returncode == 0 else ""
+        else:
+            proc = await asyncio.create_subprocess_exec(
+                "docker", "inspect", service,
+                "--format", "{{.Config.Image}}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            return stdout.decode().strip() if proc.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+async def on_deployment_event(event: DeploymentEvent) -> None:
+    """Unified handler for all deployment detection tiers."""
+    global version_store
+
+    image_tag = event.image or await _infer_image_tag(event.service)
+    logger.info(
+        "Deployment event [%s]: service=%s image=%s sha=%.12s source=%s",
+        event.source, event.service, image_tag, event.git_sha or "none", event.source,
+    )
+
+    # Reset anomaly state so a fresh deployment gets a clean slate
+    for d in (consecutive_anomaly_counts, clean_seconds_map, first_anomaly_at):
+        d.pop(event.service, None)
+
+    if version_store is not None:
+        version_store.add_pending(
+            image_tag=image_tag or "unknown",
+            git_sha=event.git_sha,
+        )
 
 
 async def polling_loop() -> None:
@@ -225,12 +274,12 @@ async def polling_loop() -> None:
 
 @app.on_event("startup")
 async def startup() -> None:
-    global version_store, rollback_executor, _polling_task
+    global version_store, rollback_executor, _polling_task, _deployment_watcher
 
     config.log_startup_summary()
     _load_cooldowns()
 
-    version_store = VersionStore(image_tag=config.image_tag)
+    version_store = VersionStore(image_tag=config.image_tag, git_sha=config.git_sha)
     rollback_executor = RollbackExecutor(version_store)
 
     services = await _discover_services()
@@ -247,6 +296,13 @@ async def startup() -> None:
         await lsi.start()
         service_monitors[svc_name] = (tsd, lsi)
 
+    _deployment_watcher = DeploymentWatcher(handler=on_deployment_event)
+    await _deployment_watcher.start(
+        mode=config.mode,
+        namespace=config.k8s_namespace,
+        services=[s[0] for s in services],
+    )
+
     _polling_task = asyncio.create_task(polling_loop())
 
     def _on_polling_done(task: asyncio.Task) -> None:
@@ -262,13 +318,15 @@ async def startup() -> None:
 
 @app.on_event("shutdown")
 async def shutdown() -> None:
-    global _polling_task
+    global _polling_task, _deployment_watcher
     if _polling_task and not _polling_task.done():
         _polling_task.cancel()
         try:
             await _polling_task
         except asyncio.CancelledError:
             pass
+    if _deployment_watcher:
+        await _deployment_watcher.stop()
     for tsd, lsi in service_monitors.values():
         await tsd.stop()
         await lsi.stop()
@@ -352,6 +410,26 @@ async def rollback_trigger(body: dict = Body(default={})) -> dict:
         return {"success": False, "message": "Rollback executor not initialised."}
     service_name = body.get("service", "") or body.get("service_name", "")
     return rollback_executor.trigger(reason="Manual trigger via dashboard", service_name=service_name)
+
+
+@app.post("/deployment/notify")
+async def deployment_notify(body: dict = Body(default={})) -> dict:
+    """
+    Tier 1 — CI/CD push notification.
+    Accepts: { service, image, git_sha }
+    Immediately creates a new PENDING snapshot and resets anomaly state.
+    """
+    service = (body.get("service") or "").strip() or config.target
+    if not service:
+        return {"ok": False, "message": "service is required"}
+
+    await on_deployment_event(DeploymentEvent(
+        service=service,
+        image=(body.get("image") or "").strip(),
+        git_sha=(body.get("git_sha") or "").strip(),
+        source="ci-push",
+    ))
+    return {"ok": True, "service": service}
 
 
 @app.post("/reconfigure")
