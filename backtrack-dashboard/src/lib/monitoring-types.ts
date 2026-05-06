@@ -44,6 +44,42 @@ export type DashboardService = {
   ports: string[];
 };
 
+export type CICDCommit = {
+  sha: string;
+  shortSha: string;
+  message: string;
+  author: string;
+  timestamp: string;
+  url: string;
+};
+
+export type CICDWorkflowRun = {
+  id: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  headSha: string;
+  branch: string;
+  triggeredBy: string;
+  startedAt: string;
+  url: string;
+};
+
+export type CICDImageTag = {
+  tag: string;
+  pushedAt: string;
+  pullUrl: string;
+};
+
+export type CICDData = {
+  repo: string;
+  branch: string;
+  commits: CICDCommit[];
+  workflowRuns: CICDWorkflowRun[];
+  imageTags: CICDImageTag[];
+  fetchedAt: string;
+};
+
 export type DashboardAnomaly = {
   id: string;
   service: string;
