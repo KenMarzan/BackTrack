@@ -132,7 +132,7 @@ async def polling_loop() -> None:
         try:
             for svc_name, (tsd, lsi) in service_monitors.items():
                 drifting = tsd.is_drifting()
-                anomalous = lsi.is_anomalous()
+                anomalous = lsi.is_error_anomalous()  # WARN/NOVEL are informational only
                 crashed = tsd.has_crashed()
 
                 count = consecutive_anomaly_counts.get(svc_name, 0)
@@ -310,7 +310,8 @@ async def get_services() -> list[dict]:
         result.append({
             "name": svc_name,
             "is_drifting": tsd.is_drifting(),
-            "is_anomalous": lsi.is_anomalous(),
+            "is_anomalous": lsi.is_anomalous(),          # full signal: ERROR+WARN+NOVEL (display only)
+            "is_error_anomalous": lsi.is_error_anomalous(),  # rollback signal: ERROR only
             "has_crashed": tsd.has_crashed(),
             "restart_count": tsd._last_restart_count,
             "last_exit_code": tsd._last_exit_code,
