@@ -79,29 +79,34 @@ async function rollbackDocker(
   const results: ServiceResult[] = [];
 
   for (const svc of services) {
-    // Capture current container config before stopping it
-    const inspectRes = await runCommand("docker", [
-      "inspect", svc.name,
-      "--format", "{{json .HostConfig}}",
-    ]);
+    // Capture full container config before stopping it
+    const inspectRes = await runCommand("docker", ["inspect", svc.name]);
 
     let networkMode = "bridge";
     const portArgs: string[] = [];
+    const envArgs: string[] = [];
+    const bindArgs: string[] = [];
 
     if (inspectRes.code === 0) {
       try {
-        const hc = JSON.parse(inspectRes.stdout) as {
-          NetworkMode?: string;
-          PortBindings?: Record<string, Array<{ HostPort?: string }>>;
+        const info = JSON.parse(inspectRes.stdout)[0] as {
+          HostConfig?: {
+            NetworkMode?: string;
+            PortBindings?: Record<string, Array<{ HostPort?: string }>>;
+            Binds?: string[];
+          };
+          Config?: { Env?: string[] };
         };
+        const hc = info.HostConfig || {};
+        const cc = info.Config || {};
         networkMode = hc.NetworkMode || "bridge";
         for (const [containerPort, bindings] of Object.entries(hc.PortBindings || {})) {
-          for (const b of bindings) {
-            if (b.HostPort) {
-              portArgs.push("-p", `${b.HostPort}:${containerPort.replace("/tcp", "")}`);
-            }
+          for (const b of (bindings || [])) {
+            if (b.HostPort) portArgs.push("-p", `${b.HostPort}:${containerPort.replace("/tcp", "")}`);
           }
         }
+        for (const e of (cc.Env || [])) envArgs.push("-e", e);
+        for (const v of (hc.Binds || [])) bindArgs.push("-v", v);
       } catch {
         // use defaults
       }
@@ -115,6 +120,8 @@ async function rollbackDocker(
       "--name", svc.name,
       "--network", networkMode,
       ...portArgs,
+      ...envArgs,
+      ...bindArgs,
       pullUrl,
     ]);
 

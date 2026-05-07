@@ -150,11 +150,14 @@ async def polling_loop() -> None:
                     if not first_anomaly_at.get(svc_name):
                         from datetime import datetime, timezone
                         first_anomaly_at[svc_name] = datetime.now(timezone.utc).isoformat()
-                    rollback_executor.trigger(
+                    result = rollback_executor.trigger(
                         reason=f"Container crash/restart detected for {svc_name} (exit_code={exit_code})",
                         service_name=svc_name,
                         first_anomaly_at=first_anomaly_at.get(svc_name),
                     )
+                    if result.get("success"):
+                        tsd.reset()
+                        lsi.reset()
                     rollback_cooldown_until[svc_name] = time.time() + ROLLBACK_COOLDOWN_SECONDS
                     _persist_cooldowns()
                     first_anomaly_at.pop(svc_name, None)
@@ -177,11 +180,14 @@ async def polling_loop() -> None:
                         logger.warning("Anomaly [%s] signals=%s cycle %d/3", svc_name, signals, count)
                         if count >= 3 and rollback_executor:
                             logger.critical("ROLLBACK for %s — 3 consecutive anomaly cycles (%s).", svc_name, signals)
-                            rollback_executor.trigger(
+                            result = rollback_executor.trigger(
                                 reason=f"{signals} anomaly on {svc_name} for 3 cycles",
                                 service_name=svc_name,
                                 first_anomaly_at=first_anomaly_at.get(svc_name),
                             )
+                            if result.get("success"):
+                                tsd.reset()
+                                lsi.reset()
                             rollback_cooldown_until[svc_name] = time.time() + ROLLBACK_COOLDOWN_SECONDS
                             _persist_cooldowns()
                             first_anomaly_at.pop(svc_name, None)

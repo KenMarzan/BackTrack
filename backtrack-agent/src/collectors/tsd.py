@@ -223,6 +223,25 @@ class TSDCollector:
         self._task = asyncio.create_task(self._collect_loop())
         logger.info("TSD collector started for %s (interval=%ds)", self.service_name, config.scrape_interval)
 
+    def reset(self) -> None:
+        """Clear all accumulated history after a rollback so the collector re-baselines cleanly."""
+        self.cpu_history.clear()
+        self.memory_history.clear()
+        self.latency_history.clear()
+        self.error_rate_history.clear()
+        for d in (self.residuals, self.seasonal, self.trend):
+            for k in d:
+                d[k] = []
+        self.z_scores = {k: 0.0 for k in self.z_scores}
+        self.trend_directions = {k: "UNKNOWN" for k in self.trend_directions}
+        self.tsd_confidence = 0.0
+        self.tsd_status = {k: "INSUFFICIENT_DATA" for k in self.tsd_status}
+        self._drift_consecutive = 0
+        self._cached_drifting = None
+        self._restart_increased = False
+        self._last_restart_count = -1
+        logger.info("TSD collector reset for %s after rollback", self.service_name)
+
     async def stop(self) -> None:
         """Stop the background collection loop."""
         self._running = False

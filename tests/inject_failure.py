@@ -28,7 +28,7 @@ Options:
   --dashboard-url URL        BackTrack dashboard URL for config lookup [default: http://localhost:3847]
   --skip-agent               Skip agent health check and detection/rollback polling
                              (just inject the fault, wait, then restore)
-  --restore-wait SECONDS     Seconds to hold the fault before restoring when --skip-agent [default: 30]
+  --restore-wait SECONDS     Seconds to hold the fault before restoring when --skip-agent [default: 120]
   --output FILE              Results output path [default: tests/results_app1.json]
   --app-name NAME            Label for results [default: test-app-1]
   --github-repo OWNER/REPO   GitHub repository (auto-detected if omitted)
@@ -51,8 +51,8 @@ except ImportError:
     print("ERROR: Install dependencies first: pip install requests")
     sys.exit(1)
 
-POLL_INTERVAL = 5   # seconds
-MAX_WAIT = 600      # 10 minutes
+POLL_INTERVAL = 5    # seconds between polls
+MAX_WAIT = 900       # 15 minutes — allows for slow K8s rollouts
 
 
 # ── Agent helpers ──────────────────────────────────────────────────────────────
@@ -200,39 +200,85 @@ def build_bad_image(client) -> str:
     return "bad-image:latest"
 
 
-def inject_failure_docker(client, target: str, bad_image: str) -> str:
+def inject_failure_docker(client, target: str, bad_image: str) -> dict:
+    """Replace target container with bad image. Returns original container config dict."""
     print(f"[4b/10] Docker: replacing '{target}' with bad image…")
-    original_image = "unknown"
-    network_mode = "bridge"
+    original: dict = {
+        "image": "unknown",
+        "network_mode": "bridge",
+        "port_bindings": {},
+        "env": [],
+        "binds": [],
+    }
     try:
         c = client.containers.get(target)
-        original_image = c.image.tags[0] if c.image.tags else "unknown"
-        network_mode = c.attrs.get("HostConfig", {}).get("NetworkMode", "bridge")
+        hc = c.attrs.get("HostConfig", {})
+        cc = c.attrs.get("Config", {})
+        if c.image.tags:
+            original["image"] = c.image.tags[0]
+        original["network_mode"] = hc.get("NetworkMode", "bridge")
+        original["port_bindings"] = hc.get("PortBindings") or {}
+        original["env"] = cc.get("Env") or []
+        original["binds"] = hc.get("Binds") or []
         c.stop(timeout=5)
         c.remove()
     except Exception:
         print(f"  Warning: container '{target}' not found — starting fresh")
-    client.containers.run(
-        bad_image, detach=True, name=target,
-        network_mode=network_mode, ports={"80/tcp": 8080},
-    )
-    print(f"  OK — bad container running (was: {original_image})")
-    return original_image
+    # Run bad image with same network mode only (no port/env needed for error-logging)
+    client.containers.run(bad_image, detach=True, name=target,
+                          network_mode=original["network_mode"])
+    print(f"  OK — bad container running (was: {original['image']})")
+    return original
 
 
-def restore_docker(client, target: str, original_image: str) -> None:
-    """Remove the bad container if BackTrack's rollback didn't already do so."""
+def restore_docker(client, target: str, original: dict) -> None:
+    """Remove the bad container if BackTrack didn't already do so, then restore original config."""
     try:
         c = client.containers.get(target)
-        current_tags = c.image.tags[0] if c.image.tags else ""
-        if "bad-image" in current_tags:
-            print(f"  Cleanup: restoring '{target}' to original image…")
-            c.stop(timeout=5)
-            c.remove()
-            if original_image and original_image != "unknown":
-                client.containers.run(original_image, detach=True, name=target)
+        current_tag = c.image.tags[0] if c.image.tags else ""
+        if "bad-image" not in current_tag:
+            return  # already restored by BackTrack agent
+        print(f"  Cleanup: stopping bad container '{target}'…")
+        c.stop(timeout=5)
+        c.remove()
     except Exception as e:
-        print(f"  Cleanup warning: {e}")
+        print(f"  Cleanup warning (stop): {e}")
+        return
+
+    original_image = original.get("image", "unknown")
+    if not original_image or original_image == "unknown":
+        print("  Warning: original image unknown — skipping restore.")
+        return
+
+    run_kwargs: dict = {
+        "detach": True,
+        "name": target,
+        "network_mode": original.get("network_mode", "bridge"),
+    }
+    env_list = original.get("env") or []
+    if env_list:
+        run_kwargs["environment"] = env_list
+
+    binds = original.get("binds") or []
+    if binds:
+        run_kwargs["volumes"] = binds
+
+    port_bindings = original.get("port_bindings") or {}
+    if port_bindings:
+        ports_map: dict = {}
+        for container_port, host_ports in port_bindings.items():
+            for hp in (host_ports or []):
+                host = hp.get("HostPort", "")
+                if host:
+                    ports_map[container_port] = int(host)
+        if ports_map:
+            run_kwargs["ports"] = ports_map
+
+    try:
+        client.containers.run(original_image, **run_kwargs)
+        print(f"  OK — '{target}' restored to {original_image}")
+    except Exception as e:
+        print(f"  Restore error: {e}")
 
 
 # ── Kubernetes mode ────────────────────────────────────────────────────────────
@@ -316,15 +362,29 @@ def inject_failure_kubernetes(target: str, namespace: str) -> dict:
 
 
 def restore_kubernetes(target: str, namespace: str, info: dict) -> None:
-    """If the deployment is still running the bad workload, undo it."""
+    """If the deployment is still running the bad workload, undo it and wait for rollout."""
     try:
         current = k8s_get_deployment_info(target, namespace)
-        if current["image"] in ("busybox:latest", "busybox"):
-            print(f"  Cleanup: running kubectl rollout undo deployment/{target}…")
-            subprocess.run(
-                ["kubectl", "rollout", "undo", f"deployment/{target}", "-n", namespace],
-                capture_output=True, text=True,
-            )
+        if current["image"] not in ("busybox:latest", "busybox"):
+            return  # already restored by BackTrack agent
+        print(f"  Cleanup: running kubectl rollout undo deployment/{target}…")
+        r = subprocess.run(
+            ["kubectl", "rollout", "undo", f"deployment/{target}", "-n", namespace],
+            capture_output=True, text=True,
+        )
+        if r.returncode != 0:
+            print(f"  Cleanup error: rollout undo failed: {r.stderr.strip()}")
+            return
+        print("  Waiting for rollout to complete…")
+        status = subprocess.run(
+            ["kubectl", "rollout", "status", f"deployment/{target}",
+             "-n", namespace, "--timeout=120s"],
+            capture_output=True, text=True,
+        )
+        if status.returncode == 0:
+            print(f"  OK — deployment/{target} restored: {status.stdout.strip()}")
+        else:
+            print(f"  Warning: rollout status timed out: {status.stderr.strip()}")
     except Exception as e:
         print(f"  Cleanup warning: {e}")
 
@@ -461,8 +521,8 @@ def main() -> None:
                         help="BackTrack dashboard URL (used to auto-detect GitHub config)")
     parser.add_argument("--skip-agent", action="store_true",
                         help="Skip agent health/detection/rollback polling; just inject then restore")
-    parser.add_argument("--restore-wait", type=int, default=30,
-                        help="Seconds to hold fault before restoring when --skip-agent [default: 30]")
+    parser.add_argument("--restore-wait", type=int, default=120,
+                        help="Seconds to hold fault before restoring when --skip-agent [default: 120]")
     parser.add_argument("--output", default="tests/results_app1.json",
                         help="Results output path")
     parser.add_argument("--app-name", default="test-app-1",
@@ -522,6 +582,7 @@ def main() -> None:
     # ── Step 4: inject failure
     original_image = "unknown"
     k8s_info: dict = {}
+    docker_original: dict = {}
     docker_client = None
 
     if mode == "kubernetes":
@@ -531,15 +592,19 @@ def main() -> None:
     else:
         docker_client = _require_docker()
         bad_image = build_bad_image(docker_client)
-        original_image = inject_failure_docker(docker_client, args.target, bad_image)
+        docker_original = inject_failure_docker(docker_client, args.target, bad_image)
+        original_image = docker_original.get("image", "unknown")
         injected_image = "bad-image:latest"
 
     benchmark_start = time.time()
 
     # ── Steps 5-8: detection → rollback → recovery
     if args.skip_agent:
-        print(f"[5-8/10] Holding fault for {args.restore_wait}s then restoring (--skip-agent)…")
-        time.sleep(args.restore_wait)
+        print(f"[5-8/10] Holding fault for {args.restore_wait}s (--skip-agent). "
+              f"Agent scrape interval is ~10s; needs ≥3 cycles to detect.")
+        for remaining in range(args.restore_wait, 0, -10):
+            print(f"  {remaining}s remaining…")
+            time.sleep(min(10, remaining))
         detection_time = -1
         rollback_time  = -1
         recovery_time  = -1
@@ -553,7 +618,7 @@ def main() -> None:
     if mode == "kubernetes":
         restore_kubernetes(args.target, args.namespace, k8s_info)
     elif docker_client is not None:
-        restore_docker(docker_client, args.target, original_image)
+        restore_docker(docker_client, args.target, docker_original)
 
     # ── GitHub post-rollback snapshot
     github_post: dict = {}
