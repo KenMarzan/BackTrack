@@ -62,6 +62,11 @@ class LSICollector:
         self.baseline_scores: list[float] = []
         self.baseline_locked = False
 
+        # Error-only score history — used for rollback decisions (WARN/NOVEL are informational only)
+        self.error_score_history: collections.deque[float] = collections.deque(maxlen=500)
+        self.error_baseline_scores: list[float] = []
+        self.error_baseline_locked = False
+
         # Re-fit counter — triggers vocabulary refresh every N windows
         self._windows_since_fit: int = 0
 
@@ -141,6 +146,9 @@ class LSICollector:
         self.score_history.clear()
         self.baseline_scores = []
         self.baseline_locked = False
+        self.error_score_history.clear()
+        self.error_baseline_scores = []
+        self.error_baseline_locked = False
         self.window_counts = {"INFO": 0, "WARN": 0, "ERROR": 0, "NOVEL": 0}
         self.window_total = 0
         self.window_start = time.time()
@@ -678,6 +686,10 @@ class LSICollector:
 
         self.score_history.append(score)
 
+        # Error-only score: only ERROR lines count — WARN and NOVEL are informational
+        error_score = (error_count * 3 / self.window_total) if self.window_total > 0 else 0.0
+        self.error_score_history.append(error_score)
+
         # Lock baseline after first BASELINE_WINDOWS windows
         if not self.baseline_locked and len(self.score_history) >= BASELINE_WINDOWS:
             # score_history is a deque — convert to list before slicing
@@ -693,6 +705,18 @@ class LSICollector:
             if score <= current_threshold:
                 self.baseline_scores.append(score)
                 self.baseline_scores = self.baseline_scores[-BASELINE_WINDOWS:]
+
+        # Lock error baseline in parallel
+        if not self.error_baseline_locked and len(self.error_score_history) >= BASELINE_WINDOWS:
+            self.error_baseline_scores = list(self.error_score_history)[:BASELINE_WINDOWS]
+            self.error_baseline_locked = True
+            logger.info("LSI error baseline locked: mean=%.4f", np.mean(self.error_baseline_scores))
+        elif self.error_baseline_locked and self.error_baseline_scores:
+            ebm = float(np.mean(self.error_baseline_scores))
+            error_threshold = 0.3 if ebm <= 0 else config.lsi_score_multiplier * ebm
+            if error_score <= error_threshold:
+                self.error_baseline_scores.append(error_score)
+                self.error_baseline_scores = self.error_baseline_scores[-BASELINE_WINDOWS:]
 
         self._compute_semantics(error_count, warning_count, self.window_total)
 
@@ -908,6 +932,25 @@ class LSICollector:
             return current_score > 1.5
         return current_score > config.lsi_score_multiplier * baseline_mean
 
+    def is_error_anomalous(self) -> bool:
+        """True only when the ERROR-only window score exceeds baseline.
+
+        WARN and NOVEL lines are informational — they do not trigger rollback.
+        A service that emits more warnings or unusual-but-harmless patterns after
+        a deploy should not be rolled back; only a genuine error-rate spike should.
+
+        If the baseline had zero errors, a floor of 0.3 is used so a handful of
+        one-off errors do not immediately trigger rollback (~10 ERROR lines per
+        100 log lines in a window).
+        """
+        if not self.error_baseline_locked or not self.error_score_history:
+            return False
+        baseline_mean = float(np.mean(self.error_baseline_scores))
+        current = self.error_score_history[-1]
+        if baseline_mean <= 0:
+            return current > 0.3
+        return current > config.lsi_score_multiplier * baseline_mean
+
     def get_evaluation(self) -> dict:
         """Compute confusion matrix + precision/recall/F1 per class (keyword vs SVD)."""
         classes = ["INFO", "WARN", "ERROR", "NOVEL"]
@@ -948,6 +991,9 @@ class LSICollector:
         current_score = self.score_history[-1] if self.score_history else 0.0
         baseline_mean = float(np.mean(self.baseline_scores)) if self.baseline_scores else 0.0
 
+        error_score = self.error_score_history[-1] if self.error_score_history else 0.0
+        error_baseline_mean = float(np.mean(self.error_baseline_scores)) if self.error_baseline_scores else 0.0
+
         return {
             "fitted": self.fitted,
             "corpus_size": len(self.corpus),
@@ -955,6 +1001,9 @@ class LSICollector:
             "baseline_mean": round(baseline_mean, 4),
             "threshold": round(1.5 if baseline_mean <= 0 else config.lsi_score_multiplier * baseline_mean, 4),
             "is_anomalous": self.is_anomalous(),
+            "is_error_anomalous": self.is_error_anomalous(),
+            "error_score": round(error_score, 4),
+            "error_baseline_mean": round(error_baseline_mean, 4),
             "window_counts": dict(self.window_counts),
             "score_history": [round(s, 4) for s in list(self.score_history)[-20:]],
             "recent_lines": list(self.recent_lines),
