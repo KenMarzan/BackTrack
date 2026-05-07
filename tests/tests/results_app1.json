@@ -1,0 +1,12 @@
+{
+  "app": "test-app-1",
+  "mode": "kubernetes",
+  "deploy_time": "2026-05-07T04:38:01.159601+00:00",
+  "detection_time_seconds": -1,
+  "rollback_time_seconds": -1,
+  "recovery_time_seconds": -1,
+  "total_time_seconds": 30.0,
+  "false_positives": 0,
+  "image_tag_before": "us-central1-docker.pkg.dev/google-samples/microservices-demo/recommendationservice:v0.10.4",
+  "image_tag_after": "busybox:latest (error-logger)"
+}

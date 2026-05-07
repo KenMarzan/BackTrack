@@ -74,7 +74,7 @@ function normalizeConnection(connection: LegacyConnection): AppConnection {
 		clusterName: (connection.clusterName || "unknown-cluster").trim(),
 		namespace,
 		apiServerEndpoint: (connection.apiServerEndpoint || "").trim(),
-		prometheusUrl: (connection.prometheusUrl || "").trim(),
+		prometheusUrl: connection.prometheusUrl?.trim() || undefined,
 		authToken: connection.authToken,
 		githubRepo: (connection.githubRepo || "").trim() || undefined,
 		githubBranch: (connection.githubBranch || "main").trim(),

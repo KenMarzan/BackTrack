@@ -263,7 +263,7 @@ export async function POST(request: NextRequest) {
 		const clusterName = (payload.clusterName || (platform === "docker" ? "local-docker" : "")).trim();
 		const namespace = (payload.namespace || "default").trim();
 		const apiServerEndpoint = (payload.apiServerEndpoint || "").trim();
-		const prometheusUrl = (payload.prometheusUrl || "").trim();
+		const prometheusUrl = (payload.prometheusUrl || "").trim() || undefined;
 		const authToken = (payload.authToken || "").trim();
 		const githubRepo = (payload.githubRepo || "").trim();
 		const githubBranch = (payload.githubBranch || "main").trim();

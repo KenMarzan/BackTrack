@@ -24,8 +24,11 @@ Options:
   --mode docker|kubernetes   Runtime to target (auto-detected from agent if omitted)
   --target NAME              Container name (docker) or Deployment name (kubernetes)
   --namespace NS             Kubernetes namespace [default: default]
-  --agent-url URL            BackTrack agent base URL [default: http://localhost:9090]
+  --agent-url URL            BackTrack agent base URL [default: http://localhost:8847]
   --dashboard-url URL        BackTrack dashboard URL for config lookup [default: http://localhost:3847]
+  --skip-agent               Skip agent health check and detection/rollback polling
+                             (just inject the fault, wait, then restore)
+  --restore-wait SECONDS     Seconds to hold the fault before restoring when --skip-agent [default: 30]
   --output FILE              Results output path [default: tests/results_app1.json]
   --app-name NAME            Label for results [default: test-app-1]
   --github-repo OWNER/REPO   GitHub repository (auto-detected if omitted)
@@ -452,10 +455,14 @@ def main() -> None:
                         help="Container name (docker) or Deployment name (kubernetes)")
     parser.add_argument("--namespace", default="default",
                         help="Kubernetes namespace [default: default]")
-    parser.add_argument("--agent-url", default="http://localhost:9090",
+    parser.add_argument("--agent-url", default="http://localhost:8847",
                         help="BackTrack agent base URL")
     parser.add_argument("--dashboard-url", default="http://localhost:3847",
                         help="BackTrack dashboard URL (used to auto-detect GitHub config)")
+    parser.add_argument("--skip-agent", action="store_true",
+                        help="Skip agent health/detection/rollback polling; just inject then restore")
+    parser.add_argument("--restore-wait", type=int, default=30,
+                        help="Seconds to hold fault before restoring when --skip-agent [default: 30]")
     parser.add_argument("--output", default="tests/results_app1.json",
                         help="Results output path")
     parser.add_argument("--app-name", default="test-app-1",
@@ -469,13 +476,22 @@ def main() -> None:
     args = parser.parse_args()
 
     # ── Step 1: agent health + mode detection
-    health = wait_for_health(args.agent_url)
-    mode = args.mode or health.get("mode", "docker")
-    print(f"  Using mode: {mode}")
+    if args.skip_agent:
+        if not args.mode:
+            print("ERROR: --mode is required when using --skip-agent (cannot auto-detect without the agent)")
+            sys.exit(1)
+        mode = args.mode
+        initial_count = 0
+        print(f"[1/10] Skipping agent health check (--skip-agent). Mode: {mode}")
+        print("[2/10] Skipping stable-version check (--skip-agent).")
+    else:
+        health = wait_for_health(args.agent_url)
+        mode = args.mode or health.get("mode", "docker")
+        print(f"  Using mode: {mode}")
 
-    # ── Step 2: stable baseline check
-    check_stable_version(args.agent_url)
-    initial_count = get_initial_rollback_count(args.agent_url)
+        # ── Step 2: stable baseline check
+        check_stable_version(args.agent_url)
+        initial_count = get_initial_rollback_count(args.agent_url)
 
     # ── GitHub: resolve config
     gh_repo   = args.github_repo
@@ -521,10 +537,17 @@ def main() -> None:
     benchmark_start = time.time()
 
     # ── Steps 5-8: detection → rollback → recovery
-    detection_time = poll_for_detection(args.agent_url)
-    rollback_time  = poll_for_rollback(args.agent_url, initial_count)
-    recovery_time  = poll_for_recovery(args.agent_url)
-    total_time     = time.time() - benchmark_start
+    if args.skip_agent:
+        print(f"[5-8/10] Holding fault for {args.restore_wait}s then restoring (--skip-agent)…")
+        time.sleep(args.restore_wait)
+        detection_time = -1
+        rollback_time  = -1
+        recovery_time  = -1
+    else:
+        detection_time = poll_for_detection(args.agent_url)
+        rollback_time  = poll_for_rollback(args.agent_url, initial_count)
+        recovery_time  = poll_for_recovery(args.agent_url)
+    total_time = time.time() - benchmark_start
 
     # ── Cleanup: restore if BackTrack didn't fully roll back
     if mode == "kubernetes":

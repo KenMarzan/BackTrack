@@ -17,7 +17,7 @@ export interface AppConnectionInput {
   clusterName: string;
   namespace: string;
   apiServerEndpoint: string;
-  prometheusUrl: string;
+  prometheusUrl?: string;
   authToken?: string;
   githubRepo?: string;
   githubBranch?: string;
