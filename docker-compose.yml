@@ -4,6 +4,9 @@
 services:
   backtrack-dashboard:
     image: zeritzuu/backtrack-dashboard:latest
+    build:
+      context: ./backtrack-dashboard
+      dockerfile: Dockerfile
     ports:
       - "3847:3847"
     # Allows containers to reach host services (e.g. Prometheus at localhost:9091).
@@ -28,6 +31,9 @@ services:
 
   backtrack-agent:
     image: zeritzuu/backtrack-agent:latest
+    build:
+      context: ./backtrack-agent
+      dockerfile: Dockerfile
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
