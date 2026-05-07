@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Nav from "./components/Nav";
 import ContainerHealth from "./components/ContainerHealth";
 import RecentDeployment from "@/app/components/RecentDeployment";
@@ -12,6 +12,7 @@ import type { DashboardService, DashboardAnomaly } from "@/lib/monitoring-types"
 import type { RollbackEvent } from "@/app/components/RollbackEventCard";
 import RollbackToastStack, { type RollbackToast } from "@/app/components/RollbackToast";
 import CICDPanel from "@/app/components/CICDPanel";
+import RecentRollbacks from "@/app/components/RecentRollbacks";
 
 // Module-level cache — survives page navigation, cleared on full reload
 let _overviewCache: { services: DashboardService[]; anomalies: DashboardAnomaly[]; at: Date } | null = null;
@@ -24,6 +25,58 @@ export default function Home() {
   const [rollbackEvents, setRollbackEvents] = useState<RollbackEvent[]>([]);
   const [rollbackToasts, setRollbackToasts] = useState<RollbackToast[]>([]);
   const [hasCICD, setHasCICD] = useState(false);
+
+  // Track agent rollback IDs already toasted so we don't double-notify
+  const seenRollbackIds = useRef<Set<string>>(new Set());
+  const seenRollbackInitialized = useRef(false);
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/agent?path=rollback/history", { cache: "no-store" });
+        if (!res.ok) return;
+        const data: Array<{
+          id: string;
+          service_name: string;
+          from_tag: string;
+          to_tag: string;
+          success: boolean;
+          reason: string;
+        }> = await res.json();
+        if (!Array.isArray(data)) return;
+
+        if (!seenRollbackInitialized.current) {
+          // On first load, mark all existing entries as seen — only new ones get toasted
+          data.forEach((e) => seenRollbackIds.current.add(e.id));
+          seenRollbackInitialized.current = true;
+          return;
+        }
+
+        const newEntries = data.filter((e) => !seenRollbackIds.current.has(e.id));
+        for (const entry of newEntries) {
+          seenRollbackIds.current.add(entry.id);
+          // Skip manual dashboard rollbacks — they already show a toast via handleAnomalyRollback
+          if (entry.reason === "Manual trigger via dashboard") continue;
+          setRollbackToasts((prev) => [
+            {
+              id: crypto.randomUUID(),
+              service: entry.service_name || "unknown",
+              fromVersion: entry.from_tag || "unknown",
+              toVersion: entry.to_tag || "stable",
+              status: entry.success ? "success" : "failed",
+            },
+            ...prev,
+          ]);
+        }
+      } catch {
+        // agent unreachable — silent
+      }
+    };
+
+    poll();
+    const timer = setInterval(poll, 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const checkCICD = () => {
@@ -331,6 +384,11 @@ export default function Home() {
                 <CICDPanel />
               </section>
             )}
+
+            {/* Recent rollbacks */}
+            <section className="bt-rise flex-shrink-0 h-[280px]" style={{ animationDelay: "300ms" }}>
+              <RecentRollbacks />
+            </section>
 
             <footer className="flex-shrink-0 pt-2 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
               <div className="flex items-center gap-2">

@@ -130,6 +130,25 @@ class LSICollector:
                 self.service_name, len(self.corpus),
             )
 
+    def reset(self) -> None:
+        """Clear accumulated log state after a rollback so the model re-fits on fresh pod logs."""
+        self.corpus = []
+        self.fitted = False
+        self.vectorizer = None
+        self.svd = None
+        self.centroids = {}
+        self._centroids_norm = {}
+        self.score_history.clear()
+        self.baseline_scores = []
+        self.baseline_locked = False
+        self.window_counts = {"INFO": 0, "WARN": 0, "ERROR": 0, "NOVEL": 0}
+        self.window_total = 0
+        self.window_start = time.time()
+        self._window_buffer = []
+        self.recent_lines.clear()
+        self._windows_since_fit = 0
+        logger.info("LSI collector reset for %s after rollback", self.service_name)
+
     async def stop(self) -> None:
         """Stop the background log tailing loop."""
         self._running = False

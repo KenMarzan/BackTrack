@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { Clock, RotateCcw, ShieldCheck, TriangleAlert, Zap } from "lucide-react";
+import { AlertTriangle, Clock, RotateCcw, ShieldCheck, TriangleAlert, X, Zap } from "lucide-react";
 import type { DashboardAnomaly } from "@/lib/monitoring-types";
 
 const SEV = {
@@ -67,12 +68,131 @@ function SeverityCount({ label, count, sev }: { label: string; count: number; se
   );
 }
 
+function RollbackConfirmModal({
+  anomaly,
+  onConfirm,
+  onCancel,
+}: {
+  anomaly: DashboardAnomaly;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}
+    >
+      <div
+        className="relative w-full max-w-[400px] rounded-[18px] border p-6 shadow-2xl"
+        style={{
+          background: "rgba(11,16,26,0.98)",
+          borderColor: "rgba(251,113,133,0.28)",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(251,113,133,0.08)",
+        }}
+      >
+        {/* close */}
+        <button
+          type="button"
+          onClick={onCancel}
+          className="absolute top-4 right-4 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          <X size={15} />
+        </button>
+
+        {/* icon */}
+        <div
+          className="flex items-center justify-center w-11 h-11 rounded-full mb-4"
+          style={{
+            background: "rgba(251,113,133,0.10)",
+            border: "1px solid rgba(251,113,133,0.28)",
+          }}
+        >
+          <AlertTriangle size={20} style={{ color: "#fca5a5" }} />
+        </div>
+
+        {/* heading */}
+        <h2 className="text-[15px] font-semibold text-[var(--text-primary)] mb-1">
+          Confirm rollback
+        </h2>
+        <p className="text-[12px] text-[var(--text-secondary)] mb-4 leading-relaxed">
+          Roll back{" "}
+          <span className="bt-mono text-[var(--accent-rose)] font-medium">{anomaly.service}</span>{" "}
+          to its last stable version? This will restart the service.
+        </p>
+
+        {/* detail row */}
+        <div
+          className="rounded-[10px] border px-3.5 py-2.5 mb-5 grid gap-y-1.5"
+          style={{
+            borderColor: "rgba(148,163,184,0.12)",
+            background: "rgba(255,255,255,0.02)",
+            gridTemplateColumns: "auto 1fr",
+            columnGap: "0.75rem",
+          }}
+        >
+          {[
+            { label: "Service",  value: anomaly.service },
+            { label: "Severity", value: anomaly.severity.toUpperCase() },
+            { label: "Metric",   value: `${anomaly.metric}  →  ${anomaly.current} (was ${anomaly.baseline})` },
+          ].map(({ label, value }) => (
+            <>
+              <span key={`l-${label}`} className="text-[10px] bt-mono uppercase tracking-[0.1em] text-[var(--text-muted)]">{label}</span>
+              <span key={`v-${label}`} className="text-[10.5px] text-[var(--text-secondary)] truncate">{value}</span>
+            </>
+          ))}
+        </div>
+
+        {/* actions */}
+        <div className="flex gap-2.5">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 rounded-[10px] border border-[var(--border-soft)] bg-transparent px-4 py-2 text-[12px] text-[var(--text-secondary)] hover:bg-white/[0.04] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="flex-1 rounded-[10px] px-4 py-2 text-[12px] font-semibold transition-colors"
+            style={{
+              background: "rgba(251,113,133,0.15)",
+              border: "1px solid rgba(251,113,133,0.40)",
+              color: "#fca5a5",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,113,133,0.25)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,113,133,0.15)"; }}
+          >
+            <span className="flex items-center justify-center gap-1.5">
+              <RotateCcw size={12} />
+              Rollback now
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AnomalyDetection({ anomalies, onAnomalyRollback }: { anomalies: DashboardAnomaly[]; onAnomalyRollback?: (anomaly: DashboardAnomaly) => void }) {
+  const [pendingRollback, setPendingRollback] = useState<DashboardAnomaly | null>(null);
+
   const critical = anomalies.filter((a) => a.severity === "critical").length;
   const high     = anomalies.filter((a) => a.severity === "high").length;
   const warning  = anomalies.filter((a) => a.severity === "warning").length;
 
   return (
+    <>
+    {pendingRollback && (
+      <RollbackConfirmModal
+        anomaly={pendingRollback}
+        onConfirm={() => {
+          if (onAnomalyRollback) onAnomalyRollback(pendingRollback);
+          setPendingRollback(null);
+        }}
+        onCancel={() => setPendingRollback(null)}
+      />
+    )}
     <div className="bt-panel h-full flex flex-col overflow-hidden p-5">
 
       {/* ── Header ── */}
@@ -192,7 +312,7 @@ function AnomalyDetection({ anomalies, onAnomalyRollback }: { anomalies: Dashboa
                   {onAnomalyRollback && (
                     <button
                       type="button"
-                      onClick={(e) => { e.preventDefault(); onAnomalyRollback(anomaly); }}
+                      onClick={(e) => { e.preventDefault(); setPendingRollback(anomaly); }}
                       className="shrink-0 flex items-center gap-1.5"
                       style={{
                         padding: "3px 10px",
@@ -214,6 +334,7 @@ function AnomalyDetection({ anomalies, onAnomalyRollback }: { anomalies: Dashboa
         )}
       </div>
     </div>
+    </>
   );
 }
 
