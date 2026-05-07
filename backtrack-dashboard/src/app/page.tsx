@@ -11,6 +11,7 @@ import Link from "next/link";
 import type { DashboardService, DashboardAnomaly } from "@/lib/monitoring-types";
 import type { RollbackEvent } from "@/app/components/RollbackEventCard";
 import RollbackToastStack, { type RollbackToast } from "@/app/components/RollbackToast";
+import CICDPanel from "@/app/components/CICDPanel";
 
 // Module-level cache — survives page navigation, cleared on full reload
 let _overviewCache: { services: DashboardService[]; anomalies: DashboardAnomaly[]; at: Date } | null = null;
@@ -22,6 +23,22 @@ export default function Home() {
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "error">("idle");
   const [rollbackEvents, setRollbackEvents] = useState<RollbackEvent[]>([]);
   const [rollbackToasts, setRollbackToasts] = useState<RollbackToast[]>([]);
+  const [hasCICD, setHasCICD] = useState(false);
+
+  useEffect(() => {
+    const checkCICD = () => {
+      fetch("/api/connections", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => {
+          const conns: Array<{ githubRepo?: string }> = Array.isArray(d.connections) ? d.connections : [];
+          setHasCICD(conns.some((c) => c.githubRepo));
+        })
+        .catch(() => {});
+    };
+    checkCICD();
+    window.addEventListener("backtrack:connection-updated", checkCICD);
+    return () => window.removeEventListener("backtrack:connection-updated", checkCICD);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -307,6 +324,13 @@ export default function Home() {
                 <ActiveContainers services={services} />
               </div>
             </section>
+
+            {/* CI/CD row: only when a connection has a GitHub repo */}
+            {hasCICD && (
+              <section className="bt-rise flex-shrink-0 h-[320px]" style={{ animationDelay: "240ms" }}>
+                <CICDPanel />
+              </section>
+            )}
 
             <footer className="flex-shrink-0 pt-2 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
               <div className="flex items-center gap-2">

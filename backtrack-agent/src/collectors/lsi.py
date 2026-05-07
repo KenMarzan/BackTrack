@@ -21,8 +21,8 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from src.config import config
 from src.collectors.k8s_pod_cache import pod_cache
+from src.config import config
 
 logger = logging.getLogger("backtrack.lsi")
 
@@ -69,13 +69,16 @@ class LSICollector:
         self.recent_lines: collections.deque[dict] = collections.deque(maxlen=50)
 
         # Confusion matrix: keyword label (reference) vs SVD label (predicted)
-        # Only populated for lines where keyword gave a definitive label AND SVD ran
-        # rows = reference class, cols = predicted class
         _classes = ["INFO", "WARN", "ERROR", "NOVEL"]
         self._confusion: dict[str, dict[str, int]] = {
             ref: {pred: 0 for pred in _classes} for ref in _classes
         }
-        self._svd_classified_count: int = 0  # lines that went through SVD path
+        self._svd_classified_count: int = 0
+
+        # Pre-normalised centroids — computed at fit time, used for fast dot-product cosine sim
+        self._centroids_norm: dict[str, np.ndarray] = {}
+        # Lines that need SVD classification, buffered per window for batch processing
+        self._window_buffer: list[str] = []
 
         # Semantic analysis state (refreshed each window close)
         self.topics: list[dict] = []
@@ -421,19 +424,25 @@ class LSICollector:
                 self._fit()
             return
 
-        # Phase 2: classify and score
-        label = self._classify(normalized)
-        self.window_counts[label] += 1
-        self.window_total += 1
-        self.recent_lines.append({
-            "line": line[:500],
-            "label": label,
-            "timestamp": time.time(),
-        })
+        # Phase 2: fast-path classify or buffer for batch SVD
+        # Fast path 1: level embedded in the log line (Spring Boot, Python, etc.)
+        label: Optional[str] = self._extract_structured_level(line)
+        if label is None:
+            # Fast path 2: seed keyword match
+            label = self._keyword_classify(line)
 
-        # Check if window has elapsed
-        now = time.time()
-        if now - self.window_start >= WINDOW_SECONDS:
+        if label is not None:
+            # Immediate — no sklearn overhead
+            self.window_counts[label] += 1
+            self.window_total += 1
+            self.recent_lines.append({"line": line[:500], "label": label, "timestamp": time.time()})
+        else:
+            # No fast-path hit: defer to batch SVD at window close
+            self._window_buffer.append(normalized)
+            # Add to recent_lines with a default; label stays INFO for display purposes
+            self.recent_lines.append({"line": line[:500], "label": "INFO", "timestamp": time.time()})
+
+        if time.time() - self.window_start >= WINDOW_SECONDS:
             self._close_window()
 
     def _fit(self) -> None:
@@ -473,6 +482,11 @@ class LSICollector:
                     seed_latent = self.svd.transform(seed_vec)
                     self.centroids[label] = seed_latent.mean(axis=0)
 
+            # Pre-normalise centroids once — avoids per-call reshape + sklearn dispatcher overhead
+            self._centroids_norm = {
+                label: centroid / (np.linalg.norm(centroid) + 1e-9)
+                for label, centroid in self.centroids.items()
+            }
             self.fitted = True
             logger.info("LSI model fitted. Centroids: %s", list(self.centroids.keys()))
 
@@ -500,18 +514,23 @@ class LSICollector:
         else:
             logger.info("LSI model re-fitted for %s on %d recent lines", self.service_name, len(new_corpus))
 
-    def _novelty_score(self, vec_array: "np.ndarray") -> float:
+    def _novelty_score(self, vec) -> float:
         """SVD reconstruction error — high value means the line is genuinely novel.
 
-        More robust than cosine similarity: doesn't depend on centroid positioning,
-        measures how well the current vocabulary explains the new line.
+        Computed without densifying the sparse input vector:
+          ||sparse - recon||² = ||sparse||² + ||recon||² - 2·(sparse · recon)
+        The first term visits only non-zero elements (O(nnz)), avoiding the full
+        n_features dense materialisation that vec.toarray() would require.
         """
         if self.svd is None:
             return 0.0
         try:
-            latent = self.svd.transform(vec_array)
-            reconstructed = self.svd.inverse_transform(latent)
-            return float(np.linalg.norm(vec_array.toarray() - reconstructed))
+            latent = self.svd.transform(vec)              # (1, k)
+            recon  = self.svd.inverse_transform(latent)   # (1, n_features) dense
+            sparse_sq = float(vec.multiply(vec).sum())
+            recon_sq  = float(np.dot(recon[0], recon[0]))
+            cross     = float(vec.dot(recon.T)[0, 0])
+            return float(np.sqrt(max(0.0, sparse_sq + recon_sq - 2.0 * cross)))
         except Exception:
             return 0.0
 
@@ -546,68 +565,89 @@ class LSICollector:
         return None
 
     def _classify(self, line: str) -> str:
-        """Classify a single log line.
+        """Classify a single log line (used as fallback / compatibility path).
 
         Priority order:
-          1. Structured level (INFO/WARN/ERROR embedded in the log line) — most accurate
+          1. Structured level embedded in the log line — most accurate, zero sklearn cost
           2. Seed keyword match — fast path for unstructured logs
-          3. SVD cosine similarity — semantic fallback
+          3. SVD cosine similarity — semantic fallback (uses pre-normalised centroids)
+
+        Hot path: _process_line routes structured and keyword lines directly without
+        calling this method.  SVD lines are batch-classified by _batch_classify instead.
         """
-        # Priority 1: trust the logger — if the line says INFO it's INFO
         structured = self._extract_structured_level(line)
         if structured:
-            ref = structured
-            if not self.vectorizer or not self.svd or not self.centroids:
-                return structured
-            # Still run SVD to update confusion matrix, but don't override structured level
-            try:
-                vec = self.vectorizer.transform([line])
-                latent = self.svd.transform(vec)
-                scores: dict[str, float] = {}
-                for label, centroid in self.centroids.items():
-                    sim = cosine_similarity(latent, centroid.reshape(1, -1))[0][0]
-                    scores[label] = float(sim)
-                best_label = max(scores, key=scores.get)  # type: ignore[arg-type]
-                self._svd_classified_count += 1
-                self._confusion[ref][best_label] += 1
-            except Exception:
-                pass
-            return structured
+            return structured  # trust the logger — no sklearn overhead
 
-        # Priority 2: keyword match for unstructured logs
         kw = self._keyword_classify(line)
-        if not self.vectorizer or not self.svd or not self.centroids:
+        if not self.vectorizer or not self.svd or not self._centroids_norm:
             return kw or "INFO"
 
-        # Priority 3: SVD — use reconstruction error for NOVEL, cosine sim for class assignment
         try:
             vec = self.vectorizer.transform([line])
-
-            # Reconstruction error: high value = genuinely novel vocabulary not in corpus
-            recon_error = self._novelty_score(vec)
-            # Threshold calibrated against corpus variance; env-configurable for tuning
             novel_threshold = float(os.getenv("BACKTRACK_NOVEL_RECON_THRESHOLD", "0.8"))
-            if recon_error > novel_threshold:
-                svd_label = "NOVEL"
-            else:
-                latent = self.svd.transform(vec)
-                scores = {}
-                for label, centroid in self.centroids.items():
-                    sim = cosine_similarity(latent, centroid.reshape(1, -1))[0][0]
-                    scores[label] = float(sim)
-                best_label = max(scores, key=scores.get)  # type: ignore[arg-type]
-                best_score = scores[best_label]
-                svd_label = best_label if best_score > SVD_SIMILARITY_THRESHOLD else "NOVEL"
-
-            self._svd_classified_count += 1
-            ref = kw if kw else "INFO"
-            self._confusion[ref][svd_label] += 1
-            return kw if kw else svd_label
+            if self._novelty_score(vec) > novel_threshold:
+                return "NOVEL"
+            latent_flat = self.svd.transform(vec)[0]
+            latent_norm = latent_flat / (np.linalg.norm(latent_flat) + 1e-9)
+            scores = {lbl: float(np.dot(latent_norm, cn)) for lbl, cn in self._centroids_norm.items()}
+            best_label = max(scores, key=scores.get)  # type: ignore[arg-type]
+            return best_label if scores[best_label] > SVD_SIMILARITY_THRESHOLD else "NOVEL"
         except Exception:
             return kw or "INFO"
 
+    def _batch_classify(self, lines: list[str]) -> list[str]:
+        """Classify a batch of pre-normalised lines in a single vectorizer+SVD call.
+
+        One vectorizer.transform + one svd.transform replaces N individual calls.
+        Reconstruction error and cosine similarity are computed with numpy matrix ops.
+        """
+        if not lines or not self.vectorizer or not self.svd or not self._centroids_norm:
+            return ["INFO"] * len(lines)
+        try:
+            novel_threshold = float(os.getenv("BACKTRACK_NOVEL_RECON_THRESHOLD", "0.8"))
+            vecs   = self.vectorizer.transform(lines)           # (n, n_features) sparse
+            latents = self.svd.transform(vecs)                  # (n, k) dense
+            recon   = self.svd.inverse_transform(latents)       # (n, n_features) dense
+
+            # Vectorised reconstruction error — sparse-aware, avoids full densification
+            sparse_sq = np.asarray(vecs.multiply(vecs).sum(axis=1)).ravel()
+            recon_sq  = np.sum(recon ** 2, axis=1)
+            cross     = np.asarray(vecs.multiply(recon).sum(axis=1)).ravel()
+            recon_errors = np.sqrt(np.maximum(0.0, sparse_sq + recon_sq - 2.0 * cross))
+
+            # Vectorised cosine similarity via pre-normalised centroid matrix
+            norms = np.linalg.norm(latents, axis=1, keepdims=True) + 1e-9
+            latents_norm = latents / norms                       # (n, k)
+            label_order  = sorted(self._centroids_norm.keys())
+            centroid_mat = np.stack([self._centroids_norm[l] for l in label_order])  # (C, k)
+            sims      = latents_norm @ centroid_mat.T            # (n, C)
+            best_idx  = np.argmax(sims, axis=1)
+            best_sims = sims[np.arange(len(lines)), best_idx]
+
+            self._svd_classified_count += len(lines)
+            labels: list[str] = []
+            for err, bi, bs in zip(recon_errors, best_idx, best_sims):
+                if err > novel_threshold:
+                    labels.append("NOVEL")
+                elif bs > SVD_SIMILARITY_THRESHOLD:
+                    labels.append(label_order[int(bi)])
+                else:
+                    labels.append("NOVEL")
+            return labels
+        except Exception:
+            logger.warning("Batch classify failed for %s", self.service_name)
+            return ["INFO"] * len(lines)
+
     def _close_window(self) -> None:
         """Close the current 30-second scoring window."""
+        # Drain SVD buffer in one batch before computing the score
+        if self._window_buffer:
+            for lbl in self._batch_classify(self._window_buffer):
+                self.window_counts[lbl] += 1
+            self.window_total += len(self._window_buffer)
+            self._window_buffer = []
+
         error_count = self.window_counts.get("ERROR", 0)
         warning_count = self.window_counts.get("WARN", 0)
 

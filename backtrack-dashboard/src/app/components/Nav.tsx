@@ -369,7 +369,7 @@ function Nav({ healthSummary }: NavProps) {
                   </Field>
                 </div>
 
-                <Field label="GitHub token" hint="Personal access token with repo read access. Stored locally only.">
+                <Field label="GitHub token" hint="PAT with repo + workflow + read:packages scopes — enables commit tracking, CI/CD runs, and GHCR image tags. Stored locally only.">
                   <input
                     type="password"
                     value={form.githubToken}

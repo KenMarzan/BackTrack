@@ -9,8 +9,8 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# backtrack runtime data
-/.backtrack/
+# backtrack runtime data (contains credentials — never commit)
+.backtrack/
 
 # Python
 .venv/

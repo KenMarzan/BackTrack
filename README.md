@@ -172,7 +172,6 @@ Do not set `PORT=3000` for the production image — that port is commonly used b
 4. Enter your container or deployment name → click **Connect**
 
 BackTrack will discover your services and begin building the anomaly baseline automatically. A progress bar on the Anomalies page shows warmup status (~2 minutes).
-
 > **Kubernetes users:** Mount your kubeconfig before starting. See [Kubernetes Mode](#kubernetes-mode).
 
 ---
