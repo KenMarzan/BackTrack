@@ -13,6 +13,8 @@ Pull and run BackTrack from Docker Hub — no source code needed.
 
 ## Step 1 — Download the Compose File
 
+> **Windows note:** Use **Command Prompt** or **Git Bash** for this command. In PowerShell, `curl` is an alias for `Invoke-WebRequest`, which may behave differently with `-O`.
+
 ```bash
 mkdir backtrack && cd backtrack
 
@@ -155,6 +157,33 @@ docker compose -f docker-compose.hub.yml up -d
 | Only one connection per platform | By design — connecting a new Docker app replaces the previous Docker connection. Each platform keeps one active cluster. |
 
 ---
+
+### Dashboard port confusion (3847 vs 3000)
+
+If the dashboard doesn't open at `http://localhost:3847` and you see references to port `3000`, it's usually because you're running the Next.js dev server (which defaults to `3000`) instead of the production image, or a stale container/image is listening on a different port.
+
+Quick checks:
+
+```bash
+docker compose -f docker-compose.hub.yml ps
+docker compose -f docker-compose.hub.yml logs backtrack-dashboard --tail 100
+```
+
+If running from source, start the dev server on `3847` explicitly:
+
+```bash
+PORT=3847 npm run dev
+```
+
+To force a fresh production image from Docker Hub:
+
+```bash
+docker compose -f docker-compose.hub.yml down
+docker compose -f docker-compose.hub.yml pull
+docker compose -f docker-compose.hub.yml up -d --force-recreate --build
+```
+
+Do not set `PORT=3000` for the production image; BackTrack production uses port `3847`.
 
 ## Useful Endpoints
 
