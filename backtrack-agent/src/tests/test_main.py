@@ -61,6 +61,7 @@ def make_tsd(drifting=False, readings=2, crashed=False):
 def make_lsi(anomalous=False, fitted=True):
     lsi = MagicMock()
     lsi.is_anomalous.return_value = anomalous
+    lsi.is_error_anomalous.return_value = anomalous  # rollback signal mirrors display signal in tests
     lsi.fitted = fitted
     lsi.get_lsi.return_value = {"fitted": fitted, "baseline_mean": 0.5}
     return lsi
@@ -110,6 +111,7 @@ async def test_get_services_shape():
     assert result[0]["name"] == "svc"
     assert result[0]["is_drifting"] is False
     assert result[0]["is_anomalous"] is False
+    assert result[0]["is_error_anomalous"] is False
     assert result[0]["lsi_fitted"] is True
     assert result[0]["readings_count"] == 2
 
@@ -302,6 +304,7 @@ async def test_polling_loop_resets_count_after_clean_cycle(mock_config):
         if call_count == 3:
             tsd.is_drifting.return_value = False
             lsi.is_anomalous.return_value = False
+            lsi.is_error_anomalous.return_value = False
         if call_count > 5:
             raise asyncio.CancelledError()
 

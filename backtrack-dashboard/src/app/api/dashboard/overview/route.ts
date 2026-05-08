@@ -422,7 +422,7 @@ export async function GET() {
 
 	// Fetch agent anomaly signals (LSI + TSD) and per-service metrics
 	const agentUrl = process.env.BACKTRACK_AGENT_URL || "http://127.0.0.1:8847";
-	type AgentService = { name: string; is_drifting: boolean; is_anomalous: boolean };
+	type AgentService = { name: string; is_drifting: boolean; is_anomalous: boolean; is_error_anomalous: boolean };
 	type AgentMetrics = { current?: { cpu_percent?: number; memory_mb?: number; latency_ms?: number; error_rate_percent?: number } };
 	let agentServices: AgentService[] = [];
 	const agentMetricsMap = new Map<string, AgentMetrics>();
@@ -444,7 +444,7 @@ export async function GET() {
 	} catch { /* agent unavailable */ }
 
 	const agentAnomalyMap = new Map<string, AgentService>(
-		agentServices.filter((s) => s.is_drifting || s.is_anomalous).map((s) => [s.name, s])
+		agentServices.filter((s) => s.is_drifting || s.is_anomalous || s.is_error_anomalous).map((s) => [s.name, s])
 	);
 
 	// Backfill agent TSD metrics into services that have no Prometheus data
@@ -502,14 +502,19 @@ export async function GET() {
 
 			const agentSvc = agentAnomalyMap.get(service.name);
 			if (agentSvc) {
-				const signals = [agentSvc.is_drifting ? "TSD drift" : "", agentSvc.is_anomalous ? "LSI log anomaly" : ""]
+				const lsiSignal = agentSvc.is_error_anomalous
+					? "LSI error anomaly (will rollback)"
+					: agentSvc.is_anomalous
+					? "LSI warn/novel anomaly (informational)"
+					: "";
+				const signals = [agentSvc.is_drifting ? "TSD drift" : "", lsiSignal]
 					.filter(Boolean).join(" + ");
 				issues.push({
 					id: `${service.id}-agent`,
 					service: service.name,
 					namespace: service.namespace,
 					platform: service.platform,
-					severity: agentSvc.is_drifting && agentSvc.is_anomalous ? "critical" : "high",
+					severity: (agentSvc.is_drifting || agentSvc.is_error_anomalous) ? "critical" : "high",
 					message: `BackTrack agent detected: ${signals}`,
 					metric: agentSvc.is_drifting ? "cpu" : "logs",
 					baseline: "nominal",
@@ -527,15 +532,20 @@ export async function GET() {
 	const dashboardServiceNames = new Set(services.map((s) => s.name));
 	const now = new Date().toISOString();
 	for (const agentSvc of agentServices) {
-		if (!agentSvc.is_drifting && !agentSvc.is_anomalous) continue;
+		if (!agentSvc.is_drifting && !agentSvc.is_anomalous && !agentSvc.is_error_anomalous) continue;
 		if (dashboardServiceNames.has(agentSvc.name)) continue;
-		const signals = [agentSvc.is_drifting ? "TSD drift" : "", agentSvc.is_anomalous ? "LSI log anomaly" : ""]
+		const lsiSignal = agentSvc.is_error_anomalous
+			? "LSI error anomaly (will rollback)"
+			: agentSvc.is_anomalous
+			? "LSI warn/novel anomaly (informational)"
+			: "";
+		const signals = [agentSvc.is_drifting ? "TSD drift" : "", lsiSignal]
 			.filter(Boolean).join(" + ");
 		anomalies.push({
 			id: `agent-${agentSvc.name}`,
 			service: agentSvc.name,
 			namespace: "default",
-			severity: agentSvc.is_drifting && agentSvc.is_anomalous ? "critical" : "high",
+			severity: (agentSvc.is_drifting || agentSvc.is_error_anomalous) ? "critical" : "high",
 			message: `BackTrack agent detected: ${signals}`,
 			metric: agentSvc.is_drifting ? "cpu" : "logs",
 			baseline: "nominal",

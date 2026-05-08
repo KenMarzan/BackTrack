@@ -170,6 +170,116 @@ def test_is_anomalous_zero_baseline_uses_abs_floor():
     assert collector.is_anomalous()
 
 
+# --- is_error_anomalous ---
+
+
+def test_is_error_anomalous_false_before_baseline():
+    collector = make_fitted_collector()
+    assert not collector.is_error_anomalous()
+
+
+def test_is_error_anomalous_false_when_within_threshold():
+    collector = make_fitted_collector()
+    collector.error_baseline_scores = [1.0] * BASELINE_WINDOWS
+    collector.error_baseline_locked = True
+    collector.error_score_history.append(1.5)  # 1.5 < 2.0 * 1.0
+    assert not collector.is_error_anomalous()
+
+
+def test_is_error_anomalous_true_when_exceeds_threshold():
+    collector = make_fitted_collector()
+    collector.error_baseline_scores = [1.0] * BASELINE_WINDOWS
+    collector.error_baseline_locked = True
+    collector.error_score_history.append(3.0)  # 3.0 > 2.0 * 1.0
+    assert collector.is_error_anomalous()
+
+
+def test_is_error_anomalous_zero_baseline_uses_floor():
+    """When no errors in baseline, the 0.3 floor applies."""
+    collector = make_fitted_collector()
+    collector.error_baseline_scores = [0.0] * BASELINE_WINDOWS
+    collector.error_baseline_locked = True
+    collector.error_score_history.append(0.4)  # 0.4 > 0.3 floor
+    assert collector.is_error_anomalous()
+
+
+def test_is_error_anomalous_false_when_below_floor():
+    collector = make_fitted_collector()
+    collector.error_baseline_scores = [0.0] * BASELINE_WINDOWS
+    collector.error_baseline_locked = True
+    collector.error_score_history.append(0.2)  # 0.2 < 0.3 floor
+    assert not collector.is_error_anomalous()
+
+
+def test_is_error_anomalous_warn_only_does_not_trigger():
+    """WARN lines do not contribute to error_score — a WARN-heavy window is not rollback-worthy."""
+    collector = make_fitted_collector()
+    collector.error_baseline_scores = [0.0] * BASELINE_WINDOWS
+    collector.error_baseline_locked = True
+    collector.error_score_history.append(0.0)  # no errors
+    assert not collector.is_error_anomalous()
+
+
+# --- error-score tracking ---
+
+
+def test_error_score_appended_each_window():
+    """error_score_history grows by one entry per _close_window() call."""
+    collector = make_fitted_collector()
+    assert len(collector.error_score_history) == 0
+    collector.window_counts = {"INFO": 8, "WARN": 1, "ERROR": 1, "NOVEL": 0}
+    collector.window_total = 10
+    collector._close_window()
+    assert len(collector.error_score_history) == 1
+    # error_score = 1 error * 3 / 10 total = 0.3
+    assert abs(collector.error_score_history[-1] - 0.3) < 1e-9
+
+
+def test_error_score_zero_when_no_errors():
+    collector = make_fitted_collector()
+    collector.window_counts = {"INFO": 10, "WARN": 0, "ERROR": 0, "NOVEL": 0}
+    collector.window_total = 10
+    collector._close_window()
+    assert collector.error_score_history[-1] == 0.0
+
+
+def test_error_score_warn_not_counted():
+    """WARN lines do not inflate error_score — only ERROR lines do."""
+    collector = make_fitted_collector()
+    collector.window_counts = {"INFO": 0, "WARN": 10, "ERROR": 0, "NOVEL": 0}
+    collector.window_total = 10
+    collector._close_window()
+    assert collector.error_score_history[-1] == 0.0
+
+
+def test_error_score_novel_not_counted():
+    """NOVEL lines do not inflate error_score even though they inflate the full score."""
+    collector = make_fitted_collector()
+    collector.window_counts = {"INFO": 0, "WARN": 0, "ERROR": 0, "NOVEL": 10}
+    collector.window_total = 10
+    collector._close_window()
+    assert collector.error_score_history[-1] == 0.0
+
+
+def test_error_baseline_locks_after_n_windows():
+    collector = make_fitted_collector()
+    for _ in range(BASELINE_WINDOWS):
+        collector.window_counts["INFO"] = 10
+        collector.window_total = 10
+        collector._close_window()
+    assert collector.error_baseline_locked
+    assert len(collector.error_baseline_scores) == BASELINE_WINDOWS
+
+
+def test_error_baseline_does_not_lock_before_n_windows():
+    collector = make_fitted_collector()
+    for _ in range(BASELINE_WINDOWS - 1):
+        collector.window_total = 10
+        collector.window_counts["INFO"] = 10
+        collector._close_window()
+    assert not collector.error_baseline_locked
+
+
 # --- get_lsi ---
 
 
@@ -183,6 +293,9 @@ def test_get_lsi_structure():
         "baseline_mean",
         "threshold",
         "is_anomalous",
+        "is_error_anomalous",
+        "error_score",
+        "error_baseline_mean",
         "window_counts",
         "score_history",
         "recent_lines",

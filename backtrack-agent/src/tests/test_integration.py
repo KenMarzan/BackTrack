@@ -2,13 +2,14 @@
 Integration tests: TSD + LSI threshold chain → rollback decision.
 
 Uses real collector methods and real RollbackExecutor — no mocking of
-is_drifting(), is_anomalous(), or trigger(). Docker/K8s I/O is the only
+is_drifting(), is_error_anomalous(), or trigger(). Docker/K8s I/O is the only
 thing mocked because there are no real containers in CI.
 
-LSI score formula:  score = (ERROR×3 + NOVEL×5 + WARN×1) / total
-LSI anomaly rule:   score > lsi_score_multiplier × baseline_mean
-TSD drift rule:     all(|r| > tsd_iqr_multiplier × IQR) for last 3 residuals
-Rollback rule:      either signal true for 3 consecutive decision cycles (OR-gate)
+LSI full-score formula:  score = (ERROR×3 + NOVEL×5 + WARN×1) / total  (display only)
+LSI error-score formula: error_score = ERROR×3 / total                  (rollback signal)
+LSI rollback rule:       error_score > lsi_score_multiplier × baseline_mean
+TSD drift rule:          all(|r| > tsd_iqr_multiplier × IQR) for last 3 residuals
+Rollback rule:           either signal true for 3 consecutive decision cycles (OR-gate)
 """
 import json
 from unittest.mock import MagicMock, patch
@@ -157,13 +158,14 @@ def make_stable_tsd() -> TSDCollector:
 
 def run_cycles(tsd, lsi, n_cycles, executor=None):
     """
-    Replicate the polling_loop AND-gate + 3-cycle rollback logic.
-    Returns True if rollback was triggered.
+    Replicate the polling_loop OR-gate + 3-cycle rollback logic.
+    Matches production: rollback uses is_error_anomalous() (ERROR only),
+    not is_anomalous() (ERROR + WARN + NOVEL). Returns True if rollback was triggered.
     """
     count = 0
     fired = False
     for _ in range(n_cycles):
-        if tsd.is_drifting() or lsi.is_anomalous():
+        if tsd.is_drifting() or lsi.is_error_anomalous():
             count += 1
             if count >= ROLLBACK_CYCLES and executor:
                 executor.trigger(reason="integration test")
@@ -236,7 +238,7 @@ def test_clean_cycle_resets_counter(lsi_cfg, tsd_cfg, executor, tmp_path):
     fired = False
     with patch("src.rollback.executor.ROLLBACK_LOG_FILE", str(tmp_path / "log.json")):
         for tsd, lsi in sequence:
-            if tsd.is_drifting() or lsi.is_anomalous():
+            if tsd.is_drifting() or lsi.is_error_anomalous():
                 count += 1
                 if count >= ROLLBACK_CYCLES:
                     executor.trigger("integration test")
@@ -257,7 +259,7 @@ def test_rollback_fires_once_then_counter_resets(lsi_cfg, tsd_cfg, executor, tmp
             fired_count = 0
             count = 0
             for _ in range(4):
-                if make_drifting_tsd().is_drifting() or make_anomalous_lsi().is_anomalous():
+                if make_drifting_tsd().is_drifting() or make_anomalous_lsi().is_error_anomalous():
                     count += 1
                     if count >= ROLLBACK_CYCLES:
                         executor.trigger("test")
@@ -424,7 +426,7 @@ def test_rollback_result_contains_correct_tags(lsi_cfg, tsd_cfg, executor, tmp_p
             result = None
             count = 0
             for _ in range(3):
-                if make_drifting_tsd().is_drifting() or make_anomalous_lsi().is_anomalous():
+                if make_drifting_tsd().is_drifting() or make_anomalous_lsi().is_error_anomalous():
                     count += 1
                     if count >= 3:
                         result = executor.trigger("integration test")
@@ -448,3 +450,70 @@ def test_rollback_appended_to_log(lsi_cfg, tsd_cfg, executor, tmp_path):
     assert len(entries) == 1
     assert entries[0]["success"] is True
     assert entries[0]["reason"] == "integration test"
+
+
+# ── WARN/NOVEL informational-only tests ──────────────────────────────────────
+
+
+def make_warn_only_lsi() -> LSICollector:
+    """
+    LSICollector with a WARN flood — is_anomalous() is True (full score) but
+    is_error_anomalous() is False because there are no ERROR lines.
+
+    Baseline: 10 windows of pure INFO → score=0.0, error_score=0.0
+    Anomalous window: 10 WARN → full score = 10/10 = 1.0 (> 1.5 floor? No: 1.0 < 1.5)
+    Actually we need to exceed the threshold. Use a low baseline mean.
+    Baseline: 10 windows of 1 WARN + 9 INFO → full score = 0.1, threshold = 0.2
+    WARN window: 10 WARN / 10 total → full score = 1.0 > 0.2 → is_anomalous True
+    Error score: 0 errors → error_score = 0.0 → is_error_anomalous False
+    """
+    c = _fitted_lsi()
+    _close_windows(c, {"INFO": 9, "WARN": 1, "ERROR": 0, "NOVEL": 0}, BASELINE_WINDOWS)
+    c.window_counts = {"INFO": 0, "WARN": 10, "ERROR": 0, "NOVEL": 0}
+    c.window_total = 10
+    c._close_window()
+    return c
+
+
+def make_novel_only_lsi() -> LSICollector:
+    """
+    LSICollector with a NOVEL flood — is_anomalous() is True but is_error_anomalous() is False.
+
+    Baseline: 10 windows of 1 WARN + 9 INFO → full score = 0.1, threshold = 0.2
+    NOVEL window: 10 NOVEL / 10 total → full score = 50/10 = 5.0 > 0.2 → is_anomalous True
+    Error score: 0 errors → is_error_anomalous False
+    """
+    c = _fitted_lsi()
+    _close_windows(c, {"INFO": 9, "WARN": 1, "ERROR": 0, "NOVEL": 0}, BASELINE_WINDOWS)
+    c.window_counts = {"INFO": 0, "WARN": 0, "ERROR": 0, "NOVEL": 10}
+    c.window_total = 10
+    c._close_window()
+    return c
+
+
+def test_warn_flood_does_not_trigger_rollback(lsi_cfg, tsd_cfg, executor, tmp_path):
+    """
+    A WARN-only flood makes is_anomalous() True (dashboard shows warning) but
+    is_error_anomalous() False, so the rollback signal never fires.
+    """
+    lsi = make_warn_only_lsi()
+    assert lsi.is_anomalous()          # full score detects it — shows on dashboard
+    assert not lsi.is_error_anomalous()  # no errors → rollback suppressed
+
+    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", str(tmp_path / "log.json")):
+        fired = run_cycles(make_stable_tsd(), lsi, n_cycles=5, executor=executor)
+    assert not fired
+
+
+def test_novel_flood_does_not_trigger_rollback(lsi_cfg, tsd_cfg, executor, tmp_path):
+    """
+    A NOVEL-only flood makes is_anomalous() True but is_error_anomalous() False.
+    Novel log patterns alone should not cause a rollback.
+    """
+    lsi = make_novel_only_lsi()
+    assert lsi.is_anomalous()
+    assert not lsi.is_error_anomalous()
+
+    with patch("src.rollback.executor.ROLLBACK_LOG_FILE", str(tmp_path / "log.json")):
+        fired = run_cycles(make_stable_tsd(), lsi, n_cycles=5, executor=executor)
+    assert not fired

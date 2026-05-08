@@ -60,6 +60,7 @@ type LSISummary = {
   baseline_mean: number;
   threshold: number;
   is_anomalous: boolean;
+  is_error_anomalous: boolean;
   score_history: number[];
   recent_lines: LSILogLine[];
   topics?: LSITopic[];
@@ -364,8 +365,8 @@ export default function AnomaliesPage() {
                       {lsi.log_diversity}
                     </span>
                   )}
-                  <span className={`bt-chip ${lsi?.is_anomalous ? "bt-chip-critical" : "bt-chip-green"}`}>
-                    {lsi?.is_anomalous ? "ANOMALOUS" : agentOnline ? "NORMAL" : "OFFLINE"}
+                  <span className={`bt-chip ${lsi?.is_error_anomalous ? "bt-chip-critical" : lsi?.is_anomalous ? "bt-chip-amber" : "bt-chip-green"}`}>
+                    {lsi?.is_error_anomalous ? "LSI ERROR" : lsi?.is_anomalous ? "LSI WARN" : agentOnline ? "NORMAL" : "OFFLINE"}
                   </span>
                 </div>
               </div>
@@ -378,7 +379,7 @@ export default function AnomaliesPage() {
                     <div className="rounded-[10px] border border-[var(--border-soft)] bg-[rgba(11,16,32,0.9)] p-3">
                       <div className="text-[9px] uppercase tracking-[0.12em] text-[var(--text-muted)]">Score</div>
                       <div className="bt-mono text-[15px] font-semibold mt-1"
-                        style={{ color: lsi.is_anomalous ? "var(--accent-rose)" : "var(--accent-cyan)" }}>
+                        style={{ color: lsi.is_error_anomalous ? "var(--accent-rose)" : lsi.is_anomalous ? "#fbbf24" : "var(--accent-cyan)" }}>
                         {lsi.current_score?.toFixed(4) ?? "—"}
                       </div>
                     </div>
@@ -394,7 +395,7 @@ export default function AnomaliesPage() {
                   {lsi.threshold > 0 && (() => {
                     const ratio = Math.min(lsi.current_score / lsi.threshold, 1.5);
                     const pct = Math.min((ratio / 1.5) * 100, 100);
-                    const barColor = lsi.is_anomalous ? "#fb7185" : "#67e8f9";
+                    const barColor = lsi.is_error_anomalous ? "#fb7185" : lsi.is_anomalous ? "#fbbf24" : "#67e8f9";
                     return (
                       <div className="rounded-[10px] border border-[var(--border-soft)] bg-[rgba(11,16,32,0.9)] px-3 py-2.5">
                         <div className="flex items-center justify-between mb-1.5">
@@ -432,8 +433,8 @@ export default function AnomaliesPage() {
                     }
                     const area = `${line} L ${toX(pts.length - 1).toFixed(1)} ${H} L ${toX(0).toFixed(1)} ${H} Z`;
                     const thY = toY(lsi.threshold).toFixed(1);
-                    const hot = lsi.is_anomalous;
-                    const lineColor = hot ? "#fb7185" : "#67e8f9";
+                    const hot = lsi.is_error_anomalous || lsi.is_anomalous;
+                    const lineColor = lsi.is_error_anomalous ? "#fb7185" : lsi.is_anomalous ? "#fbbf24" : "#67e8f9";
                     const fillId = "lsi-score-fill";
                     return (
                       <div className="rounded-[10px] border border-[var(--border-soft)] bg-[rgba(7,9,13,0.85)] p-3 space-y-1.5">
@@ -514,11 +515,13 @@ export default function AnomaliesPage() {
                   {lsi.recent_lines && lsi.recent_lines.length > 0 && (
                     <div>
                       <p className="text-[9px] uppercase tracking-[0.18em] text-[var(--text-muted)] mb-1.5">
-                        {lsi.is_anomalous ? "Anomalous lines" : "Recent lines"}
+                        {lsi.is_error_anomalous ? "Error lines" : lsi.is_anomalous ? "Anomalous lines" : "Recent lines"}
                       </p>
                       <div className="space-y-[3px] max-h-[160px] overflow-y-auto scrollbar-hide">
-                        {(lsi.is_anomalous
-                          ? lsi.recent_lines.filter((l) => l.label === "ERROR" || l.label === "NOVEL")
+                        {(lsi.is_error_anomalous
+                          ? lsi.recent_lines.filter((l) => l.label === "ERROR")
+                          : lsi.is_anomalous
+                          ? lsi.recent_lines.filter((l) => l.label === "ERROR" || l.label === "NOVEL" || l.label === "WARN")
                           : lsi.recent_lines.slice(-10)
                         ).slice(-12).map((entry, i) => {
                           const tk = LOG_LABEL_TOKENS[entry.label] ?? LOG_LABEL_TOKENS.INFO;

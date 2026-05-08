@@ -66,6 +66,7 @@ type LSIData = {
   baseline_mean: number;
   threshold: number;
   is_anomalous: boolean;
+  is_error_anomalous: boolean;
   window_counts: { INFO: number; WARN: number; ERROR: number; NOVEL: number };
   score_history: number[];
   recent_lines: Array<{ line: string; label: string; timestamp: number }>;
@@ -633,7 +634,8 @@ function ServiceDiagnosticsPage() {
                 {tsd?.is_drifting || lsi?.is_anomalous ? "ANOMALY DETECTED" : "SYSTEM NOMINAL"}
               </span>
               {tsd?.is_drifting && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-300">TSD</span>}
-              {lsi?.is_anomalous && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-300">LSI</span>}
+              {lsi?.is_error_anomalous && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-300">LSI ERR</span>}
+              {lsi?.is_anomalous && !lsi?.is_error_anomalous && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300">LSI WARN</span>}
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               <div className="rounded-xl border border-white/[0.06] bg-[#161b22] px-2 py-2">
@@ -666,7 +668,8 @@ function ServiceDiagnosticsPage() {
                 {tab.icon}
                 {tab.id === "tsd" ? "TSD" : "LSI"}
                 {tab.id === "tsd" && tsd?.is_drifting && <span className="w-1.5 h-1.5 rounded-full bg-red-400 ml-0.5" />}
-                {tab.id === "lsi" && lsi?.is_anomalous && <span className="w-1.5 h-1.5 rounded-full bg-orange-400 ml-0.5" />}
+                {tab.id === "lsi" && lsi?.is_error_anomalous && <span className="w-1.5 h-1.5 rounded-full bg-red-400 ml-0.5" />}
+                {tab.id === "lsi" && lsi?.is_anomalous && !lsi?.is_error_anomalous && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ml-0.5" />}
               </button>
             ))}
           </div>
@@ -888,7 +891,7 @@ function ServiceDiagnosticsPage() {
                   <div className="grid grid-cols-3 gap-1.5 mb-3">
                     <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
                       <div className="text-[9px] uppercase tracking-wide text-white/30">Current Score</div>
-                      <div className={`mt-0.5 text-base font-bold ${lsi?.is_anomalous ? "text-red-400" : "text-cyan-300"}`}>
+                      <div className={`mt-0.5 text-base font-bold ${lsi?.is_error_anomalous ? "text-red-400" : lsi?.is_anomalous ? "text-amber-400" : "text-cyan-300"}`}>
                         {lsi?.current_score?.toFixed(4) ?? "—"}
                       </div>
                     </div>
@@ -1008,8 +1011,10 @@ function ServiceDiagnosticsPage() {
                 {/* LSI status */}
                 <div className="rounded-xl border border-white/[0.05] bg-[#0d1117] px-3 py-2.5 text-[11px] leading-5 text-white/60">
                   <span className="font-semibold text-white/80">LSI Status: </span>
-                  {lsi?.is_anomalous ? (
-                    <span className="text-red-400">Anomalous — score {lsi.current_score?.toFixed(4) ?? "—"} exceeds {lsi.threshold?.toFixed(4) ?? "—"} threshold ({lsi.baseline_mean?.toFixed(4) ?? "—"} × {(lsi.threshold / Math.max(lsi.baseline_mean ?? 0.0001, 0.0001)).toFixed(1)}).</span>
+                  {lsi?.is_error_anomalous ? (
+                    <span className="text-red-400">ERROR anomaly — score {lsi.current_score?.toFixed(4) ?? "—"} exceeds threshold. <span className="font-semibold">Rollback will trigger.</span></span>
+                  ) : lsi?.is_anomalous ? (
+                    <span className="text-amber-400">WARN/NOVEL anomaly — score {lsi.current_score?.toFixed(4) ?? "—"} exceeds threshold. Informational only — <span className="font-semibold">no rollback.</span></span>
                   ) : lsi?.fitted ? (
                     <span className="text-emerald-400">Log patterns within normal baseline.</span>
                   ) : (
@@ -1240,15 +1245,16 @@ function ServiceDiagnosticsPage() {
             </div>
             <div className="space-y-1.5 text-[11px]">
               {[
-                { label: "TSD Drift", value: tsd?.is_drifting ? "DRIFTING" : "Normal", hot: !!tsd?.is_drifting },
-                { label: "LSI Anomaly", value: lsi?.is_anomalous ? "ANOMALOUS" : "Normal", hot: !!lsi?.is_anomalous },
-                { label: "LSI Model", value: lsi?.fitted ? "Fitted" : "Training", hot: !lsi?.fitted },
-                { label: "Readings", value: String(tsd?.readings_count ?? 0), hot: false },
-                { label: "Versions", value: String(versions.length), hot: false },
+                { label: "TSD Drift", value: tsd?.is_drifting ? "DRIFTING" : "Normal", color: tsd?.is_drifting ? "text-red-400" : "text-emerald-400" },
+                { label: "LSI (rollback)", value: lsi?.is_error_anomalous ? "ERROR" : "Normal", color: lsi?.is_error_anomalous ? "text-red-400" : "text-emerald-400" },
+                { label: "LSI (display)", value: lsi?.is_anomalous ? (lsi?.is_error_anomalous ? "ERROR" : "WARN") : "Normal", color: lsi?.is_error_anomalous ? "text-red-400" : lsi?.is_anomalous ? "text-amber-400" : "text-emerald-400" },
+                { label: "LSI Model", value: lsi?.fitted ? "Fitted" : "Training", color: lsi?.fitted ? "text-emerald-400" : "text-red-400" },
+                { label: "Readings", value: String(tsd?.readings_count ?? 0), color: "text-emerald-400" },
+                { label: "Versions", value: String(versions.length), color: "text-emerald-400" },
               ].map((row) => (
                 <div key={row.label} className="flex justify-between text-white/50">
                   <span>{row.label}</span>
-                  <span className={row.hot ? "text-red-400" : row.label === "LSI Model" && lsi?.fitted ? "text-emerald-400" : "text-emerald-400"}>{row.value}</span>
+                  <span className={row.color}>{row.value}</span>
                 </div>
               ))}
             </div>
@@ -1522,7 +1528,7 @@ function ServiceDiagnosticsPage() {
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
             <div className="text-[11px] uppercase tracking-wide text-white/40">Current Score</div>
-            <div className={`mt-1 text-2xl font-bold ${lsi?.is_anomalous ? "text-red-400" : "text-cyan-300"}`}>
+            <div className={`mt-1 text-2xl font-bold ${lsi?.is_error_anomalous ? "text-red-400" : lsi?.is_anomalous ? "text-amber-400" : "text-cyan-300"}`}>
               {lsi?.current_score?.toFixed(4) ?? "—"}
             </div>
           </div>
@@ -1614,12 +1620,21 @@ function ServiceDiagnosticsPage() {
             </div>
           </div>
         )}
-        {lsi?.is_anomalous && (
-          <div className="mb-4 rounded-xl border border-purple-500/20 bg-purple-500/[0.05] px-3 py-2.5">
-            <div className="text-[11px] uppercase tracking-wide text-white/40 mb-1">Log Anomaly</div>
+        {lsi?.is_error_anomalous && (
+          <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/[0.05] px-3 py-2.5">
+            <div className="text-[11px] uppercase tracking-wide text-white/40 mb-1">LSI Error Anomaly — Rollback will trigger</div>
             <div className="text-[12px] text-white/80">
               LSI score {lsi.current_score?.toFixed(4) ?? "—"} is {(insight.scoreRatio).toFixed(2)}× the threshold ({lsi.threshold?.toFixed(4) ?? "—"}).
-              NOVEL ratio {(insight.novelRatio * 100).toFixed(0)}% · ERROR ratio {(insight.errorRatio * 100).toFixed(0)}%.
+              ERROR ratio {(insight.errorRatio * 100).toFixed(0)}% of window.
+            </div>
+          </div>
+        )}
+        {lsi?.is_anomalous && !lsi?.is_error_anomalous && (
+          <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-3 py-2.5">
+            <div className="text-[11px] uppercase tracking-wide text-white/40 mb-1">LSI Warn/Novel Anomaly — Informational only</div>
+            <div className="text-[12px] text-white/80">
+              LSI score {lsi.current_score?.toFixed(4) ?? "—"} is {(insight.scoreRatio).toFixed(2)}× the threshold ({lsi.threshold?.toFixed(4) ?? "—"}).
+              NOVEL ratio {(insight.novelRatio * 100).toFixed(0)}% · No rollback will fire.
             </div>
           </div>
         )}
@@ -1670,17 +1685,18 @@ function ServiceDiagnosticsPage() {
       >
         <div className="space-y-2">
           {[
-            { label: "TSD Drift", value: tsd?.is_drifting ? "DRIFTING" : "Normal", hot: !!tsd?.is_drifting },
-            { label: "LSI Anomaly", value: lsi?.is_anomalous ? "ANOMALOUS" : "Normal", hot: !!lsi?.is_anomalous },
-            { label: "LSI Model", value: lsi?.fitted ? "Fitted" : "Training", hot: !lsi?.fitted },
-            { label: "TSD Readings", value: String(tsd?.readings_count ?? 0), hot: false },
-            { label: "LSI Corpus", value: String(lsi?.corpus_size ?? 0), hot: false },
-            { label: "Versions", value: String(versions.length), hot: false },
-            { label: "Last Update", value: lastUpdate || "—", hot: false },
+            { label: "TSD Drift", value: tsd?.is_drifting ? "DRIFTING" : "Normal", color: tsd?.is_drifting ? "text-red-400" : "text-emerald-400" },
+            { label: "LSI Error (rollback)", value: lsi?.is_error_anomalous ? "ANOMALOUS" : "Normal", color: lsi?.is_error_anomalous ? "text-red-400" : "text-emerald-400" },
+            { label: "LSI Warn/Novel (display)", value: lsi?.is_anomalous && !lsi?.is_error_anomalous ? "ANOMALOUS" : "Normal", color: lsi?.is_anomalous && !lsi?.is_error_anomalous ? "text-amber-400" : "text-emerald-400" },
+            { label: "LSI Model", value: lsi?.fitted ? "Fitted" : "Training", color: lsi?.fitted ? "text-emerald-400" : "text-red-400" },
+            { label: "TSD Readings", value: String(tsd?.readings_count ?? 0), color: "text-emerald-400" },
+            { label: "LSI Corpus", value: String(lsi?.corpus_size ?? 0), color: "text-emerald-400" },
+            { label: "Versions", value: String(versions.length), color: "text-emerald-400" },
+            { label: "Last Update", value: lastUpdate || "—", color: "text-emerald-400" },
           ].map((row) => (
             <div key={row.label} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-[#0d1117] px-4 py-3">
               <span className="text-[12px] text-white/55">{row.label}</span>
-              <span className={`text-[13px] font-semibold ${row.hot ? "text-red-400" : "text-emerald-400"}`}>{row.value}</span>
+              <span className={`text-[13px] font-semibold ${row.color}`}>{row.value}</span>
             </div>
           ))}
         </div>
