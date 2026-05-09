@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.collectors.lsi import LSICollector
 from src.collectors.tsd import TSDCollector
 from src.config import config
+from src.deployment_watcher import DeploymentEvent, DeploymentWatcher
 from src.rollback.executor import RollbackExecutor
 from src.versions import VersionStore
 
@@ -41,6 +42,7 @@ service_monitors: dict[str, tuple[TSDCollector, LSICollector]] = {}
 version_store: Optional[VersionStore] = None
 rollback_executor: Optional[RollbackExecutor] = None
 _polling_task: Optional[asyncio.Task] = None
+_deployment_watcher: Optional[DeploymentWatcher] = None
 
 STABLE_THRESHOLD_SECONDS = int(os.getenv("BACKTRACK_STABLE_SECONDS", "600"))
 consecutive_anomaly_counts: dict[str, int] = {}
@@ -122,6 +124,28 @@ async def _discover_services() -> list[tuple[str, str]]:
 
 
 ROLLBACK_COOLDOWN_SECONDS = int(os.getenv("BACKTRACK_ROLLBACK_COOLDOWN", "120"))
+
+
+async def on_deployment_event(event: DeploymentEvent) -> None:
+    """Handle a new deployment detected by any tier of DeploymentWatcher."""
+    logger.info(
+        "Deployment event [%s]: image=%s sha=%s source=%s",
+        event.service, event.image, event.git_sha, event.source,
+    )
+    if version_store:
+        image_tag = event.image or event.git_sha or "unknown"
+        version_store.add_pending(image_tag=image_tag, git_sha=event.git_sha)
+
+    # Reset anomaly state so the new deployment gets a clean slate
+    consecutive_anomaly_counts.pop(event.service, None)
+    clean_seconds_map.pop(event.service, None)
+    first_anomaly_at.pop(event.service, None)
+
+    if event.service in service_monitors:
+        tsd, lsi = service_monitors[event.service]
+        tsd.reset()
+        lsi.reset()
+        logger.info("Reset collectors for %s after deployment event", event.service)
 
 
 async def polling_loop() -> None:
@@ -231,7 +255,7 @@ async def polling_loop() -> None:
 
 @app.on_event("startup")
 async def startup() -> None:
-    global version_store, rollback_executor, _polling_task
+    global version_store, rollback_executor, _polling_task, _deployment_watcher
 
     config.log_startup_summary()
     _load_cooldowns()
@@ -253,6 +277,13 @@ async def startup() -> None:
         await lsi.start()
         service_monitors[svc_name] = (tsd, lsi)
 
+    _deployment_watcher = DeploymentWatcher(handler=on_deployment_event)
+    await _deployment_watcher.start(
+        mode=config.mode,
+        namespace=config.k8s_namespace,
+        services=list(service_monitors.keys()),
+    )
+
     _polling_task = asyncio.create_task(polling_loop())
 
     def _on_polling_done(task: asyncio.Task) -> None:
@@ -268,13 +299,15 @@ async def startup() -> None:
 
 @app.on_event("shutdown")
 async def shutdown() -> None:
-    global _polling_task
+    global _polling_task, _deployment_watcher
     if _polling_task and not _polling_task.done():
         _polling_task.cancel()
         try:
             await _polling_task
         except asyncio.CancelledError:
             pass
+    if _deployment_watcher:
+        await _deployment_watcher.stop()
     for tsd, lsi in service_monitors.values():
         await tsd.stop()
         await lsi.stop()
@@ -351,6 +384,24 @@ async def get_versions() -> list[dict]:
 @app.get("/rollback/history")
 async def rollback_history() -> list[dict]:
     return RollbackExecutor.get_history()
+
+
+@app.post("/deployment/notify")
+async def deployment_notify(body: dict = Body(default={})) -> dict:
+    """
+    CI/CD webhook — call this after a new image is deployed.
+    Body: { service?: str, image?: str, git_sha?: str }
+    Resets the anomaly baseline for the service and registers a new PENDING version.
+    """
+    service = (body.get("service") or body.get("service_name") or config.target or "").strip()
+    if not service:
+        return {"ok": False, "message": "service is required (or set BACKTRACK_TARGET)"}
+    image = (body.get("image") or "").strip()
+    git_sha = (body.get("git_sha") or body.get("sha") or "").strip()
+    await on_deployment_event(DeploymentEvent(
+        service=service, image=image, git_sha=git_sha, source="ci-push",
+    ))
+    return {"ok": True, "service": service, "image": image, "git_sha": git_sha}
 
 
 @app.post("/rollback/trigger")
