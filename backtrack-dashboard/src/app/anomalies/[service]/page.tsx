@@ -67,6 +67,11 @@ type LSIData = {
   threshold: number;
   is_anomalous: boolean;
   is_error_anomalous: boolean;
+  error_score: number;
+  error_baseline_mean: number;
+  error_threshold: number;
+  error_baseline_locked: boolean;
+  error_score_history: number[];
   window_counts: { INFO: number; WARN: number; ERROR: number; NOVEL: number };
   score_history: number[];
   recent_lines: Array<{ line: string; label: string; timestamp: number }>;
@@ -888,22 +893,48 @@ function ServiceDiagnosticsPage() {
                       <Maximize2 size={11} className="text-white/30" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5 mb-3">
-                    <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
-                      <div className="text-[9px] uppercase tracking-wide text-white/30">Current Score</div>
-                      <div className={`mt-0.5 text-base font-bold ${lsi?.is_error_anomalous ? "text-red-400" : lsi?.is_anomalous ? "text-amber-400" : "text-cyan-300"}`}>
-                        {lsi?.current_score?.toFixed(4) ?? "—"}
+                  {/* Rollback signal row */}
+                  <div className="mb-1.5">
+                    <div className="text-[8px] uppercase tracking-widest text-white/25 mb-1">Rollback Signal (Error Only)</div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
+                        <div className="text-[9px] uppercase tracking-wide text-white/30">Error Score</div>
+                        <div className={`mt-0.5 text-base font-bold ${lsi?.is_error_anomalous ? "text-red-400" : "text-cyan-300"}`}>
+                          {lsi?.error_score?.toFixed(4) ?? "—"}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
+                        <div className="text-[9px] uppercase tracking-wide text-white/30">Error Baseline</div>
+                        <div className="mt-0.5 text-base font-bold text-white/75">
+                          {lsi?.error_baseline_locked ? lsi.error_baseline_mean.toFixed(4) : <span className="text-[11px] text-white/30">warming up…</span>}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
+                        <div className="text-[9px] uppercase tracking-wide text-white/30">Error Threshold</div>
+                        <div className="mt-0.5 text-base font-bold text-red-300/80">{lsi?.error_threshold?.toFixed(4) ?? "—"}</div>
                       </div>
                     </div>
-                    <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
-                      <div className="text-[9px] uppercase tracking-wide text-white/30">Baseline Mean</div>
-                      <div className="mt-0.5 text-base font-bold text-white/75">
-                        {(lsi && lsi.baseline_mean > 0) ? lsi.baseline_mean.toFixed(4) : <span className="text-[11px] text-white/30">warming up…</span>}
+                  </div>
+                  {/* Display score row */}
+                  <div className="mb-3">
+                    <div className="text-[8px] uppercase tracking-widest text-white/25 mb-1">Full Score (Display)</div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
+                        <div className="text-[9px] uppercase tracking-wide text-white/30">Current Score</div>
+                        <div className={`mt-0.5 text-base font-bold ${lsi?.is_anomalous ? "text-amber-400" : "text-white/50"}`}>
+                          {lsi?.current_score?.toFixed(4) ?? "—"}
+                        </div>
                       </div>
-                    </div>
-                    <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
-                      <div className="text-[9px] uppercase tracking-wide text-white/30">Threshold</div>
-                      <div className="mt-0.5 text-base font-bold text-red-300/80">{lsi?.threshold?.toFixed(4) ?? "—"}</div>
+                      <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
+                        <div className="text-[9px] uppercase tracking-wide text-white/30">Baseline Mean</div>
+                        <div className="mt-0.5 text-base font-bold text-white/40">
+                          {(lsi && lsi.baseline_mean > 0) ? lsi.baseline_mean.toFixed(4) : <span className="text-[11px] text-white/30">warming up…</span>}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
+                        <div className="text-[9px] uppercase tracking-wide text-white/30">Threshold</div>
+                        <div className="mt-0.5 text-base font-bold text-white/40">{lsi?.threshold?.toFixed(4) ?? "—"}</div>
+                      </div>
                     </div>
                   </div>
 
@@ -938,27 +969,27 @@ function ServiceDiagnosticsPage() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/40">
                       <TrendingUp size={11} className="text-cyan-400" />
-                      Score History
+                      Error Score History
                     </div>
                     <div className="flex items-center gap-2 text-[9px]">
                       <span className="text-white/30">Baseline</span>
-                      <span className="font-mono text-white/50">{lsi?.baseline_mean?.toFixed(3) ?? "—"}</span>
-                      <span className="text-red-400/60">Threshold {lsi?.threshold?.toFixed(3) ?? "—"}</span>
+                      <span className="font-mono text-white/50">{lsi?.error_baseline_mean?.toFixed(3) ?? "—"}</span>
+                      <span className="text-red-400/60">Threshold {lsi?.error_threshold?.toFixed(3) ?? "—"}</span>
                       <Maximize2 size={11} className="text-white/30" />
                     </div>
                   </div>
                   <SparkLine
-                    values={scoreHistory}
-                    threshold={lsi?.threshold}
-                    baseline={lsi?.baseline_mean}
-                    lineColor="#67e8f9"
-                    id="lsi-score"
+                    values={lsi?.error_score_history ?? []}
+                    threshold={lsi?.error_threshold}
+                    baseline={lsi?.error_baseline_mean}
+                    lineColor={lsi?.is_error_anomalous ? "#fb7185" : "#67e8f9"}
+                    id="lsi-error-score"
                     height={90}
                   />
                   <div className="mt-2 flex items-center gap-4 text-[9px] text-white/30">
                     <span className="flex items-center gap-1"><span className="inline-block w-4 border-t border-dashed border-red-400/60" /> Threshold</span>
-                    <span className="flex items-center gap-1"><span className="inline-block w-4 border-t border-dashed border-white/25" /> Baseline mean</span>
-                    <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-cyan-400" /> Current score</span>
+                    <span className="flex items-center gap-1"><span className="inline-block w-4 border-t border-dashed border-white/25" /> Error baseline</span>
+                    <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-cyan-400" /> Error score</span>
                   </div>
                 </div>
 
