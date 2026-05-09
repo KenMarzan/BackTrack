@@ -31,12 +31,13 @@ logger = logging.getLogger("backtrack.deployment_watcher")
 
 @dataclasses.dataclass
 class DeploymentEvent:
-    service:  str
-    image:    str = ""
-    git_sha:  str = ""
-    revision: int = 0
+    service:   str
+    image:     str = ""
+    git_sha:   str = ""
+    revision:  int = 0
     # "ci-push" | "k8s-watch" | "docker-events" | "reconciliation"
-    source:   str = "unknown"
+    source:    str = "unknown"
+    app_group: str = ""  # filled by on_deployment_event via app_registry.find_group_for_container()
 
 
 Handler = Callable[[DeploymentEvent], Awaitable[None]]
