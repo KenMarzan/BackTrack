@@ -277,20 +277,58 @@ To override: set `BACKTRACK_K8S_LABEL_SELECTOR=<selector>` in your environment.
 
 ## Docker Mode
 
-No cluster configuration needed — only the container name.
+No cluster configuration needed. BackTrack discovers your containers automatically via the Docker socket.
 
-1. Open **http://localhost:3847**
-2. Click **Configure Cluster**
-3. **Platform** → Docker
-4. **Application name** → exact container name
+---
 
+### Single container
+
+1. Open **http://localhost:3847** → **Configure Cluster** → **Platform: Docker**
+2. Find your container name:
 ```bash
-docker ps --format "{{.Names}}"   # find your container name
+docker ps --format "{{.Names}}"
+```
+3. Enter that name in **Application name** → **Connect**
+
+---
+
+### Microservices (Docker Compose) — monitor all services at once
+
+If your services are defined in a `docker-compose.yml`, enter the **Compose project name** instead of an individual container name. BackTrack will discover and monitor every service in that project simultaneously.
+
+**Step 1 — Find your Compose project name:**
+```bash
+docker ps --format "{{.Names}}\t{{.Label \"com.docker.compose.project\"}}"
+```
+The second column is your project name (e.g. `myapp`).
+
+**Step 2 — Connect:**
+1. **Application name** → the project name (e.g. `myapp`)
+2. **Architecture** → `Microservices — discover all`
+3. Click **Connect**
+
+BackTrack will find all containers in that Compose project and start independent TSD + LSI collectors per service.
+
+---
+
+### Discovery confidence levels
+
+| Strategy | How it works | When it applies |
+|---|---|---|
+| **Compose project** (high) | Matches `com.docker.compose.project` label exactly | Docker Compose stacks |
+| **Backtrack label** (high) | Matches `com.backtrack.io/app` label | Explicit opt-in |
+| **Network membership** (medium) | Containers sharing a named Docker network | Custom bridge networks |
+| **Name match** (low) | Container/image name substring match | Standalone containers |
+
+To guarantee high-confidence scoping on non-Compose setups, add a label to your containers:
+```yaml
+labels:
+  - "com.backtrack.io/app=myapp"
 ```
 
-5. Click **Connect**
+---
 
-The Docker socket is already mounted — no additional setup required.
+The Docker socket is already mounted in the BackTrack compose stack — no additional setup required.
 
 ---
 

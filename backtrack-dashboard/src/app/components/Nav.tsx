@@ -550,25 +550,43 @@ function Nav({ healthSummary }: NavProps) {
                 ) : null}
 
                 {isDocker ? (
-                  <div className="rounded-xl border border-[var(--border-soft)] bg-[rgba(148,163,184,0.03)] p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Boxes size={14} className="text-[var(--accent-teal)]" />
-                      <h3 className="text-sm text-white">Docker setup</h3>
+                  <div className="rounded-xl border border-[var(--border-soft)] bg-[rgba(148,163,184,0.03)] p-4 space-y-4">
+                    {/* Single container */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Boxes size={13} className="text-[var(--accent-teal)]" />
+                        <h3 className="text-[12px] font-semibold text-white">Single container</h3>
+                      </div>
+                      <p className="text-[11px] text-[var(--text-muted)] mb-2">Find your container name and enter it in <strong>Application name</strong> above.</p>
+                      <code className="block bt-mono text-[11px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2">
+                        docker ps --format &quot;&#123;&#123;.Names&#125;&#125;&quot;
+                      </code>
                     </div>
-                    <ol className="space-y-3 text-xs text-[var(--text-secondary)] list-decimal list-inside">
-                      <li>
-                        Find your container name:
-                        <code className="block mt-1.5 bt-mono text-[11.5px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2">
-                          docker ps --format &quot;&#123;&#123;.Names&#125;&#125;&quot;
-                        </code>
-                      </li>
-                      <li>
-                        Enter that name in <strong>Application name</strong> above, then click Connect.
-                      </li>
-                    </ol>
-                    <div className="mt-3 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.05] px-3 py-2">
+
+                    {/* Divider */}
+                    <div className="border-t border-[var(--border-soft)]" />
+
+                    {/* Microservices — Docker Compose */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Boxes size={13} className="text-[var(--accent-violet)]" />
+                        <h3 className="text-[12px] font-semibold text-white">Microservices (Docker Compose)</h3>
+                      </div>
+                      <p className="text-[11px] text-[var(--text-muted)] mb-2">
+                        Enter your <strong>Compose project name</strong> — BackTrack will discover and monitor all services in that project at once.
+                      </p>
+                      <p className="text-[10.5px] text-[var(--text-muted)] mb-1.5">Find your Compose project name:</p>
+                      <code className="block bt-mono text-[11px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2 mb-2">
+                        docker ps --format &quot;&#123;&#123;.Names&#125;&#125;\t&#123;&#123;.Label \&quot;com.docker.compose.project\&quot;&#125;&#125;&quot;
+                      </code>
+                      <p className="text-[10.5px] text-[var(--text-muted)]">
+                        The value in the second column is your project name. Enter it above with <strong>Architecture → Microservices</strong>.
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/[0.05] px-3 py-2">
                       <p className="text-[11px] text-cyan-300 font-medium mb-0.5">What happens after Connect</p>
-                      <p className="text-[11px] text-[var(--text-muted)]">BackTrack builds a 2-minute baseline (TSD: 12 readings, LSI: 200 log lines). A progress bar appears on the Anomalies page while warming up. Auto-rollback activates once the first stable window is confirmed.</p>
+                      <p className="text-[11px] text-[var(--text-muted)]">BackTrack starts independent TSD + LSI collectors per service. Auto-rollback activates once the first stable baseline window is confirmed (~2 min).</p>
                     </div>
                   </div>
                 ) : (
