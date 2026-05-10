@@ -97,6 +97,7 @@ export type CICDData = {
   workflowRuns: CICDWorkflowRun[];
   imageTags: CICDImageTag[];
   fetchedAt: string;
+  warning?: string;
 };
 
 export type DashboardAnomaly = {

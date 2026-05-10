@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, GitBranch, GitCommit, ImageIcon, Package, RefreshCw, RotateCcw } from "lucide-react";
+import { ExternalLink, GitBranch, GitCommit, ImageIcon, Package, RefreshCw, RotateCcw, RefreshCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { CICDData, CICDImageTag, CICDWorkflowRun } from "@/lib/monitoring-types";
 
@@ -42,8 +42,10 @@ export default function CICDPanel() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"commits" | "workflows" | "images">("commits");
   const [rollback, setRollback] = useState<RollbackState | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = async () => {
+  const load = async (manual = false) => {
+    if (manual) setRefreshing(true);
     try {
       const res = await fetch("/api/cicd/github", { cache: "no-store" });
       if (res.status === 404) { setData(null); setError(null); setLoading(false); return; }
@@ -54,12 +56,13 @@ export default function CICDPanel() {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
       setLoading(false);
+      if (manual) setRefreshing(false);
     }
   };
 
   useEffect(() => {
     load();
-    const timer = window.setInterval(load, 30_000);
+    const timer = window.setInterval(load, 20_000);
     const refresh = () => load();
     window.addEventListener("backtrack:connection-updated", refresh);
     return () => { window.clearInterval(timer); window.removeEventListener("backtrack:connection-updated", refresh); };
@@ -93,14 +96,28 @@ export default function CICDPanel() {
     <div className="bt-panel h-full flex flex-col overflow-hidden p-5">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-3 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <GitBranch size={14} className="text-[var(--accent-violet)]" />
-          <span className="bt-label">CI / CD</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <GitBranch size={14} className="text-[var(--accent-violet)] shrink-0" />
+          <span className="bt-label shrink-0">CI / CD</span>
           {data && (
-            <span className="bt-mono text-[10px] text-[var(--text-muted)]">{data.repo}</span>
+            <span className="bt-mono text-[10px] text-[var(--text-muted)] truncate">{data.repo}@{data.branch}</span>
           )}
         </div>
-        {loading && <RefreshCw size={11} className="text-[var(--accent-teal)] animate-spin" />}
+        <div className="flex items-center gap-2 shrink-0">
+          {data && (
+            <span className="bt-mono text-[9px] text-[var(--text-muted)]">{formatRelTime(data.fetchedAt)}</span>
+          )}
+          {loading && !refreshing && <RefreshCw size={11} className="text-[var(--accent-teal)] animate-spin" />}
+          <button
+            type="button"
+            onClick={() => load(true)}
+            disabled={refreshing || loading}
+            title="Refresh commits"
+            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-40"
+          >
+            <RefreshCcw size={11} className={refreshing ? "animate-spin text-[var(--accent-teal)]" : ""} />
+          </button>
+        </div>
       </div>
 
       {/* Error state */}
