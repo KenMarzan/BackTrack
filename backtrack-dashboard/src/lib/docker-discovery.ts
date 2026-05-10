@@ -27,7 +27,7 @@ type DockerInspect = {
   Id: string;
   Name: string;
   State?: { Status?: string };
-  Config?: { Image?: string; Env?: string[] };
+  Config?: { Image?: string; Env?: string[]; Labels?: Record<string, string> };
   NetworkSettings?: {
     Networks?: Record<string, DockerInspectNetwork>;
     Ports?: Record<string, Array<{ HostPort?: string }> | null>;
@@ -37,7 +37,6 @@ type DockerInspect = {
     PortBindings?: Record<string, Array<{ HostPort?: string }>>;
     Binds?: string[];
   };
-  Labels?: Record<string, string>;
 };
 
 export type ContainerMetadata = {
@@ -112,7 +111,7 @@ function parseInspected(raw: DockerInspect): ContainerMetadata {
     name: (raw.Name ?? "").replace(/^\//, ""),
     image: raw.Config?.Image ?? "",
     state: (raw.State?.Status ?? "unknown").toLowerCase(),
-    labels: raw.Labels ?? {},
+    labels: raw.Config?.Labels ?? {},
     networks,
     ports: extractPorts(raw),
   };
@@ -304,14 +303,26 @@ export async function resolveApplicationScope(
   }
 
   // ── No match ─────────────────────────────────────────────────────────────
-  const availableNames = allContainers.map((c) => c.name).filter(Boolean);
+  const availableContainerNames = allContainers.map((c) => c.name).filter(Boolean);
+  const availableProjects = [
+    ...new Set(
+      allContainers
+        .map((c) => c.labels[COMPOSE_PROJECT_LABEL])
+        .filter((p): p is string => !!p),
+    ),
+  ];
+
+  const warning = availableProjects.length > 0
+    ? `No match for "${appName}". Compose projects on this host: ${availableProjects.join(", ")} — try one of these as the Application name.`
+    : `No containers found matching "${appName}".`;
+
   return {
     containers: [],
     strategy: "orphan",
     confidence: "low",
     projectKey: `docker:${norm}`,
-    warning: `No containers found matching "${appName}".`,
-    availableNames,
+    warning,
+    availableNames: [...availableProjects, ...availableContainerNames],
   };
 }
 
