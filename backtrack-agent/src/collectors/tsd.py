@@ -24,9 +24,10 @@ logger = logging.getLogger("backtrack.tsd")
 # Increased to 1 hour of data — STL requires meaningful seasonal data.
 # With scrape_interval=10s: 360 readings = 60 minutes.
 DEQUE_SIZE = int(os.getenv("BACKTRACK_DEQUE_SIZE", "360"))
-# STL warmup: default 12 for backward compatibility; set BACKTRACK_STL_MIN_READINGS=60
-# in production for statistically valid decomposition (10× STL_PERIOD).
-MIN_READINGS_FOR_STL = int(os.getenv("BACKTRACK_STL_MIN_READINGS", "12"))
+# STL warmup: 60 readings = 10 minutes at 10s intervals.
+# 10× the STL_PERIOD (36) — the minimum for statistically valid decomposition.
+# Can be lowered via env var for testing but never below 12.
+MIN_READINGS_FOR_STL = max(12, int(os.getenv("BACKTRACK_STL_MIN_READINGS", "60")))
 # STL period: 36 = 6-minute seasonality at 10s intervals (e.g., health-check cycle).
 STL_PERIOD = int(os.getenv("BACKTRACK_STL_PERIOD", "36"))
 
@@ -216,8 +217,58 @@ class TSDCollector:
         # None = collect loop has not run yet; fall back to computing on demand.
         self._cached_drifting: Optional[bool] = None
 
+    # ── Persistence ───────────────────────────────────────────────────────────
+
+    def _state_path(self) -> str:
+        safe = self.service_name.replace("/", "_").replace(":", "_")
+        return os.path.join(os.getenv("BACKTRACK_DATA_DIR", "/data"), f"tsd_state_{safe}.json")
+
+    def save_state(self) -> None:
+        """Write metric histories to disk so the next startup skips re-warmup."""
+        try:
+            import json as _json
+            path = self._state_path()
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            data = {
+                "cpu_history": list(self.cpu_history),
+                "memory_history": list(self.memory_history),
+                "latency_history": list(self.latency_history),
+                "error_rate_history": list(self.error_rate_history),
+            }
+            tmp = path + ".tmp"
+            with open(tmp, "w") as f:
+                _json.dump(data, f)
+            os.replace(tmp, path)
+            logger.debug("TSD state saved for %s (%d readings)", self.service_name, len(self.cpu_history))
+        except Exception:
+            logger.warning("TSD state save failed for %s", self.service_name)
+
+    def load_state(self) -> None:
+        """Restore metric histories from disk — eliminates warmup period on restart."""
+        path = self._state_path()
+        if not os.path.exists(path):
+            return
+        try:
+            import json as _json
+            with open(path) as f:
+                data = _json.load(f)
+            for key, deque_attr in (
+                ("cpu_history", self.cpu_history),
+                ("memory_history", self.memory_history),
+                ("latency_history", self.latency_history),
+                ("error_rate_history", self.error_rate_history),
+            ):
+                for v in (data.get(key) or []):
+                    deque_attr.append(float(v))
+            logger.info(
+                "TSD state restored for %s: %d readings", self.service_name, len(self.cpu_history)
+            )
+        except Exception:
+            logger.warning("TSD state load failed for %s — starting fresh", self.service_name)
+
     async def start(self) -> None:
         """Start the background collection loop."""
+        self.load_state()
         self._running = True
         _monitored_containers.add(self.service_name)
         self._task = asyncio.create_task(self._collect_loop())
@@ -243,7 +294,7 @@ class TSDCollector:
         logger.info("TSD collector reset for %s after rollback", self.service_name)
 
     async def stop(self) -> None:
-        """Stop the background collection loop."""
+        """Stop the background collection loop and persist metric histories."""
         self._running = False
         _monitored_containers.discard(self.service_name)
         if self._task:
@@ -254,15 +305,19 @@ class TSDCollector:
                 pass
         if self._http_session and not self._http_session.closed:
             await self._http_session.close()
+        self.save_state()
         logger.info("TSD collector stopped.")
 
     async def _collect_loop(self) -> None:
         """Main scrape loop — runs every scrape_interval seconds."""
+        _save_every = max(1, 300 // max(1, config.scrape_interval))  # save every ~5 minutes
+        _scrape_count = 0
         while self._running:
             try:
                 await self._scrape()
                 await self._check_restarts()
                 self._total_readings += 1
+                _scrape_count += 1
                 n = len(self.cpu_history)
                 if n >= MIN_READINGS_FOR_STL:
                     self._decompose()
@@ -271,6 +326,8 @@ class TSDCollector:
                     self._ewma_anomaly_check()
                 # Update cached drift state — ONLY from the collect loop, never from HTTP handlers
                 self._cached_drifting = self._update_drift_state()
+                if _scrape_count % _save_every == 0:
+                    self.save_state()
             except Exception:
                 logger.exception("Error in TSD collect loop")
             await asyncio.sleep(config.scrape_interval)

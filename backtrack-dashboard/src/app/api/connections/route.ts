@@ -6,6 +6,10 @@ import {
 } from "@/lib/monitoring-types";
 import { listConnections, registerConnection } from "@/lib/monitoring-store";
 import { runCommand } from "@/lib/command";
+import {
+	resolveApplicationScope,
+	containerToService,
+} from "@/lib/docker-discovery";
 
 type DiscoveryResult = {
 	services: DiscoveredService[];
@@ -184,73 +188,28 @@ async function discoverDockerServices(
 	appName: string,
 	_architecture: ArchitectureType,
 ): Promise<DiscoveryResult> {
-	const dockerResult = await runCommand("docker", ["ps", "--format", "{{json .}}"]);
+	const match = await resolveApplicationScope(appName);
 
-	if (dockerResult.code !== 0) {
-		throw new Error(`docker discovery failed: ${dockerResult.stderr || "unknown error"}`);
-	}
-
-	const allContainers = dockerResult.stdout
-		.split("\n")
-		.map((line) => line.trim())
-		.filter(Boolean)
-		.map((line) => JSON.parse(line) as Record<string, string>);
-
-	const norm = normalizeAppName(appName);
-
-	const getComposeProject = (c: Record<string, string>) => {
-		const m = (c.Labels || "").match(/(?:^|,)com\.docker\.compose\.project=([^,]+)/);
-		return m ? m[1].toLowerCase() : "";
-	};
-
-	const toService = (c: Record<string, string>): DiscoveredService => ({
-		name: c.Names || "unknown-container",
-		status: (c.State || "").toLowerCase() === "running" ? "running" : "unknown",
-		ports: c.Ports ? [c.Ports] : [],
-		image: c.Image,
-		source: "docker",
-	});
-
-	// Tier 1: exact compose project name match
-	const tier1 = allContainers.filter((c) => getComposeProject(c) === norm);
-	if (tier1.length > 0) return { services: tier1.map(toService) };
-
-	// Tier 2: container name or image contains normalized appName
-	const tier2 = allContainers.filter(
-		(c) =>
-			(c.Names || "").toLowerCase().includes(norm) ||
-			(c.Image || "").toLowerCase().includes(norm),
+	const services: DiscoveredService[] = match.containers.map((c) =>
+		containerToService(c, match.strategy, match.confidence),
 	);
-	if (tier2.length > 0) {
-		const warning = norm !== appName.toLowerCase()
-			? `App name normalized to "${norm}" — matched ${tier2.length} container(s).`
-			: undefined;
-		return { services: tier2.map(toService), warning };
-	}
 
-	// Tier 3: partial compose project name match (e.g. user typed "demo" but project is "microservice-demo")
-	const tier3 = allContainers.filter((c) => {
-		const proj = getComposeProject(c);
-		return proj && (proj.includes(norm) || norm.includes(proj));
-	});
-	if (tier3.length > 0) {
-		return {
-			services: tier3.map(toService),
-			warning: `No exact match for "${appName}" — showing containers from a similarly named compose project. Verify these are correct.`,
-		};
-	}
-
-	// No results — return all container names so the user can correct their input
-	const availableNames = allContainers.map((c) => c.Names).filter(Boolean);
 	return {
-		services: [],
-		warning: `No containers found matching "${appName}".`,
-		availableNames,
+		services,
+		warning: match.warning,
+		availableNames: match.availableNames,
 	};
 }
 
+function sanitize(conn: ReturnType<typeof listConnections>[number]) {
+	// Never expose credentials to the browser — authToken is a K8s Bearer token,
+	// githubToken is a PAT. Both live in connections.json and must stay server-side.
+	const { authToken: _a, githubToken: _g, ...safe } = conn;
+	return safe;
+}
+
 export async function GET() {
-	return NextResponse.json({ connections: listConnections() });
+	return NextResponse.json({ connections: listConnections().map(sanitize) });
 }
 
 export async function POST(request: NextRequest) {
@@ -298,6 +257,13 @@ export async function POST(request: NextRequest) {
 			});
 		}
 
+		// Derive the ownership strategy from the first discovered service so it
+		// can be stored on the connection for later rollback validation.
+		const dockerOwnershipStrategy =
+			platform === "docker"
+				? (discoveredServices[0]?.ownershipStrategy ?? "orphan")
+				: undefined;
+
 		const connection = registerConnection({
 			appName,
 			platform,
@@ -311,6 +277,7 @@ export async function POST(request: NextRequest) {
 			githubBranch,
 			githubToken: githubToken || undefined,
 			discoveredServices,
+			dockerOwnershipStrategy,
 		});
 
 		return NextResponse.json({

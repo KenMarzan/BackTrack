@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getConnection, findConnectionByNamespace } from "@/lib/monitoring-store";
 import { runCommand } from "@/lib/command";
 import { addMttrEntry } from "@/lib/metrics-store";
+import { isServiceInScope } from "@/lib/docker-discovery";
+import { notifyRollback } from "@/lib/notifier";
 
 type RollbackPayload = {
   connectionId?: string;
@@ -33,13 +35,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No matching connection found. Register a cluster first." }, { status: 404 });
     }
 
+    // Validate service belongs to this connection before doing anything.
+    // Prevents rolling back a service that happens to share a name with
+    // a service in an unrelated app on the same Docker host.
+    const scopedServices = connection.discoveredServices ?? [];
+    if (
+      scopedServices.length > 0 &&
+      !isServiceInScope(payload.service, scopedServices)
+    ) {
+      const owned = scopedServices.map((s) => s.name).join(", ");
+      return NextResponse.json(
+        {
+          error: `Service "${payload.service}" is not registered under connection "${connection.appName}". Scoped services: ${owned}`,
+        },
+        { status: 400 },
+      );
+    }
+
     // Docker rollback: forward to backtrack-agent
     if (connection.platform === "docker") {
       try {
         const response = await fetch(`${AGENT_URL}/rollback/trigger`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason: `Dashboard rollback for ${payload.service}` }),
+          body: JSON.stringify({
+            reason: `Dashboard rollback for ${payload.service}`,
+            service: payload.service,
+            connectionId: connection.id,
+          }),
         });
 
         const agentResult = await response.json();
@@ -185,6 +208,16 @@ export async function POST(request: NextRequest) {
     } catch {
       // Non-fatal — rollback succeeded, just can't determine access URL
     }
+
+    await notifyRollback({
+      service: payload.service,
+      namespace: ns,
+      platform: "kubernetes",
+      success: statusResult.code === 0,
+      message: statusResult.code === 0 ? "Rollback executed." : (statusResult.stderr || "Rollback completed with errors."),
+      triggered_at: rollbackTriggeredAt,
+      source: "manual",
+    });
 
     return NextResponse.json({
       ok: true,

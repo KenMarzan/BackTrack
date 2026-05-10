@@ -16,6 +16,21 @@ services:
     environment:
       - BACKTRACK_AGENT_URL=http://backtrack-agent:8847
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      # ── Notifications (all optional — configure any combination) ────────────
+      # Webhook: Slack incoming webhook URL, Discord, or any HTTP endpoint
+      - BACKTRACK_WEBHOOK_URL=${BACKTRACK_WEBHOOK_URL:-}
+      # Telegram: create a bot via @BotFather and get the chat/channel ID
+      - BACKTRACK_TELEGRAM_TOKEN=${BACKTRACK_TELEGRAM_TOKEN:-}
+      - BACKTRACK_TELEGRAM_CHAT_ID=${BACKTRACK_TELEGRAM_CHAT_ID:-}
+      # Email via SMTP (Gmail: host=smtp.gmail.com port=587, use App Password)
+      - BACKTRACK_SMTP_HOST=${BACKTRACK_SMTP_HOST:-}
+      - BACKTRACK_SMTP_PORT=${BACKTRACK_SMTP_PORT:-587}
+      - BACKTRACK_SMTP_USER=${BACKTRACK_SMTP_USER:-}
+      - BACKTRACK_SMTP_PASS=${BACKTRACK_SMTP_PASS:-}
+      - BACKTRACK_SMTP_FROM=${BACKTRACK_SMTP_FROM:-}
+      - BACKTRACK_SMTP_TO=${BACKTRACK_SMTP_TO:-}
+      # ── Security ─────────────────────────────────────────────────────────────
+      - BACKTRACK_API_SECRET=${BACKTRACK_API_SECRET:-}
       # Kubernetes mode: uncomment after enabling the kube volume above.
       - KUBECONFIG=/root/.kube/config
     volumes:
@@ -48,6 +63,12 @@ services:
       - BACKTRACK_CORPUS_SIZE=${BACKTRACK_CORPUS_SIZE:-50}
       - BACKTRACK_ROLLBACK_ENABLED=${BACKTRACK_ROLLBACK_ENABLED:-true}
       - BACKTRACK_DATA_DIR=/data
+      # Dashboard URL used by the agent to sync MTTR entries after auto-rollback
+      - BACKTRACK_DASHBOARD_URL=http://backtrack-dashboard:3847
+      # Shared secret — must match BACKTRACK_API_SECRET on the dashboard
+      - BACKTRACK_API_SECRET=${BACKTRACK_API_SECRET:-}
+      # Allow CORS from the dashboard container
+      - BACKTRACK_ALLOW_ORIGINS=http://localhost:3847,http://backtrack-dashboard:3847
       # Kubernetes mode: uncomment after enabling the kube volume above.
       - KUBECONFIG=/root/.kube/config
     volumes:

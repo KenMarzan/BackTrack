@@ -35,7 +35,6 @@
 html,
 body {
   height: 100%;
-  overflow: hidden;
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
@@ -44,6 +43,7 @@ body {
 }
 
 html {
+  overflow: hidden; /* only prevent horizontal scroll at html level */
   scrollbar-width: none;
 }
 
