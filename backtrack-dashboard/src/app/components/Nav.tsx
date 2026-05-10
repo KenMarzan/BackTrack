@@ -1,5 +1,5 @@
 "use client";
-import { BellRing, Boxes, CircuitBoard, Cloud, Info, Menu, Plug, Settings2, X } from "lucide-react";
+import { BellRing, Boxes, CircuitBoard, Cloud, Info, Menu, Plug, Settings2, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -36,6 +36,30 @@ function Nav({ healthSummary }: NavProps) {
   const [availableNames, setAvailableNames] = useState<string[] | null>(null);
   const [lastAction, setLastAction] = useState<"test" | "connect" | null>(null);
   const [successToast, setSuccessToast] = useState<{ appName: string; count: number } | null>(null);
+  const [connections, setConnections] = useState<{ id: string; appName: string; platform: string }[]>([]);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const loadConnections = async () => {
+    try {
+      const res = await fetch("/api/connections");
+      if (res.ok) {
+        const data = await res.json() as { connections?: { id: string; appName: string; platform: string }[] };
+        setConnections(data.connections ?? []);
+      }
+    } catch { /* non-fatal */ }
+  };
+
+  const removeConnection = async (id: string, appName: string) => {
+    if (!window.confirm(`Remove "${appName}" from BackTrack?`)) return;
+    setRemovingId(id);
+    try {
+      await fetch(`/api/connections/${id}`, { method: "DELETE" });
+      setConnections((prev) => prev.filter((c) => c.id !== id));
+      window.dispatchEvent(new Event("backtrack:connection-updated"));
+    } catch { /* non-fatal */ } finally {
+      setRemovingId(null);
+    }
+  };
 
   useEffect(() => {
     const open = (e: Event) => {
@@ -44,6 +68,7 @@ function Nav({ healthSummary }: NavProps) {
         setForm((f) => ({ ...f, platform }));
       }
       setIsOpen(true);
+      loadConnections();
     };
     window.addEventListener("backtrack:open-configure", open);
     return () => window.removeEventListener("backtrack:open-configure", open);
@@ -251,7 +276,7 @@ function Nav({ healthSummary }: NavProps) {
 
             <button
               type="button"
-              onClick={() => setIsOpen(true)}
+              onClick={() => { setIsOpen(true); loadConnections(); }}
               className="group inline-flex items-center gap-2 rounded-full border border-[rgba(94,234,212,0.35)] bg-[rgba(94,234,212,0.06)] px-3.5 py-1.5 text-[12px] text-[#c6f5e8] hover:bg-[rgba(94,234,212,0.12)] transition"
             >
               <Plug size={13} className="text-[var(--accent-teal)]" />
@@ -334,6 +359,37 @@ function Nav({ healthSummary }: NavProps) {
                   </p>
                 </div>
               </div>
+
+              {/* Existing connections */}
+              {connections.length > 0 && (
+                <div className="mt-5">
+                  <p className="text-[10.5px] uppercase tracking-[0.16em] text-[var(--text-muted)] mb-2">Connected apps</p>
+                  <div className="space-y-1.5">
+                    {connections.map((c) => (
+                      <div
+                        key={c.id}
+                        className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border-soft)] bg-white/[0.02] px-3 py-2"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-teal)] shrink-0" />
+                          <span className="text-[12px] text-[var(--text-primary)] truncate">{c.appName}</span>
+                          <span className="bt-mono text-[10px] text-[var(--text-muted)] shrink-0">{c.platform}</span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={removingId === c.id}
+                          onClick={() => removeConnection(c.id, c.appName)}
+                          className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg border border-red-500/20 bg-red-950/10 text-red-400 hover:bg-red-950/25 text-[11px] transition disabled:opacity-40"
+                        >
+                          <Trash2 size={10} />
+                          {removingId === c.id ? "Removing…" : "Remove"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="my-5 border-t border-[var(--border-soft)]" />
+                </div>
+              )}
 
               <div className="mt-6 space-y-4 pb-6">
                 <Field
