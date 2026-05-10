@@ -68,6 +68,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Normalize full GitHub URLs to owner/repo format
+  const ghUrlMatch = repo.match(/github\.com\/([^/]+\/[^/]+?)(?:\.git)?(?:\/.*)?$/);
+  if (ghUrlMatch) repo = ghUrlMatch[1];
+
   branch = branch || "main";
   const headers = ghHeaders(token || undefined);
   const [owner, repoName] = repo.split("/");

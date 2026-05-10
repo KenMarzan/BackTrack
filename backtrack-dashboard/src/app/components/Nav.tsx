@@ -121,10 +121,14 @@ function Nav({ healthSummary }: NavProps) {
     setLastAction(action);
 
     try {
+      const normalizedForm = { ...form };
+      const ghUrlMatch = normalizedForm.githubRepo?.match(/github\.com\/([^/]+\/[^/]+?)(?:\.git)?(?:\/.*)?$/);
+      if (ghUrlMatch) normalizedForm.githubRepo = ghUrlMatch[1];
+
       const response = await fetch("/api/connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, ...form }),
+        body: JSON.stringify({ action, ...normalizedForm }),
       });
 
       const payload = await response.json();
