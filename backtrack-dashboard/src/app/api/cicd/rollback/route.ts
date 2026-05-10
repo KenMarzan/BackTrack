@@ -3,6 +3,7 @@ import { listConnections, getConnection } from "@/lib/monitoring-store";
 import { runCommand } from "@/lib/command";
 import { isServiceInScope } from "@/lib/docker-discovery";
 import { notifyRollback } from "@/lib/notifier";
+import { flagBadDeployment } from "@/lib/github-status";
 
 type RollbackPayload = {
   pullUrl: string;       // e.g. "ghcr.io/owner/repo:v1.2.3"
@@ -222,6 +223,19 @@ export async function POST(request: NextRequest) {
       triggered_at: new Date().toISOString(),
       source: "cicd",
     });
+
+    // Flag the bad image tag in GitHub — marks the commit ❌ so developers
+    // are immediately pointed to the commit that caused the rollback.
+    if (allOk && connection.githubRepo && connection.githubToken) {
+      flagBadDeployment({
+        repo:    connection.githubRepo,
+        token:   connection.githubToken,
+        branch:  connection.githubBranch ?? "main",
+        tag:     payload.tag,
+        service: services.map((s) => s.name).join(", "),
+        reason:  `Rolled back from ${payload.tag} — anomaly detected by BackTrack`,
+      }).catch(() => {});
+    }
 
     return NextResponse.json({
       ok: allOk,

@@ -4,6 +4,7 @@ import { runCommand } from "@/lib/command";
 import { addMttrEntry } from "@/lib/metrics-store";
 import { isServiceInScope } from "@/lib/docker-discovery";
 import { notifyRollback } from "@/lib/notifier";
+import { flagBadDeployment } from "@/lib/github-status";
 
 type RollbackPayload = {
   connectionId?: string;
@@ -218,6 +219,17 @@ export async function POST(request: NextRequest) {
       triggered_at: rollbackTriggeredAt,
       source: "manual",
     });
+
+    // Flag the bad deployment in GitHub so developers see the ❌ on the commit
+    if (connection.githubRepo && connection.githubToken && statusResult.code === 0) {
+      flagBadDeployment({
+        repo:    connection.githubRepo,
+        token:   connection.githubToken,
+        branch:  connection.githubBranch ?? "main",
+        service: payload.service,
+        reason:  `Anomaly detected — rolled back by BackTrack (${payload.anomaly_type ?? "MANUAL"})`,
+      }).catch(() => {});
+    }
 
     return NextResponse.json({
       ok: true,

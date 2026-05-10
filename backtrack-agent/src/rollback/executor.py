@@ -113,6 +113,14 @@ class RollbackExecutor:
             success=result["success"],
         )
 
+        # Flag the bad deployment in GitHub via the dashboard (which holds credentials)
+        if result["success"]:
+            self._flag_github(
+                service=target,
+                reason=reason,
+                from_tag=from_tag,
+            )
+
         return result
 
     def _rollback_docker(self, stable: Snapshot, target: str = "") -> None:
@@ -341,6 +349,27 @@ class RollbackExecutor:
             logger.info("MTTR entry synced to dashboard for %s (mttr=%ds)", service, mttr_seconds)
         except Exception as exc:
             logger.warning("Failed to sync MTTR to dashboard: %s", exc)
+
+    def _flag_github(self, service: str, reason: str, from_tag: str = "") -> None:
+        """Ask the dashboard to flag the bad deployment in GitHub.
+        The dashboard holds the GitHub token — the agent never does."""
+        try:
+            payload = json.dumps({
+                "service": service,
+                "reason": reason,
+                "tag": from_tag or None,
+            }).encode()
+            req = urllib.request.Request(
+                f"{_DASHBOARD_URL}/api/github/flag",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=5):
+                pass
+            logger.info("GitHub flag posted for %s", service)
+        except Exception as exc:
+            logger.warning("Failed to flag GitHub deployment for %s: %s", service, exc)
 
     @staticmethod
     def get_history() -> list[dict]:
