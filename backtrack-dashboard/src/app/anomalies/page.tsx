@@ -131,16 +131,19 @@ export default function AnomaliesPage() {
   const [metricsError, setMetricsError] = useState(false);
   const [clusterName, setClusterName] = useState<string>("local");
   const [minReadings, setMinReadings] = useState<number>(12);
+  const [hasConnections, setHasConnections] = useState<boolean | null>(null); // null = loading
 
   useEffect(() => {
     fetch("/api/connections")
       .then((r) => r.json())
       .then((data) => {
-        const first = data?.connections?.[0];
+        const conns: unknown[] = Array.isArray(data?.connections) ? data.connections : [];
+        setHasConnections(conns.length > 0);
+        const first = conns[0] as Record<string, string> | undefined;
         if (first?.clusterName) setClusterName(first.clusterName);
         else if (first?.appName) setClusterName(first.appName);
       })
-      .catch(() => {});
+      .catch(() => setHasConnections(false));
   }, []);
 
   useEffect(() => {
@@ -183,16 +186,18 @@ export default function AnomaliesPage() {
     return () => { active = false; window.clearInterval(timer); };
   }, []);
 
-  const agentOffline = !agentOnline && !tsd && !lsi;
+  // Only show "agent offline" when connections exist but the agent isn't reachable.
+  // When nothing is connected yet, show the "connect first" prompt instead.
+  const agentOffline = hasConnections === true && !agentOnline && !tsd && !lsi;
 
   return (
     <div className="w-full h-screen flex flex-col overflow-hidden">
       <Nav />
 
-      <div className="flex-1 min-h-0 grid grid-cols-3 gap-4 p-6 overflow-hidden">
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 md:p-6 overflow-y-auto lg:overflow-hidden">
 
         {/* ── Terminal (2/3) ── */}
-        <div className="col-span-2 bt-panel flex flex-col overflow-hidden p-5 min-h-0">
+        <div className="lg:col-span-2 bt-panel flex flex-col overflow-hidden p-4 md:p-5 min-h-[400px] lg:min-h-0">
           <div className="flex items-center gap-2 flex-shrink-0">
             <Server size={14} className="text-[var(--accent-teal)]" />
             <span className="bt-label">Terminal</span>
@@ -206,9 +211,31 @@ export default function AnomaliesPage() {
         </div>
 
         {/* ── Right panels (1/3) ── */}
-        <div className="col-span-1 flex flex-col gap-4 min-h-0 overflow-hidden">
+        <div className="lg:col-span-1 flex flex-col gap-4 min-h-0 lg:overflow-hidden">
 
-          {/* Agent offline */}
+          {/* No connection yet */}
+          {hasConnections === false && (
+            <div className="flex-1 bt-panel flex flex-col items-center justify-center gap-4 p-6 text-center"
+              style={{ borderColor: "rgba(94,234,212,0.12)", background: "rgba(94,234,212,0.03)" }}>
+              <div className="h-11 w-11 rounded-full border flex items-center justify-center"
+                style={{ borderColor: "rgba(94,234,212,0.25)", background: "rgba(94,234,212,0.08)" }}>
+                <Activity size={18} className="text-[var(--accent-teal)]" />
+              </div>
+              <div>
+                <p className="text-[var(--text-primary)] font-semibold text-sm">No cluster connected</p>
+                <p className="text-[var(--text-muted)] text-[11px] mt-1">Connect an app to start TSD · LSI monitoring</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event("backtrack:open-configure"))}
+                className="bt-btn-accent text-[11px] px-4 py-2"
+              >
+                Configure cluster
+              </button>
+            </div>
+          )}
+
+          {/* Agent offline — only shown when a connection exists but agent is unreachable */}
           {agentOffline && (
             <div className="flex-1 bt-panel flex flex-col items-center justify-center gap-4 p-6 text-center"
               style={{ borderColor: "rgba(251,113,133,0.25)", background: "rgba(251,113,133,0.04)" }}>
@@ -230,7 +257,7 @@ export default function AnomaliesPage() {
           )}
 
           {/* TSD Panel */}
-          {!agentOffline && (
+          {hasConnections === true && !agentOffline && (
             <div className="bt-panel flex-1 flex flex-col overflow-hidden p-4">
               <div className="flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-2">
@@ -347,7 +374,7 @@ export default function AnomaliesPage() {
           )}
 
           {/* LSI Panel */}
-          {!agentOffline && (
+          {hasConnections === true && !agentOffline && (
             <div className="bt-panel flex-1 flex flex-col overflow-hidden p-4">
               <div className="flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-2">

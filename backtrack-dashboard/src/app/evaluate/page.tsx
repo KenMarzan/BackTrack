@@ -187,9 +187,9 @@ export default function EvaluatePage() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[var(--bg-base)] text-[var(--text-primary)] overflow-hidden">
+    <div className="min-h-screen flex flex-col bg-[var(--bg-base)] text-[var(--text-primary)]">
     <Nav />
-    <main className="flex-1 min-h-0 overflow-y-auto p-6 max-w-4xl mx-auto w-full space-y-6">
+    <main className="flex-1 overflow-y-auto p-4 md:p-6 max-w-4xl mx-auto w-full space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">

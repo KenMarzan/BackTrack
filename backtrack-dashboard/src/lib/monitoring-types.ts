@@ -1,6 +1,14 @@
 export type PlatformType = "kubernetes" | "docker";
 export type ArchitectureType = "monolith" | "microservices";
 
+// How container ownership was determined — ordered from highest to lowest confidence.
+export type OwnershipStrategy =
+  | "backtrack-label"    // com.backtrack.io/app label — explicit opt-in
+  | "compose-project"    // com.docker.compose.project exact match
+  | "network-membership" // all containers share a custom Docker network
+  | "name-match"         // container/image name substring match — low confidence
+  | "orphan";            // could not determine ownership
+
 export interface DiscoveredService {
   name: string;
   namespace?: string;
@@ -8,6 +16,12 @@ export interface DiscoveredService {
   ports: string[];
   image?: string;
   source: "kubernetes" | "docker";
+  // Docker-specific ownership metadata (absent for Kubernetes services)
+  containerId?: string;
+  ownershipStrategy?: OwnershipStrategy;
+  ownershipConfidence?: "high" | "medium" | "low";
+  composeProject?: string;
+  dockerNetworks?: string[];
 }
 
 export interface AppConnectionInput {
@@ -23,6 +37,11 @@ export interface AppConnectionInput {
   githubBranch?: string;
   githubToken?: string;
   discoveredServices: DiscoveredService[];
+  // Canonical scope identifier — used to deduplicate without colliding across apps.
+  // Docker: "<platform>:<normalizedAppName>", Kubernetes: "<platform>:<namespace>:<normalizedAppName>"
+  scopeKey?: string;
+  // For Docker only: the ownership strategy that determined this connection's containers.
+  dockerOwnershipStrategy?: OwnershipStrategy;
 }
 
 export interface AppConnection extends AppConnectionInput {

@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listConnections } from "@/lib/monitoring-store";
+import { listConnections, getConnection } from "@/lib/monitoring-store";
 import { runCommand } from "@/lib/command";
+import { isServiceInScope } from "@/lib/docker-discovery";
+import { notifyRollback } from "@/lib/notifier";
+import { flagBadDeployment } from "@/lib/github-status";
 
 type RollbackPayload = {
-  pullUrl: string; // e.g. "ghcr.io/owner/repo:v1.2.3"
-  tag: string;     // e.g. "v1.2.3"
+  pullUrl: string;       // e.g. "ghcr.io/owner/repo:v1.2.3"
+  tag: string;           // e.g. "v1.2.3"
+  connectionId?: string; // target a specific registered app — required on multi-app hosts
+  service?: string;      // roll back a single service within the connection (optional)
 };
 
 type ServiceResult = { service: string; ok: boolean; message: string };
@@ -87,6 +92,7 @@ async function rollbackDocker(
     const envArgs: string[] = [];
     const bindArgs: string[] = [];
 
+    const extraNetworks: string[] = [];
     if (inspectRes.code === 0) {
       try {
         const info = JSON.parse(inspectRes.stdout)[0] as {
@@ -96,6 +102,7 @@ async function rollbackDocker(
             Binds?: string[];
           };
           Config?: { Env?: string[] };
+          NetworkSettings?: { Networks?: Record<string, unknown> };
         };
         const hc = info.HostConfig || {};
         const cc = info.Config || {};
@@ -107,6 +114,12 @@ async function rollbackDocker(
         }
         for (const e of (cc.Env || [])) envArgs.push("-e", e);
         for (const v of (hc.Binds || [])) bindArgs.push("-v", v);
+
+        // Collect additional networks beyond the primary NetworkMode
+        const systemNets = new Set(["bridge", "host", "none"]);
+        for (const net of Object.keys(info.NetworkSettings?.Networks ?? {})) {
+          if (!systemNets.has(net) && net !== networkMode) extraNetworks.push(net);
+        }
       } catch {
         // use defaults
       }
@@ -124,6 +137,14 @@ async function rollbackDocker(
       ...bindArgs,
       pullUrl,
     ]);
+
+    // Re-attach to additional networks after container starts
+    if (runRes.code === 0) {
+      const containerId = runRes.stdout.trim();
+      for (const net of extraNetworks) {
+        await runCommand("docker", ["network", "connect", net, containerId]);
+      }
+    }
 
     results.push({
       service: svc.name,
@@ -143,16 +164,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "pullUrl and tag are required." }, { status: 400 });
     }
 
+    // Resolve the correct connection — never fall back to connections[0] blindly
+    // because that rolls back the wrong app on multi-app Docker hosts.
     const connections = listConnections();
-    const connection = connections[0];
+    const connection = payload.connectionId
+      ? getConnection(payload.connectionId)
+      : connections.length === 1
+        ? connections[0]
+        : null;
 
     if (!connection) {
-      return NextResponse.json({ error: "No connection configured." }, { status: 404 });
+      const hint =
+        connections.length > 1
+          ? `Multiple connections registered (${connections.map((c) => c.appName).join(", ")}). Specify connectionId.`
+          : "No connection configured.";
+      return NextResponse.json({ error: hint }, { status: connections.length > 1 ? 400 : 404 });
     }
 
-    const services = (connection.discoveredServices || []).filter((s) => s.name);
-    if (services.length === 0) {
+    const scopedServices = (connection.discoveredServices || []).filter((s) => s.name);
+    if (scopedServices.length === 0) {
       return NextResponse.json({ error: "No services found in the active connection." }, { status: 404 });
+    }
+
+    // If a specific service was requested, validate it belongs to this connection
+    // before touching anything. This prevents cross-app rollback on shared hosts.
+    let services = scopedServices;
+    if (payload.service) {
+      if (!isServiceInScope(payload.service, scopedServices)) {
+        const owned = scopedServices.map((s) => s.name).join(", ");
+        return NextResponse.json(
+          {
+            error: `Service "${payload.service}" is not part of connection "${connection.appName}". Owned services: ${owned}`,
+          },
+          { status: 400 },
+        );
+      }
+      services = scopedServices.filter(
+        (s) => s.name.toLowerCase() === payload.service!.toLowerCase(),
+      );
     }
 
     const results =
@@ -161,6 +210,32 @@ export async function POST(request: NextRequest) {
         : await rollbackDocker(services, payload.pullUrl, payload.tag);
 
     const allOk = results.every((r) => r.ok);
+
+    await notifyRollback({
+      service: services.map((s) => s.name).join(", "),
+      namespace: connection.namespace,
+      platform: connection.platform,
+      to_tag: payload.tag,
+      success: allOk,
+      message: allOk
+        ? `All services rolled back to ${payload.tag}.`
+        : `Rollback completed with errors — check individual service results.`,
+      triggered_at: new Date().toISOString(),
+      source: "cicd",
+    });
+
+    // Flag the bad image tag in GitHub — marks the commit ❌ so developers
+    // are immediately pointed to the commit that caused the rollback.
+    if (allOk && connection.githubRepo && connection.githubToken) {
+      flagBadDeployment({
+        repo:    connection.githubRepo,
+        token:   connection.githubToken,
+        branch:  connection.githubBranch ?? "main",
+        tag:     payload.tag,
+        service: services.map((s) => s.name).join(", "),
+        reason:  `Rolled back from ${payload.tag} — anomaly detected by BackTrack`,
+      }).catch(() => {});
+    }
 
     return NextResponse.json({
       ok: allOk,

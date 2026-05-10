@@ -1,9 +1,10 @@
 "use client";
-import { Boxes, CircuitBoard, Cloud, Info, Plug, Settings2, X } from "lucide-react";
+import { BellRing, Boxes, CircuitBoard, Cloud, Info, Menu, Plug, Settings2, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import CustomSelect from "./CustomSelect";
+import NotificationsModal from "./NotificationsModal";
 
 type ConnectionForm = {
   appName: string;
@@ -25,6 +26,9 @@ type NavProps = {
 
 function Nav({ healthSummary }: NavProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [discoveredCount, setDiscoveredCount] = useState<number | null>(null);
@@ -34,10 +38,28 @@ function Nav({ healthSummary }: NavProps) {
   const [successToast, setSuccessToast] = useState<{ appName: string; count: number } | null>(null);
 
   useEffect(() => {
-    const open = () => setIsOpen(true);
+    const open = (e: Event) => {
+      const platform = (e as CustomEvent<{ platform?: string }>).detail?.platform;
+      if (platform === "docker" || platform === "kubernetes") {
+        setForm((f) => ({ ...f, platform }));
+      }
+      setIsOpen(true);
+    };
     window.addEventListener("backtrack:open-configure", open);
     return () => window.removeEventListener("backtrack:open-configure", open);
   }, []);
+
+  // Close mobile menu on outside click
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target as Node)) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isMobileMenuOpen]);
   const [form, setForm] = useState<ConnectionForm>({
     appName: "",
     platform: "kubernetes",
@@ -150,9 +172,10 @@ function Nav({ healthSummary }: NavProps) {
 
   return (
     <>
+      <NotificationsModal open={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
       <header className="sticky top-0 z-30 backdrop-blur-xl bg-[rgba(7,9,13,0.65)] border-b border-[var(--border-soft)]">
-        <div className="px-4 sm:px-6 lg:px-8 xl:px-10 py-3.5 flex items-center justify-between gap-3">
-          {/* Brand */}
+        <div className="px-4 sm:px-6 lg:px-8 xl:px-10 py-3.5 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          {/* Brand — left column */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="relative h-9 w-9 rounded-xl border border-[var(--border-mid)] bg-gradient-to-br from-[rgba(94,234,212,0.12)] to-[rgba(167,139,250,0.10)] flex items-center justify-center">
               <CircuitBoard size={16} className="text-[var(--accent-teal)]" />
@@ -171,13 +194,12 @@ function Nav({ healthSummary }: NavProps) {
             </div>
           </div>
 
-          {/* Screen navigation */}
-          <nav className="hidden md:flex items-center gap-1">
+          {/* Nav — center column, truly centered */}
+          <nav className="hidden md:flex items-center justify-center gap-1">
             {([
               { href: "/", label: "Dashboard" },
               { href: "/anomalies", label: "Anomalies" },
               { href: "/metrics", label: "Metrics" },
-              { href: "/evaluate", label: "Evaluate" },
             ] as const).map(({ href, label }) => {
               const isActive =
                 href === "/"
@@ -200,8 +222,8 @@ function Nav({ healthSummary }: NavProps) {
             })}
           </nav>
 
-          {/* Status cluster */}
-          <div className="flex items-center gap-2">
+          {/* Status cluster — right column */}
+          <div className="flex items-center justify-end gap-2">
             <div className="hidden md:flex items-center gap-2.5 rounded-full border border-[var(--border-soft)] bg-white/[0.02] px-3 py-1.5">
               <span className={`bt-pulse-dot ${clusterHealthy ? "" : "bt-red"}`} />
               <span className="text-[11px] text-[var(--text-secondary)]">
@@ -217,15 +239,65 @@ function Nav({ healthSummary }: NavProps) {
               <span>{formattedDate}</span>
             </div>
 
+            {/* Notifications button */}
+            <button
+              type="button"
+              onClick={() => setIsNotifOpen(true)}
+              className="h-8 w-8 rounded-full border border-[var(--border-soft)] bg-white/[0.02] hover:bg-white/[0.05] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--accent-teal)] transition"
+              aria-label="Notification settings"
+            >
+              <BellRing size={14} />
+            </button>
+
             <button
               type="button"
               onClick={() => setIsOpen(true)}
               className="group inline-flex items-center gap-2 rounded-full border border-[rgba(94,234,212,0.35)] bg-[rgba(94,234,212,0.06)] px-3.5 py-1.5 text-[12px] text-[#c6f5e8] hover:bg-[rgba(94,234,212,0.12)] transition"
             >
               <Plug size={13} className="text-[var(--accent-teal)]" />
-              <span>Configure Cluster</span>
+              <span className="hidden sm:inline">Configure Cluster</span>
               <span className="bt-kbd hidden sm:inline">⌘K</span>
             </button>
+
+            {/* Mobile hamburger — only visible < md */}
+            <div className="relative md:hidden" ref={mobileMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(v => !v)}
+                className="h-8 w-8 rounded-full border border-[var(--border-soft)] bg-white/[0.02] hover:bg-white/[0.05] flex items-center justify-center text-[var(--text-secondary)] transition"
+                aria-label="Navigation menu"
+              >
+                <Menu size={15} />
+              </button>
+              {isMobileMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-44 rounded-xl border border-[var(--border-mid)] bg-[#0f1621] shadow-[0_12px_40px_rgba(0,0,0,0.5)] overflow-hidden z-50">
+                  {([
+                    { href: "/", label: "Dashboard" },
+                    { href: "/anomalies", label: "Anomalies" },
+                    { href: "/metrics", label: "Metrics" },
+                  ] as const).map(({ href, label }) => {
+                    const isActive =
+                      href === "/"
+                        ? pathname === "/"
+                        : pathname === href || pathname.startsWith(href + "/");
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex items-center px-4 py-2.5 text-[13px] transition-colors"
+                        style={{
+                          background: isActive ? "rgba(94,234,212,0.07)" : "transparent",
+                          color: isActive ? "#d7f7ee" : "var(--text-secondary)",
+                        }}
+                      >
+                        {label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -379,11 +451,23 @@ function Nav({ healthSummary }: NavProps) {
                   />
                 </Field>
 
-                {statusMessage ? (
+                {statusMessage ? (() => {
+                  // Suppress name-match label hints when services were actually found —
+                  // the user typed the container name and it matched, which is expected.
+                  // Only surface warnings for genuinely ambiguous cases (network-membership,
+                  // partial compose match, no services found).
+                  const isNameMatchHint = !!discoveryWarning &&
+                    (discoveryWarning.includes("com.backtrack.io") ||
+                     discoveryWarning.includes("name/image match"));
+                  const visibleWarning = (discoveredCount ?? 0) > 0 && isNameMatchHint
+                    ? null
+                    : discoveryWarning;
+
+                  return (
                   <div className={`rounded-xl border overflow-hidden ${
                     discoveredCount === 0
                       ? "border-red-500/30 bg-red-950/20"
-                      : discoveryWarning
+                      : visibleWarning
                         ? "border-yellow-500/30 bg-yellow-950/20"
                         : "border-[rgba(94,234,212,0.25)] bg-[rgba(94,234,212,0.04)]"
                   }`}>
@@ -406,7 +490,7 @@ function Nav({ healthSummary }: NavProps) {
                           <span className="text-[12px] font-semibold text-red-400">No services found</span>
                         </>
                       )}
-                      {discoveryWarning && (
+                      {visibleWarning && (
                         <span className="ml-auto text-[10px] text-yellow-400 flex items-center gap-1">⚠ warning</span>
                       )}
                     </div>
@@ -430,13 +514,14 @@ function Nav({ healthSummary }: NavProps) {
                     )}
 
                     {/* Warning / error message */}
-                    {(discoveryWarning || (discoveredCount === 0)) && (
+                    {(visibleWarning || discoveredCount === 0) && (
                       <div className="px-3 pb-2.5">
-                        <p className="text-[11px] text-[var(--text-muted)]">{discoveryWarning || statusMessage}</p>
+                        <p className="text-[11px] text-[var(--text-muted)]">{visibleWarning || statusMessage}</p>
                       </div>
                     )}
                   </div>
-                ) : null}
+                  );
+                })() : null}
 
                 {lastAction === "connect" && discoveredCount !== null ? (
                   <div className="rounded-xl border border-[rgba(167,139,250,0.28)] bg-[rgba(167,139,250,0.06)] p-4 flex gap-3">
@@ -465,25 +550,43 @@ function Nav({ healthSummary }: NavProps) {
                 ) : null}
 
                 {isDocker ? (
-                  <div className="rounded-xl border border-[var(--border-soft)] bg-[rgba(148,163,184,0.03)] p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Boxes size={14} className="text-[var(--accent-teal)]" />
-                      <h3 className="text-sm text-white">Docker setup</h3>
+                  <div className="rounded-xl border border-[var(--border-soft)] bg-[rgba(148,163,184,0.03)] p-4 space-y-4">
+                    {/* Single container */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Boxes size={13} className="text-[var(--accent-teal)]" />
+                        <h3 className="text-[12px] font-semibold text-white">Single container</h3>
+                      </div>
+                      <p className="text-[11px] text-[var(--text-muted)] mb-2">Find your container name and enter it in <strong>Application name</strong> above.</p>
+                      <code className="block bt-mono text-[11px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2">
+                        docker ps --format &quot;&#123;&#123;.Names&#125;&#125;&quot;
+                      </code>
                     </div>
-                    <ol className="space-y-3 text-xs text-[var(--text-secondary)] list-decimal list-inside">
-                      <li>
-                        Find your container name:
-                        <code className="block mt-1.5 bt-mono text-[11.5px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2">
-                          docker ps --format &quot;&#123;&#123;.Names&#125;&#125;&quot;
-                        </code>
-                      </li>
-                      <li>
-                        Enter that name in <strong>Application name</strong> above, then click Connect.
-                      </li>
-                    </ol>
-                    <div className="mt-3 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.05] px-3 py-2">
+
+                    {/* Divider */}
+                    <div className="border-t border-[var(--border-soft)]" />
+
+                    {/* Microservices — Docker Compose */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Boxes size={13} className="text-[var(--accent-violet)]" />
+                        <h3 className="text-[12px] font-semibold text-white">Microservices (Docker Compose)</h3>
+                      </div>
+                      <p className="text-[11px] text-[var(--text-muted)] mb-2">
+                        Enter your <strong>Compose project name</strong> — BackTrack will discover and monitor all services in that project at once.
+                      </p>
+                      <p className="text-[10.5px] text-[var(--text-muted)] mb-1.5">Find your Compose project name:</p>
+                      <code className="block bt-mono text-[11px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2 mb-2">
+                        docker ps --format &quot;&#123;&#123;.Names&#125;&#125;\t&#123;&#123;.Label \&quot;com.docker.compose.project\&quot;&#125;&#125;&quot;
+                      </code>
+                      <p className="text-[10.5px] text-[var(--text-muted)]">
+                        The value in the second column is your project name. Enter it above with <strong>Architecture → Microservices</strong>.
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/[0.05] px-3 py-2">
                       <p className="text-[11px] text-cyan-300 font-medium mb-0.5">What happens after Connect</p>
-                      <p className="text-[11px] text-[var(--text-muted)]">BackTrack builds a 2-minute baseline (TSD: 12 readings, LSI: 200 log lines). A progress bar appears on the Anomalies page while warming up. Auto-rollback activates once the first stable window is confirmed.</p>
+                      <p className="text-[11px] text-[var(--text-muted)]">BackTrack starts independent TSD + LSI collectors per service. Auto-rollback activates once the first stable baseline window is confirmed (~2 min).</p>
                     </div>
                   </div>
                 ) : (

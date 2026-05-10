@@ -16,7 +16,7 @@ import re
 import time
 from typing import Optional
 
-import numpy as np
+import numpy
 from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -101,8 +101,65 @@ class LSICollector:
         # maxsize=1000: explicit drop policy under load rather than blocking the event loop.
         self._log_queue: asyncio.Queue[str] = asyncio.Queue(maxsize=1000)
 
+    # ── Persistence ───────────────────────────────────────────────────────────
+
+    def _state_path(self) -> str:
+        safe = self.service_name.replace("/", "_").replace(":", "_")
+        return os.path.join(os.getenv("BACKTRACK_DATA_DIR", "/data"), f"lsi_state_{safe}.json")
+
+    def save_state(self) -> None:
+        """Persist corpus and baseline scores so next startup re-fits without a warmup window."""
+        try:
+            import json as _json
+            path = self._state_path()
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            data = {
+                "corpus": list(self.corpus)[-CORPUS_SIZE:],
+                "baseline_scores": list(self.baseline_scores),
+                "baseline_locked": self.baseline_locked,
+                "error_baseline_scores": list(self.error_baseline_scores),
+                "error_baseline_locked": self.error_baseline_locked,
+                "score_history": list(self.score_history)[-50:],
+                "error_score_history": list(self.error_score_history)[-50:],
+            }
+            tmp = path + ".tmp"
+            with open(tmp, "w") as f:
+                _json.dump(data, f)
+            os.replace(tmp, path)
+            logger.debug("LSI state saved for %s", self.service_name)
+        except Exception:
+            logger.warning("LSI state save failed for %s", self.service_name)
+
+    def load_state(self) -> None:
+        """Restore corpus and baselines from disk, then immediately re-fit the model."""
+        path = self._state_path()
+        if not os.path.exists(path):
+            return
+        try:
+            import json as _json
+            with open(path) as f:
+                data = _json.load(f)
+            self.corpus = data.get("corpus") or []
+            self.baseline_scores = data.get("baseline_scores") or []
+            self.baseline_locked = bool(data.get("baseline_locked", False))
+            self.error_baseline_scores = data.get("error_baseline_scores") or []
+            self.error_baseline_locked = bool(data.get("error_baseline_locked", False))
+            for v in (data.get("score_history") or []):
+                self.score_history.append(float(v))
+            for v in (data.get("error_score_history") or []):
+                self.error_score_history.append(float(v))
+            if len(self.corpus) >= 2:
+                self._fit()
+            logger.info(
+                "LSI state restored for %s: corpus=%d fitted=%s baseline_locked=%s",
+                self.service_name, len(self.corpus), self.fitted, self.baseline_locked,
+            )
+        except Exception:
+            logger.warning("LSI state load failed for %s — starting fresh", self.service_name)
+
     async def start(self) -> None:
         """Start the background log tailing loop."""
+        self.load_state()
         self._running = True
         self._task = asyncio.create_task(self._tail_loop())
         asyncio.create_task(self._consume_log_queue())
@@ -161,7 +218,7 @@ class LSICollector:
         logger.info("LSI collector reset for %s after rollback", self.service_name)
 
     async def stop(self) -> None:
-        """Stop the background log tailing loop."""
+        """Stop the background log tailing loop and persist state."""
         self._running = False
         if self._task:
             self._task.cancel()
@@ -169,6 +226,7 @@ class LSICollector:
                 await self._task
             except asyncio.CancelledError:
                 pass
+        self.save_state()
         logger.info("LSI collector stopped.")
 
     # ── Log normalization ────────────────────────────────────────────────────
@@ -714,6 +772,7 @@ class LSICollector:
             self.baseline_scores = list(self.score_history)[:BASELINE_WINDOWS]
             self.baseline_locked = True
             logger.info("LSI baseline locked: mean=%.4f", np.mean(self.baseline_scores))
+            self.save_state()
         elif self.baseline_locked and self.baseline_scores:
             # Gradually update baseline using only non-anomalous windows so it adapts
             # to normal log evolution without being corrupted by actual anomaly spikes.
@@ -730,6 +789,7 @@ class LSICollector:
             self.error_baseline_scores = list(self.error_score_history)[:ERROR_BASELINE_WINDOWS]
             self.error_baseline_locked = True
             logger.info("LSI error baseline locked: mean=%.4f", np.mean(self.error_baseline_scores))
+            self.save_state()
         elif self.error_baseline_locked and self.error_baseline_scores:
             ebm = float(np.mean(self.error_baseline_scores))
             error_threshold = 0.3 if ebm <= 0 else config.lsi_score_multiplier * ebm

@@ -130,6 +130,7 @@ export async function POST(request: NextRequest) {
     rollback_completed_at,
     mttr_seconds,
     success: success ?? true,
+    source: body.source === "agent" ? "agent" : "manual",
   });
 
   return NextResponse.json({ ok: true, entry });

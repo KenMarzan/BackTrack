@@ -2,29 +2,10 @@ import { NextResponse } from "next/server";
 import { listConnections } from "@/lib/monitoring-store";
 import { runCommand } from "@/lib/command";
 import { getCached } from "@/lib/overview-cache";
-import type { DashboardService, DashboardAnomaly } from "@/lib/monitoring-types";
+import type { AppConnection, DashboardService, DashboardAnomaly } from "@/lib/monitoring-types";
 
 const MEMORY_THRESHOLD_MIB = Number(process.env.BACKTRACK_MEMORY_THRESHOLD_MIB) || 120;
 const SCRAPE_INTERVAL_SECONDS = Number(process.env.BACKTRACK_SCRAPE_INTERVAL) || 10;
-
-type RawConnection = {
-	id: string;
-	appName?: string;
-	name?: string;
-	platform?: "kubernetes" | "docker";
-	kind?: "kubernetes" | "docker";
-	namespace?: string;
-	workload?: string;
-	prometheusUrl?: string;
-	authToken?: string;
-	discoveredServices?: Array<{
-		name?: string;
-		namespace?: string;
-		status?: "running" | "down" | "unknown";
-		ports?: string[];
-		source?: "kubernetes" | "docker";
-	}>;
-};
 
 function workloadFromService(serviceName: string) {
 	return serviceName.replaceAll(".", "\\.");
@@ -161,38 +142,16 @@ async function getKubectlTopByService(namespace: string, services: string[]) {
 	return metrics;
 }
 
-function normalizeConnectionServices(connection: RawConnection) {
-	if (Array.isArray(connection.discoveredServices) && connection.discoveredServices.length > 0) {
-		return connection.discoveredServices.map((service) => ({
-			name: service.name || connection.appName || connection.name || "unknown-service",
-			namespace: service.namespace || connection.namespace || "default",
-			status: service.status || "unknown",
-			ports: Array.isArray(service.ports) ? service.ports : [],
-			source: service.source || (connection.platform || connection.kind || "kubernetes"),
-		}));
-	}
-
-	// Empty discoveredServices array means discovery ran and found nothing — don't
-	// synthesize a fake service, just skip this connection silently.
-	if (Array.isArray(connection.discoveredServices)) {
-		return [];
-	}
-
-	// Legacy connections with no discoveredServices field at all: fall back to workload/appName.
-	const workload = connection.workload || "";
-	const fallbackName = workload.includes("/")
-		? workload.split("/")[1]
-		: connection.appName || connection.name || "unknown-service";
-
-	return [
-		{
-			name: fallbackName,
-			namespace: connection.namespace || "default",
-			status: "unknown" as const,
-			ports: [] as string[],
-			source: (connection.platform || connection.kind || "kubernetes") as "kubernetes" | "docker",
-		},
-	];
+function normalizeConnectionServices(connection: AppConnection) {
+	// normalizeConnection() in monitoring-store guarantees discoveredServices is always
+	// populated (at minimum one synthetic entry), so the array is never absent here.
+	return (connection.discoveredServices ?? []).map((service) => ({
+		name: service.name || connection.appName || "unknown-service",
+		namespace: service.namespace || connection.namespace || "default",
+		status: service.status || "unknown",
+		ports: Array.isArray(service.ports) ? service.ports : [],
+		source: service.source || connection.platform,
+	}));
 }
 
 async function queryScalarOptional(
@@ -245,11 +204,11 @@ async function queryFirstScalar(
 }
 
 export async function GET() {
-	const connections = listConnections() as RawConnection[];
+	const connections = listConnections();
 	const services: DashboardService[] = [];
 
 	for (const connection of connections) {
-		const connectionPlatform = (connection.platform || connection.kind || "kubernetes") as "kubernetes" | "docker";
+		const connectionPlatform = connection.platform;
 		const connectionNamespace = connection.namespace || "default";
 		const normalizedServices = normalizeConnectionServices(connection);
 		const ttlMs = SCRAPE_INTERVAL_SECONDS * 1000;

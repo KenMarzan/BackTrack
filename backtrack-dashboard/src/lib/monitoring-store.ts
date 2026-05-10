@@ -102,7 +102,9 @@ function readConnections() {
 
 function writeConnections(connections: AppConnection[]) {
 	fs.mkdirSync(DATA_DIR, { recursive: true });
-	fs.writeFileSync(CONNECTIONS_FILE, JSON.stringify(connections, null, 2));
+	const tmp = CONNECTIONS_FILE + ".tmp";
+	fs.writeFileSync(tmp, JSON.stringify(connections, null, 2));
+	fs.renameSync(tmp, CONNECTIONS_FILE);
 }
 
 function writeConnectionsQueued(connections: AppConnection[]): Promise<void> {
@@ -128,18 +130,47 @@ export function findConnectionByNamespace(namespace: string): AppConnection | nu
 }
 
 export function registerConnection(input: AppConnectionInput) {
-	// Replace all existing connections of the same platform — one active cluster per platform.
-	const surviving = readConnections().filter((c) => c.platform !== input.platform);
+	const existing = readConnections();
+
+	// Compute the canonical scope key for deduplication.
+	// Two connections with the same scopeKey are considered the same application
+	// and the newer one replaces the older — regardless of platform.
+	// This allows multiple Docker apps on the same host to coexist.
+	const incomingScopeKey =
+		input.scopeKey ??
+		(input.platform === "docker"
+			? `docker:${input.appName.toLowerCase().trim().replace(/[\s_]+/g, "-")}`
+			: `kubernetes:${input.namespace}:${input.appName.toLowerCase().trim().replace(/[\s_]+/g, "-")}`);
+
+	// Remove only the exact app being re-registered, not all same-platform connections.
+	const surviving = existing.filter((c) => {
+		const existingScopeKey =
+			c.scopeKey ??
+			(c.platform === "docker"
+				? `docker:${c.appName.toLowerCase().trim().replace(/[\s_]+/g, "-")}`
+				: `kubernetes:${c.namespace}:${c.appName.toLowerCase().trim().replace(/[\s_]+/g, "-")}`);
+		return existingScopeKey !== incomingScopeKey;
+	});
 
 	const connection: AppConnection = {
 		id: crypto.randomUUID(),
 		status: "connected",
 		createdAt: new Date().toISOString(),
 		...input,
+		scopeKey: incomingScopeKey,
 	};
 
 	surviving.unshift(connection);
 	writeConnectionsQueued(surviving);
 
 	return connection;
+}
+
+/** Remove a connection by ID. */
+export function removeConnection(id: string): boolean {
+	const existing = readConnections();
+	const next = existing.filter((c) => c.id !== id);
+	if (next.length === existing.length) return false;
+	writeConnectionsQueued(next);
+	return true;
 }

@@ -290,12 +290,14 @@ export default function Home() {
                 {
                   icon: <Server size={18} className="text-[var(--accent-teal)]" />,
                   title: "Docker",
+                  platform: "docker" as const,
                   desc: "Monitor any running container. BackTrack reads CPU, memory, and logs via the Docker socket.",
                   step: "docker ps --format \"{{.Names}}\"",
                 },
                 {
                   icon: <Activity size={18} className="text-[var(--accent-violet)]" />,
                   title: "Kubernetes",
+                  platform: "kubernetes" as const,
                   desc: "Discover all deployments in a namespace. TSD and LSI run per-service with auto-rollback via kubectl.",
                   step: "kubectl get deployments -n default",
                 },
@@ -303,7 +305,7 @@ export default function Home() {
                 <button
                   key={card.title}
                   type="button"
-                  onClick={() => window.dispatchEvent(new Event("backtrack:open-configure"))}
+                  onClick={() => window.dispatchEvent(new CustomEvent("backtrack:open-configure", { detail: { platform: card.platform } }))}
                   className="text-left rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-4 hover:border-[rgba(94,234,212,0.25)] hover:bg-white/[0.04] transition-all duration-150 group"
                 >
                   <div className="flex items-center gap-2 mb-2">
@@ -334,9 +336,9 @@ export default function Home() {
 
         ) : (
           /* ── Normal dashboard ── */
-          <div className="flex-1 min-h-0 flex flex-col gap-3 lg:gap-4 px-4 sm:px-6 lg:px-8 xl:px-10 py-4 lg:py-5">
+          <div className="flex-1 min-h-0 flex flex-col gap-3 px-4 sm:px-6 lg:px-8 xl:px-10 py-3 lg:py-4">
             {/* Status strip */}
-            <section className="bt-rise flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0" style={{ animationDelay: "0ms" }}>
+            <section className="bt-rise flex flex-col sm:flex-row sm:items-center justify-between gap-2 flex-shrink-0" style={{ animationDelay: "0ms" }}>
               <div className="flex items-center gap-3">
                 <Link href="/anomalies" className="inline-flex items-center gap-2 rounded-full border border-[rgba(148,163,184,0.15)] bg-white/[0.02] px-3 py-1.5 hover:border-[rgba(94,234,212,0.35)] hover:bg-[rgba(94,234,212,0.06)] transition group">
                   <Activity size={14} className="text-[var(--accent-teal)]" />
@@ -358,18 +360,18 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Primary grid: health + deployments */}
-            <section className="bt-rise relative z-10 flex-1 min-h-[280px] grid grid-cols-1 xl:grid-cols-3 gap-3 lg:gap-4" style={{ animationDelay: "80ms" }}>
-              <div className="xl:col-span-2 min-h-0 h-full">
+            {/* Row 1 — health + deployments: grows to fill available space */}
+            <section className="bt-rise relative z-10 flex-1 min-h-[220px] grid grid-cols-1 lg:grid-cols-3 gap-3" style={{ animationDelay: "80ms" }}>
+              <div className="lg:col-span-2 min-h-0 h-full">
                 <ContainerHealth services={services} />
               </div>
-              <div className="xl:col-span-1 min-h-0 h-full">
+              <div className="lg:col-span-1 min-h-0 h-full">
                 <RecentDeployment rollbackEvents={rollbackEvents} onDismissRollback={handleDismissRollback} platform={services[0]?.platform} />
               </div>
             </section>
 
-            {/* Secondary grid: anomalies + containers */}
-            <section className="bt-rise relative z-0 flex-shrink-0 h-[300px] md:h-[340px] xl:h-[360px] grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4" style={{ animationDelay: "160ms" }}>
+            {/* Row 2 — anomalies + containers: fixed height */}
+            <section className="bt-rise relative z-0 flex-shrink-0 h-[260px] grid grid-cols-1 lg:grid-cols-2 gap-3" style={{ animationDelay: "140ms" }}>
               <div className="min-h-0 h-full">
                 <AnomalyDetection anomalies={anomalies} onAnomalyRollback={handleAnomalyRollback} />
               </div>
@@ -378,23 +380,23 @@ export default function Home() {
               </div>
             </section>
 
-            {/* CI/CD row: only when a connection has a GitHub repo */}
-            {hasCICD && (
-              <section className="bt-rise flex-shrink-0 h-[320px]" style={{ animationDelay: "240ms" }}>
-                <CICDPanel />
-              </section>
-            )}
-
-            {/* Recent rollbacks */}
-            <section className="bt-rise flex-shrink-0 h-[280px]" style={{ animationDelay: "300ms" }}>
-              <RecentRollbacks />
+            {/* Row 3 — CI/CD + rollbacks side by side: fixed height */}
+            <section className="bt-rise flex-shrink-0 h-[220px] grid grid-cols-1 lg:grid-cols-2 gap-3" style={{ animationDelay: "200ms" }}>
+              {hasCICD ? (
+                <>
+                  <div className="min-h-0 h-full"><CICDPanel /></div>
+                  <div className="min-h-0 h-full"><RecentRollbacks /></div>
+                </>
+              ) : (
+                <div className="lg:col-span-2 min-h-0 h-full"><RecentRollbacks /></div>
+              )}
             </section>
 
-            <footer className="flex-shrink-0 pt-2 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
+            <footer className="flex-shrink-0 pb-3 flex items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
               <div className="flex items-center gap-2">
                 <span className="bt-mono uppercase tracking-[0.2em]">backtrack</span>
                 <span>/</span>
-                <span>local-first observability</span>
+                <span className="hidden sm:inline">local-first observability</span>
               </div>
               <div className="flex items-center gap-3 bt-mono">
                 <span>services {healthSummary.up}/{healthSummary.total}</span>

@@ -26,13 +26,30 @@ logging.basicConfig(
 )
 logger = logging.getLogger("backtrack")
 
+# Shared secret for mutating endpoints. Empty = auth disabled (dev default).
+# Set BACKTRACK_API_SECRET to a non-empty value in production.
+_API_SECRET = os.getenv("BACKTRACK_API_SECRET", "")
+
+
+def _check_secret(request_secret: str | None) -> bool:
+    """Return True if auth passes. When _API_SECRET is empty, all calls pass."""
+    if not _API_SECRET:
+        return True
+    return request_secret == _API_SECRET
+
 START_TIME = time.time()
 
 app = FastAPI(title="Backtrack Agent", version="0.2.0")
 
+_CORS_ORIGINS = [
+    o.strip()
+    for o in os.getenv("BACKTRACK_ALLOW_ORIGINS", "http://localhost:3847").split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3847", "*"],
+    allow_origins=_CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -176,10 +193,20 @@ async def polling_loop() -> None:
     while True:
         await asyncio.sleep(config.scrape_interval)
         try:
+            from src.collectors.tsd import MIN_READINGS_FOR_STL
             for svc_name, (tsd, lsi) in service_monitors.items():
                 drifting = tsd.is_drifting()
                 anomalous = lsi.is_error_anomalous()  # WARN/NOVEL are informational only
                 crashed = tsd.has_crashed()
+
+                # Don't auto-rollback until the collectors have enough data for a valid
+                # baseline — avoids false positives during the warmup window.
+                if len(tsd.cpu_history) < MIN_READINGS_FOR_STL and not crashed:
+                    logger.debug(
+                        "[%s] Warmup: %d/%d readings — rollback suppressed",
+                        svc_name, len(tsd.cpu_history), MIN_READINGS_FOR_STL,
+                    )
+                    continue
 
                 count = consecutive_anomaly_counts.get(svc_name, 0)
                 clean = clean_seconds_map.get(svc_name, 0)
@@ -415,9 +442,11 @@ async def rollback_history() -> list[dict]:
 async def deployment_notify(body: dict = Body(default={})) -> dict:
     """
     CI/CD webhook — call this after a new image is deployed.
-    Body: { service?: str, image?: str, git_sha?: str }
+    Body: { service?: str, image?: str, git_sha?: str, secret?: str }
     Resets the anomaly baseline for the service and registers a new PENDING version.
     """
+    if not _check_secret(body.get("secret")):
+        raise HTTPException(status_code=401, detail="Invalid or missing API secret.")
     service = (body.get("service") or body.get("service_name") or config.target or "").strip()
     if not service:
         return {"ok": False, "message": "service is required (or set BACKTRACK_TARGET)"}
@@ -431,6 +460,8 @@ async def deployment_notify(body: dict = Body(default={})) -> dict:
 
 @app.post("/rollback/trigger")
 async def rollback_trigger(body: dict = Body(default={})) -> dict:
+    if not _check_secret(body.get("secret")):
+        raise HTTPException(status_code=401, detail="Invalid or missing API secret.")
     if rollback_executor is None:
         return {"success": False, "message": "Rollback executor not initialised."}
     service_name = body.get("service", "") or body.get("service_name", "")
@@ -441,9 +472,11 @@ async def rollback_trigger(body: dict = Body(default={})) -> dict:
 async def reconfigure(body: dict) -> dict:
     """
     Hot-reload agent target/mode/namespace without restart.
-    Accepts: { target, mode, namespace, image_tag, services?: string[] }
+    Accepts: { target, mode, namespace, image_tag, services?: string[], secret?: str }
     If services list provided, creates per-service collectors for each.
     """
+    if not _check_secret(body.get("secret")):
+        raise HTTPException(status_code=401, detail="Invalid or missing API secret.")
     target = body.get("target", "").strip()
     mode = body.get("mode", "").strip().lower()
     namespace = body.get("namespace", "default").strip()

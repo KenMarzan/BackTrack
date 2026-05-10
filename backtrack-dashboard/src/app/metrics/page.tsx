@@ -216,10 +216,10 @@ export default function MetricsPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[var(--bg-base)] text-[var(--text-primary)] overflow-hidden">
+    <div className="min-h-screen flex flex-col bg-[var(--bg-base)] text-[var(--text-primary)]">
     <Nav />
-    <main className="flex-1 min-h-0 overflow-hidden p-6">
-      <div className="flex h-full min-h-0 flex-col gap-8">
+    <main className="flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="flex flex-col gap-8">
       {/* Header */}
       <div className="flex items-center gap-3 shrink-0">
         <BarChart2 size={22} className="text-[var(--accent-teal)]" />
@@ -254,7 +254,7 @@ export default function MetricsPage() {
         {showMttrForm && (
           <div className="bt-panel p-5 mb-4 space-y-4">
             <p className="text-[12px] font-semibold text-[var(--text-primary)]">Manual MTTR Entry</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="bt-label block mb-1">Service Name</label>
                 <input className="w-full bg-white/[0.04] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]" value={mttrForm.service} onChange={(e) => setMttrForm((p) => ({ ...p, service: e.target.value }))} placeholder="e.g. memstress" />
@@ -266,7 +266,7 @@ export default function MetricsPage() {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
                 { key: "anomaly_detected_at", label: "Anomaly Detected At" },
                 { key: "rollback_triggered_at", label: "Rollback Triggered At" },
@@ -291,7 +291,7 @@ export default function MetricsPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-4 gap-3 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
           <StatCard icon={<Activity size={16} />} label="Total Rollbacks" value={String(mttrStats.count)} />
           <StatCard icon={<Clock size={16} />} label="Avg MTTR" value={mttrStats.avg !== null ? fmtSeconds(Math.round(mttrStats.avg)) : "—"} sub="from detection to recovery" />
           <StatCard icon={<Zap size={16} />} label="Best MTTR" value={mttrStats.min !== null ? fmtSeconds(mttrStats.min) : "—"} />

@@ -9,12 +9,15 @@ import json
 import logging
 import os
 import subprocess
+import urllib.request
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
 from src.config import config
 from src.versions import Snapshot, VersionStore
+
+_DASHBOARD_URL = os.getenv("BACKTRACK_DASHBOARD_URL", "http://localhost:3847")
 
 logger = logging.getLogger("backtrack.rollback")
 
@@ -89,7 +92,7 @@ class RollbackExecutor:
             }
             logger.exception("Rollback execution failed")
 
-        # Log the rollback event
+        # Log the rollback event locally
         self._append_log(
             reason,
             from_tag,
@@ -100,6 +103,23 @@ class RollbackExecutor:
             rollback_completed_at=rollback_completed_at,
             first_anomaly_at=first_anomaly_at or rollback_triggered_at,
         )
+
+        # Sync MTTR entry to the dashboard so both logs stay consistent
+        self._post_mttr(
+            service=target,
+            anomaly_detected_at=first_anomaly_at or rollback_triggered_at,
+            rollback_triggered_at=rollback_triggered_at,
+            rollback_completed_at=rollback_completed_at,
+            success=result["success"],
+        )
+
+        # Flag the bad deployment in GitHub via the dashboard (which holds credentials)
+        if result["success"]:
+            self._flag_github(
+                service=target,
+                reason=reason,
+                from_tag=from_tag,
+            )
 
         return result
 
@@ -140,12 +160,20 @@ class RollbackExecutor:
         binds: list[str] = host_config.get("Binds") or []
         port_bindings: dict = host_config.get("PortBindings") or {}
 
+        # Collect all non-system networks from NetworkSettings (more complete than
+        # HostConfig.NetworkMode which only holds the primary network).
+        _system_nets = {"bridge", "host", "none"}
+        extra_networks: list[str] = [
+            net for net in (attrs.get("NetworkSettings", {}).get("Networks") or {})
+            if net not in _system_nets and net != network_mode
+        ]
+
         # Step 3: stop and remove — image is already local, minimising downtime window
         logger.info("Stopping container %s ...", container_name)
         subprocess.run(["docker", "stop", container_name], check=True)
         subprocess.run(["docker", "rm", container_name], check=True)
 
-        # Step 4: start container with rollback image
+        # Step 4: start container with rollback image (primary network only)
         cmd = ["docker", "run", "-d", "--name", container_name, "--network", network_mode]
         for e in env_list:
             cmd += ["-e", e]
@@ -163,6 +191,23 @@ class RollbackExecutor:
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
+
+        # Step 5: re-attach to any additional networks that were present before.
+        # This must happen after docker run because --network only accepts one value.
+        container_id = result.stdout.strip()
+        for net in extra_networks:
+            try:
+                connect = subprocess.run(
+                    ["docker", "network", "connect", net, container_id],
+                    capture_output=True, text=True,
+                )
+                if connect.returncode != 0:
+                    logger.warning("Failed to reconnect %s to network %s: %s", container_name, net, connect.stderr.strip())
+                else:
+                    logger.info("Reconnected %s to network %s", container_name, net)
+            except Exception as exc:
+                logger.warning("Network reconnect error for %s/%s: %s", container_name, net, exc)
+
         logger.info("Docker rollback complete.")
 
     def _rollback_kubernetes(self, target: str = "", stable_revision: int = 0) -> None:
@@ -269,6 +314,62 @@ class RollbackExecutor:
         with open(tmp_file, "w") as f:
             json.dump(entries, f, indent=2)
         os.replace(tmp_file, ROLLBACK_LOG_FILE)
+
+    def _post_mttr(
+        self,
+        service: str,
+        anomaly_detected_at: str,
+        rollback_triggered_at: str,
+        rollback_completed_at: str,
+        success: bool,
+    ) -> None:
+        """POST an MTTR entry to the dashboard API so both rollback logs stay in sync."""
+        try:
+            detected = datetime.fromisoformat(anomaly_detected_at.replace("Z", "+00:00"))
+            completed = datetime.fromisoformat(rollback_completed_at.replace("Z", "+00:00"))
+            mttr_seconds = max(0, round((completed - detected).total_seconds()))
+            payload = json.dumps({
+                "service": service,
+                "anomaly_type": "AUTO",
+                "anomaly_detected_at": anomaly_detected_at,
+                "rollback_triggered_at": rollback_triggered_at,
+                "rollback_completed_at": rollback_completed_at,
+                "mttr_seconds": mttr_seconds,
+                "success": success,
+                "source": "agent",
+            }).encode()
+            req = urllib.request.Request(
+                f"{_DASHBOARD_URL}/api/metrics/mttr",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=5):
+                pass
+            logger.info("MTTR entry synced to dashboard for %s (mttr=%ds)", service, mttr_seconds)
+        except Exception as exc:
+            logger.warning("Failed to sync MTTR to dashboard: %s", exc)
+
+    def _flag_github(self, service: str, reason: str, from_tag: str = "") -> None:
+        """Ask the dashboard to flag the bad deployment in GitHub.
+        The dashboard holds the GitHub token — the agent never does."""
+        try:
+            payload = json.dumps({
+                "service": service,
+                "reason": reason,
+                "tag": from_tag or None,
+            }).encode()
+            req = urllib.request.Request(
+                f"{_DASHBOARD_URL}/api/github/flag",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=5):
+                pass
+            logger.info("GitHub flag posted for %s", service)
+        except Exception as exc:
+            logger.warning("Failed to flag GitHub deployment for %s: %s", service, exc)
 
     @staticmethod
     def get_history() -> list[dict]:
