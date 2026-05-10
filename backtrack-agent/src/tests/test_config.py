@@ -180,6 +180,7 @@ def test_to_dict_has_all_keys():
         "mode", "target", "k8s_namespace", "k8s_label_selector",
         "scrape_interval", "tsd_iqr_multiplier", "lsi_score_multiplier",
         "rollback_enabled", "image_tag", "clusters",
+        "app_label", "exclude_label", "compose_projects", "include_orphans",
     }
     assert set(result.keys()) == expected
 

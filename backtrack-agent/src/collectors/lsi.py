@@ -29,6 +29,9 @@ logger = logging.getLogger("backtrack.lsi")
 CORPUS_SIZE = int(os.getenv("BACKTRACK_CORPUS_SIZE", "200"))
 WINDOW_SECONDS = int(os.getenv("BACKTRACK_WINDOW_SECONDS", "30"))
 BASELINE_WINDOWS = int(os.getenv("BACKTRACK_BASELINE_WINDOWS", "10"))
+# Error baseline locks faster than the full score baseline so faults are caught earlier.
+# Default 3 windows = 90 s — enough to establish a pre-fault error-rate floor.
+ERROR_BASELINE_WINDOWS = int(os.getenv("BACKTRACK_ERROR_BASELINE_WINDOWS", "3"))
 SVD_SIMILARITY_THRESHOLD = float(os.getenv("BACKTRACK_SVD_SIMILARITY_THRESHOLD", "0.55"))
 
 # Seed keywords for each log class
@@ -583,8 +586,22 @@ class LSICollector:
                 return mapped
         return None
 
+    # Negation patterns: "no error", "0 errors", "error-free", "errors: 0", etc.
+    _NEGATION_RE = re.compile(
+        r'\b(?:no|zero|without|0)\s+(?:error|exception|fail|warn|crash)'
+        r'|(?:error|exception|fail|warn|crash)s?\s*(?:count|rate)?\s*[=:]\s*0\b'
+        r'|(?:error|warn)[- ]free\b',
+        re.I,
+    )
+
     def _keyword_classify(self, line: str) -> Optional[str]:
-        """Fast-path: return ERROR/WARN if seed keywords hit, else None for SVD path."""
+        """Fast-path: return ERROR/WARN if seed keywords hit, else None for SVD path.
+
+        Negation patterns ("no error", "0 errors", "error-free") suppress the match
+        so lines like health-check responses are not mis-labelled as ERROR.
+        """
+        if self._NEGATION_RE.search(line):
+            return None
         lower = line.lower()
         for label in ("ERROR", "WARN"):
             if any(kw in lower for kw in SEED_KEYWORDS[label]):
@@ -614,12 +631,12 @@ class LSICollector:
             vec = self.vectorizer.transform([line])
             novel_threshold = float(os.getenv("BACKTRACK_NOVEL_RECON_THRESHOLD", "0.8"))
             if self._novelty_score(vec) > novel_threshold:
-                return "NOVEL"
+                return kw or "INFO"
             latent_flat = self.svd.transform(vec)[0]
             latent_norm = latent_flat / (np.linalg.norm(latent_flat) + 1e-9)
             scores = {lbl: float(np.dot(latent_norm, cn)) for lbl, cn in self._centroids_norm.items()}
             best_label = max(scores, key=scores.get)  # type: ignore[arg-type]
-            return best_label if scores[best_label] > SVD_SIMILARITY_THRESHOLD else "NOVEL"
+            return best_label if scores[best_label] > SVD_SIMILARITY_THRESHOLD else (kw or "INFO")
         except Exception:
             return kw or "INFO"
 
@@ -654,13 +671,14 @@ class LSICollector:
 
             self._svd_classified_count += len(lines)
             labels: list[str] = []
-            for err, bi, bs in zip(recon_errors, best_idx, best_sims):
-                if err > novel_threshold:
-                    labels.append("NOVEL")
-                elif bs > SVD_SIMILARITY_THRESHOLD:
-                    labels.append(label_order[int(bi)])
+            for i, (err, bi, bs) in enumerate(zip(recon_errors, best_idx, best_sims)):
+                if err > novel_threshold or bs <= SVD_SIMILARITY_THRESHOLD:
+                    # Line doesn't fit the model — use keyword fallback so genuinely
+                    # novel-but-harmless lines don't inflate the score as NOVEL.
+                    kw = self._keyword_classify(lines[i])
+                    labels.append(kw if kw else "INFO")
                 else:
-                    labels.append("NOVEL")
+                    labels.append(label_order[int(bi)])
             return labels
         except Exception:
             logger.warning("Batch classify failed for %s", self.service_name)
@@ -682,7 +700,7 @@ class LSICollector:
             score = 0.0
         else:
             n = self.window_counts.get("NOVEL", 0)
-            score = (error_count * 3 + n * 5 + warning_count * 1) / self.window_total
+            score = (error_count * 5 + n * 3 + warning_count * 1) / self.window_total
 
         self.score_history.append(score)
 
@@ -706,9 +724,10 @@ class LSICollector:
                 self.baseline_scores.append(score)
                 self.baseline_scores = self.baseline_scores[-BASELINE_WINDOWS:]
 
-        # Lock error baseline in parallel
-        if not self.error_baseline_locked and len(self.error_score_history) >= BASELINE_WINDOWS:
-            self.error_baseline_scores = list(self.error_score_history)[:BASELINE_WINDOWS]
+        # Lock error baseline independently — uses ERROR_BASELINE_WINDOWS (default 3)
+        # so detection can start after just 90 s rather than waiting 5 min.
+        if not self.error_baseline_locked and len(self.error_score_history) >= ERROR_BASELINE_WINDOWS:
+            self.error_baseline_scores = list(self.error_score_history)[:ERROR_BASELINE_WINDOWS]
             self.error_baseline_locked = True
             logger.info("LSI error baseline locked: mean=%.4f", np.mean(self.error_baseline_scores))
         elif self.error_baseline_locked and self.error_baseline_scores:
@@ -716,7 +735,7 @@ class LSICollector:
             error_threshold = 0.3 if ebm <= 0 else config.lsi_score_multiplier * ebm
             if error_score <= error_threshold:
                 self.error_baseline_scores.append(error_score)
-                self.error_baseline_scores = self.error_baseline_scores[-BASELINE_WINDOWS:]
+                self.error_baseline_scores = self.error_baseline_scores[-ERROR_BASELINE_WINDOWS:]
 
         self._compute_semantics(error_count, warning_count, self.window_total)
 
@@ -936,17 +955,26 @@ class LSICollector:
         """True only when the ERROR-only window score exceeds baseline.
 
         WARN and NOVEL lines are informational — they do not trigger rollback.
-        A service that emits more warnings or unusual-but-harmless patterns after
-        a deploy should not be rolled back; only a genuine error-rate spike should.
 
-        If the baseline had zero errors, a floor of 0.3 is used so a handful of
-        one-off errors do not immediately trigger rollback (~10 ERROR lines per
-        100 log lines in a window).
+        Detection layers (in order):
+          1. Pre-baseline absolute floor: if current error_score > 0.5 (>16 % of
+             lines classified ERROR) trigger immediately — catches cold-start faults
+             and severe failures before the 90-s baseline window has closed.
+          2. Post-baseline relative threshold: current > lsi_score_multiplier × mean.
+          3. Clean-baseline floor: when baseline mean is 0 (pure-INFO service),
+             a floor of 0.3 is used so ~10 ERROR lines per 100 avoid false negatives.
         """
-        if not self.error_baseline_locked or not self.error_score_history:
+        if not self.error_score_history:
             return False
-        baseline_mean = float(np.mean(self.error_baseline_scores))
         current = self.error_score_history[-1]
+
+        if not self.error_baseline_locked:
+            # Pre-baseline: absolute floor for severe faults only.
+            # Catches cold-start faults and failures before 90-s warmup completes.
+            return current > 0.5
+
+        # Post-baseline: relative check with floor for zero-error baselines
+        baseline_mean = float(np.mean(self.error_baseline_scores))
         if baseline_mean <= 0:
             return current > 0.3
         return current > config.lsi_score_multiplier * baseline_mean
@@ -994,6 +1022,13 @@ class LSICollector:
         error_score = self.error_score_history[-1] if self.error_score_history else 0.0
         error_baseline_mean = float(np.mean(self.error_baseline_scores)) if self.error_baseline_scores else 0.0
 
+        if not self.error_baseline_locked:
+            computed_error_threshold = 0.5
+        elif error_baseline_mean <= 0:
+            computed_error_threshold = 0.3
+        else:
+            computed_error_threshold = config.lsi_score_multiplier * error_baseline_mean
+
         return {
             "fitted": self.fitted,
             "corpus_size": len(self.corpus),
@@ -1004,6 +1039,9 @@ class LSICollector:
             "is_error_anomalous": self.is_error_anomalous(),
             "error_score": round(error_score, 4),
             "error_baseline_mean": round(error_baseline_mean, 4),
+            "error_threshold": round(computed_error_threshold, 4),
+            "error_baseline_locked": self.error_baseline_locked,
+            "error_score_history": [round(s, 4) for s in list(self.error_score_history)[-20:]],
             "window_counts": dict(self.window_counts),
             "score_history": [round(s, 4) for s in list(self.score_history)[-20:]],
             "recent_lines": list(self.recent_lines),

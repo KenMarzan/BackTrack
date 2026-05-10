@@ -215,3 +215,63 @@ def test_get_all_reflects_current_snapshots(tmp_path):
     vs, _ = make_store(tmp_path)
     vs.snapshots.append(Snapshot(id="x", timestamp="t", image_tag="v0.9", status="STABLE"))
     assert len(vs.get_all()) == 2
+
+
+# --- add_pending ---
+
+def test_add_pending_creates_new_snapshot(tmp_path):
+    vs, _ = make_store(tmp_path)
+    snap = vs.add_pending(image_tag="v2.0.0", git_sha="abc123")
+    assert snap.status == "PENDING"
+    assert snap.image_tag == "v2.0.0"
+    assert snap.git_sha == "abc123"
+
+
+def test_add_pending_inserts_at_front(tmp_path):
+    vs, _ = make_store(tmp_path)
+    vs.add_pending(image_tag="v2.0.0")
+    assert vs.snapshots[0].image_tag == "v2.0.0"
+
+
+def test_add_pending_persists_to_file(tmp_path):
+    path = str(tmp_path / "versions.json")
+    import json
+    with patch("src.versions.VERSIONS_FILE", path):
+        vs = VersionStore(image_tag="v1.0.0")
+        vs.add_pending(image_tag="v2.0.0", git_sha="sha999")
+    with open(path) as f:
+        data = json.load(f)
+    tags = [d["image_tag"] for d in data]
+    assert "v2.0.0" in tags
+
+
+def test_add_pending_git_sha_empty_by_default(tmp_path):
+    vs, _ = make_store(tmp_path)
+    snap = vs.add_pending(image_tag="v2.0.0")
+    assert snap.git_sha == ""
+
+
+def test_add_pending_multiple_calls_stack(tmp_path):
+    vs, _ = make_store(tmp_path)
+    vs.add_pending(image_tag="v2.0.0")
+    vs.add_pending(image_tag="v3.0.0")
+    tags = [s.image_tag for s in vs.snapshots]
+    assert tags[0] == "v3.0.0"
+    assert tags[1] == "v2.0.0"
+
+
+# --- Snapshot.git_sha field ---
+
+def test_snapshot_git_sha_field_exists(tmp_path):
+    vs, _ = make_store(tmp_path)
+    pending = vs.get_current_pending()
+    assert hasattr(pending, "git_sha")
+    assert pending.git_sha == ""
+
+
+def test_snapshot_get_all_includes_git_sha(tmp_path):
+    vs, _ = make_store(tmp_path)
+    vs.add_pending(image_tag="v2.0.0", git_sha="deadbeef")
+    snaps = vs.get_all()
+    latest = next(s for s in snaps if s["image_tag"] == "v2.0.0")
+    assert latest["git_sha"] == "deadbeef"

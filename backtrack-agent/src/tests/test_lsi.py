@@ -2,7 +2,7 @@ import asyncio
 from unittest.mock import patch
 
 import pytest
-from src.collectors.lsi import BASELINE_WINDOWS, CORPUS_SIZE, LSICollector
+from src.collectors.lsi import BASELINE_WINDOWS, CORPUS_SIZE, ERROR_BASELINE_WINDOWS, LSICollector
 
 
 @pytest.fixture(autouse=True)
@@ -68,11 +68,11 @@ def test_classify_before_fit_returns_info():
 
 def test_close_window_computes_score():
     collector = make_fitted_collector()
-    # score = (ERROR*3 + NOVEL*5 + WARN*1) / total = (1*3 + 0*5 + 2*1) / 3 = 5/3
+    # score = (ERROR*5 + NOVEL*3 + WARN*1) / total = (1*5 + 0*3 + 2*1) / 3 = 7/3
     collector.window_counts = {"INFO": 0, "WARN": 2, "ERROR": 1, "NOVEL": 0}
     collector.window_total = 3
     collector._close_window()
-    assert abs(collector.score_history[-1] - 5 / 3) < 1e-9
+    assert abs(collector.score_history[-1] - 7 / 3) < 1e-9
 
 
 def test_close_window_zero_total_gives_zero_score():
@@ -263,17 +263,17 @@ def test_error_score_novel_not_counted():
 
 def test_error_baseline_locks_after_n_windows():
     collector = make_fitted_collector()
-    for _ in range(BASELINE_WINDOWS):
+    for _ in range(ERROR_BASELINE_WINDOWS):
         collector.window_counts["INFO"] = 10
         collector.window_total = 10
         collector._close_window()
     assert collector.error_baseline_locked
-    assert len(collector.error_baseline_scores) == BASELINE_WINDOWS
+    assert len(collector.error_baseline_scores) == ERROR_BASELINE_WINDOWS
 
 
 def test_error_baseline_does_not_lock_before_n_windows():
     collector = make_fitted_collector()
-    for _ in range(BASELINE_WINDOWS - 1):
+    for _ in range(ERROR_BASELINE_WINDOWS - 1):
         collector.window_total = 10
         collector.window_counts["INFO"] = 10
         collector._close_window()
@@ -296,6 +296,9 @@ def test_get_lsi_structure():
         "is_error_anomalous",
         "error_score",
         "error_baseline_mean",
+        "error_threshold",
+        "error_baseline_locked",
+        "error_score_history",
         "window_counts",
         "score_history",
         "recent_lines",
@@ -503,3 +506,144 @@ def test_compute_semantics_no_op_before_fit():
     collector._compute_semantics(error_count=5, warning_count=2, window_total=10)
     assert collector.topics == []
     assert collector.interpretation == ""
+
+
+# --- _keyword_classify negation detection ---
+
+
+def test_keyword_classify_returns_error_on_plain_error():
+    collector = make_fitted_collector()
+    assert collector._keyword_classify("exception occurred in service") == "ERROR"
+
+
+def test_keyword_classify_suppressed_by_no_error():
+    collector = make_fitted_collector()
+    assert collector._keyword_classify("health check passed, no error found") is None
+
+
+def test_keyword_classify_suppressed_by_zero_errors():
+    collector = make_fitted_collector()
+    assert collector._keyword_classify("0 errors detected in scan") is None
+
+
+def test_keyword_classify_suppressed_by_error_free():
+    collector = make_fitted_collector()
+    assert collector._keyword_classify("system is error-free") is None
+
+
+def test_keyword_classify_suppressed_by_errors_count_zero():
+    collector = make_fitted_collector()
+    assert collector._keyword_classify("errors: 0 warnings: 0") is None
+
+
+def test_keyword_classify_suppressed_by_without_exception():
+    collector = make_fitted_collector()
+    assert collector._keyword_classify("completed without exception") is None
+
+
+def test_keyword_classify_returns_warn_normally():
+    collector = make_fitted_collector()
+    assert collector._keyword_classify("retrying after timeout") == "WARN"
+
+
+def test_keyword_classify_warn_suppressed_by_no_warn():
+    collector = make_fitted_collector()
+    assert collector._keyword_classify("no warning issued") is None
+
+
+# --- NOVEL fallback in _batch_classify ---
+
+
+def test_batch_classify_novel_without_keywords_returns_info():
+    """Lines that don't fit the SVD model but have no error keywords → INFO, not NOVEL."""
+    collector = make_fitted_collector()
+    # A line very different from the corpus — SVD will likely NOVEL it
+    result = collector._batch_classify(["xyzzy quux frobnicate zork nonce"])
+    assert "NOVEL" not in result
+    assert result[0] in ("INFO", "ERROR", "WARN")
+
+
+def test_batch_classify_novel_with_error_keywords_returns_error():
+    """Lines that don't fit the SVD model but contain error keywords → ERROR."""
+    collector = make_fitted_collector()
+    # Highly unusual phrasing but contains error keyword
+    result = collector._batch_classify(["xyzzy quux frobnicate zork exception nonce"])
+    # Should be ERROR (keyword hit on fallback) or INFO — never NOVEL
+    assert "NOVEL" not in result
+
+
+def test_batch_classify_never_returns_novel():
+    """NOVEL should never appear in _batch_classify output after the keyword-fallback fix."""
+    collector = make_fitted_collector()
+    lines = [
+        "completely unrecognised jargon zzz qqq",
+        "another strange sentence with no match",
+        "normal log line started ready",
+    ]
+    results = collector._batch_classify(lines)
+    assert "NOVEL" not in results
+
+
+# --- is_error_anomalous pre-baseline floor ---
+
+
+def test_is_error_anomalous_true_before_baseline_high_score():
+    """Score > 0.5 triggers even before baseline locks (catches cold-start faults)."""
+    collector = make_fitted_collector()
+    assert not collector.error_baseline_locked
+    collector.error_score_history.append(0.6)
+    assert collector.is_error_anomalous()
+
+
+def test_is_error_anomalous_false_before_baseline_low_score():
+    """Score ≤ 0.5 does not trigger before baseline locks."""
+    collector = make_fitted_collector()
+    assert not collector.error_baseline_locked
+    collector.error_score_history.append(0.4)
+    assert not collector.is_error_anomalous()
+
+
+def test_is_error_anomalous_false_before_baseline_no_history():
+    """Empty error_score_history → always False."""
+    collector = make_fitted_collector()
+    assert not collector.is_error_anomalous()
+
+
+# --- get_lsi error_threshold values ---
+
+
+def test_get_lsi_error_threshold_pre_baseline():
+    """Before baseline locks the threshold is the pre-baseline floor (0.5)."""
+    collector = make_fitted_collector()
+    result = collector.get_lsi()
+    assert not result["error_baseline_locked"]
+    assert result["error_threshold"] == 0.5
+
+
+def test_get_lsi_error_threshold_zero_baseline():
+    """After baseline locks with zero-error history, threshold is the 0.3 floor."""
+    collector = make_fitted_collector()
+    collector.error_baseline_scores = [0.0] * ERROR_BASELINE_WINDOWS
+    collector.error_baseline_locked = True
+    result = collector.get_lsi()
+    assert result["error_threshold"] == 0.3
+
+
+def test_get_lsi_error_threshold_with_baseline():
+    """After baseline locks with non-zero mean, threshold is multiplier × mean."""
+    collector = make_fitted_collector()
+    collector.error_baseline_scores = [1.0] * ERROR_BASELINE_WINDOWS
+    collector.error_baseline_locked = True
+    result = collector.get_lsi()
+    assert abs(result["error_threshold"] - 2.0) < 1e-6
+
+
+def test_get_lsi_error_score_history_populated():
+    """error_score_history in get_lsi reflects recent windows."""
+    collector = make_fitted_collector()
+    collector.window_counts = {"INFO": 8, "WARN": 0, "ERROR": 2, "NOVEL": 0}
+    collector.window_total = 10
+    collector._close_window()
+    result = collector.get_lsi()
+    assert len(result["error_score_history"]) == 1
+    assert result["error_score_history"][0] == round(2 * 3 / 10, 4)

@@ -24,6 +24,7 @@ class Snapshot:
     timestamp: str
     image_tag: str
     status: Literal["PENDING", "STABLE", "ROLLED_BACK"]
+    git_sha: str = ""
     tsd_baseline: dict = field(default_factory=dict)
     lsi_baseline: float = 0.0
     # K8s deployment revision number recorded when this snapshot was marked STABLE.
@@ -122,6 +123,20 @@ class VersionStore:
             if snap.status == "PENDING":
                 return snap
         return None
+
+    def add_pending(self, image_tag: str, git_sha: str = "") -> "Snapshot":
+        """Create a new PENDING snapshot on deployment detection."""
+        snap = Snapshot(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            image_tag=image_tag,
+            git_sha=git_sha,
+            status="PENDING",
+        )
+        self.snapshots.insert(0, snap)
+        self._persist()
+        logger.info("Created PENDING snapshot: tag=%s id=%s sha=%s", image_tag, snap.id, git_sha)
+        return snap
 
     def get_all(self) -> list[dict]:
         """Return all snapshots ordered newest first."""

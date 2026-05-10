@@ -28,6 +28,10 @@ class BacktrackConfig:
         self.rollback_enabled: bool = os.getenv("BACKTRACK_ROLLBACK_ENABLED", "true").lower() == "true"
         self.image_tag: str = os.getenv("BACKTRACK_IMAGE_TAG", "unknown")
         self.clusters: list[dict] = self._parse_clusters()
+        self.app_label: str = os.getenv("BACKTRACK_APP_LABEL", "backtrack.app")
+        self.exclude_label: str = os.getenv("BACKTRACK_EXCLUDE_LABEL", "backtrack.exclude")
+        self.compose_projects: str = os.getenv("BACKTRACK_COMPOSE_PROJECTS", "")
+        self.include_orphans: bool = os.getenv("BACKTRACK_INCLUDE_ORPHANS", "false").lower() == "true"
         # Set by /reconfigure — overrides env var without mutating os.environ (thread-safe)
         self._forced_mode: str = ""
 
@@ -92,6 +96,10 @@ class BacktrackConfig:
         logger.info("  LSI Score Multiplier:%.1f", self.lsi_score_multiplier)
         logger.info("  Rollback Enabled:    %s", self.rollback_enabled)
         logger.info("  Image Tag:           %s", self.image_tag)
+        logger.info("  App Label:           %s", self.app_label)
+        logger.info("  Exclude Label:       %s", self.exclude_label)
+        logger.info("  Compose Projects:    %s", self.compose_projects or "(all)")
+        logger.info("  Include Orphans:     %s", self.include_orphans)
         logger.info(border)
 
     def to_dict(self) -> dict:
@@ -107,6 +115,10 @@ class BacktrackConfig:
             "rollback_enabled": self.rollback_enabled,
             "image_tag": self.image_tag,
             "clusters": self.clusters,
+            "app_label": self.app_label,
+            "exclude_label": self.exclude_label,
+            "compose_projects": self.compose_projects,
+            "include_orphans": self.include_orphans,
         }
 
 
