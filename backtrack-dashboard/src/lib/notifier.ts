@@ -108,7 +108,7 @@ function formatSlack(e: RollbackEvent): string {
     attachments: [
       {
         color: e.success ? "#10b981" : "#ef4444",
-        title: e.success ? "✅ Rollback Succeeded" : "❌ Rollback Failed",
+        title: e.success ? "Rollback Succeeded" : "Rollback Failed",
         fields: [
           { title: "Service", value: e.service, short: true },
           { title: "Platform", value: e.platform, short: true },
@@ -216,11 +216,17 @@ export async function notifyRollback(
   configOverride?: NotificationConfig,
 ): Promise<void> {
   const cfg = configOverride ?? loadNotificationConfig();
-  await Promise.allSettled([
+  const results = await Promise.allSettled([
     sendWebhook(event, cfg.webhook),
     sendTelegram(event, cfg.telegram),
     sendEmail(event, cfg.email),
   ]);
+  results.forEach((r, i) => {
+    if (r.status === "rejected") {
+      const channel = ["webhook", "telegram", "email"][i];
+      console.error(`[notifier] ${channel} failed:`, r.reason);
+    }
+  });
 }
 
 export async function sendConnectionConfirmation(

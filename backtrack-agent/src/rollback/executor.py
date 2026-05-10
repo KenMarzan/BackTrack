@@ -25,16 +25,79 @@ _DATA_DIR = os.getenv("BACKTRACK_DATA_DIR", "/data")
 ROLLBACK_LOG_FILE = os.path.join(_DATA_DIR, "rollback_log.json")
 
 
+def _build_tsd_evidence(snap: dict) -> dict:
+    """Convert a TSDCollector.get_metrics() snapshot to the email evidence shape."""
+    current = snap.get("current", {})
+    residuals = snap.get("residuals", {})
+    z_scores = snap.get("z_scores", {})
+    tsd_status = snap.get("tsd_status", {})
+    consecutive = snap.get("evaluation", {}).get("drift_sustained", 0)
+
+    metrics = [
+        {"name": "CPU",        "value": current.get("cpu_percent", 0),        "unit": "%",  "key": "cpu"},
+        {"name": "Memory",     "value": current.get("memory_mb", 0),          "unit": "MB", "key": "memory"},
+        {"name": "Latency",    "value": current.get("latency_ms", 0),         "unit": "ms", "key": "latency"},
+        {"name": "Error Rate", "value": current.get("error_rate_percent", 0), "unit": "%",  "key": "error_rate"},
+    ]
+    evidence_metrics = []
+    for m in metrics:
+        key = m["key"]
+        res_list = residuals.get(key, [])
+        last_residual = res_list[-1] if res_list else None
+        evidence_metrics.append({
+            "name": m["name"],
+            "value": round(m["value"], 2),
+            "unit": m["unit"],
+            "residual": round(last_residual, 3) if last_residual is not None else None,
+            "z_score": round(z_scores.get(key, 0), 3),
+            "drifting": bool(tsd_status.get(key, False)),
+        })
+
+    return {
+        "is_drifting": snap.get("is_drifting", False),
+        "has_crashed": snap.get("has_crashed", False),
+        "consecutive_cycles": consecutive,
+        "metrics": evidence_metrics,
+    }
+
+
+def _build_lsi_evidence(snap: dict) -> dict:
+    """Convert a LSICollector.get_lsi() snapshot to the email evidence shape."""
+    return {
+        "is_anomalous":       snap.get("is_anomalous", False),
+        "current_score":      snap.get("current_score", 0.0),
+        "baseline_mean":      snap.get("baseline_mean", 0.0),
+        "threshold":          snap.get("threshold", 0.0),
+        "is_error_anomalous": snap.get("is_error_anomalous", False),
+        "error_score":        snap.get("error_score", 0.0),
+        "error_threshold":    snap.get("error_threshold", 0.0),
+        "window_counts":      snap.get("window_counts", {}),
+        "recent_lines":       [
+            item.get("line", str(item)) if isinstance(item, dict) else str(item)
+            for item in snap.get("recent_lines", [])[:5]
+        ],
+    }
+
+
 class RollbackExecutor:
     """Executes rollback to the last known stable version."""
 
     def __init__(self, version_store: VersionStore) -> None:
         self.version_store = version_store
 
-    def trigger(self, reason: str, service_name: str = "", first_anomaly_at: str = "") -> dict:
+    def trigger(
+        self,
+        reason: str,
+        service_name: str = "",
+        first_anomaly_at: str = "",
+        tsd_snapshot: Optional[dict] = None,
+        lsi_snapshot: Optional[dict] = None,
+    ) -> dict:
         """
         Main entry point — rolls back to last stable version.
         service_name: the specific deployment/container to roll back (overrides config.target).
+        tsd_snapshot / lsi_snapshot: optional collector state captured at rollback time,
+          forwarded to the dashboard notification so the email shows real evidence data.
         Returns a result dict with success status and details.
         """
         if not config.rollback_enabled:
@@ -43,17 +106,46 @@ class RollbackExecutor:
             return {"success": False, "message": msg}
 
         last_stable = self.version_store.get_last_stable()
+
+        # Use the specific service name if provided, otherwise fall back to config.target
+        target = service_name or config.target
+
+        if last_stable is None and config.mode == "docker":
+            # No stable snapshot yet — discover the current image from the running container
+            # and use it as the rollback target (effectively a clean restart).
+            current_image = self._discover_current_image(target)
+            if current_image:
+                logger.warning(
+                    "No stable snapshot found for %s — falling back to restart with current image %s",
+                    target, current_image,
+                )
+                last_stable = Snapshot(
+                    id="fallback",
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    image_tag=current_image,
+                    status="STABLE",
+                )
+            else:
+                msg = f"No stable version found and could not inspect container '{target}' — cannot rollback."
+                logger.error(msg)
+                return {"success": False, "message": msg}
+
         if last_stable is None:
             msg = "No stable version found — cannot rollback."
             logger.error(msg)
             return {"success": False, "message": msg}
 
         current_pending = self.version_store.get_current_pending()
-        from_tag = current_pending.image_tag if current_pending else "unknown"
-        to_tag = last_stable.image_tag
+        from_tag = current_pending.image_tag if current_pending else ""
 
-        # Use the specific service name if provided, otherwise fall back to config.target
-        target = service_name or config.target
+        # In Docker mode, discover actual running image tags when the version store
+        # doesn't have them (agent started without BACKTRACK_IMAGE_TAG env var).
+        if config.mode == "docker":
+            if not from_tag or from_tag == "unknown":
+                from_tag = self._discover_current_image(target) or "unknown"
+            to_tag = last_stable.image_tag or self._discover_current_image(target) or "unknown"
+        else:
+            to_tag = last_stable.image_tag
 
         logger.warning(
             "EXECUTING ROLLBACK: %s → %s (service: %s, reason: %s)",
@@ -121,7 +213,43 @@ class RollbackExecutor:
                 from_tag=from_tag,
             )
 
+        # Dispatch email/webhook notification via dashboard — only for auto-rollbacks.
+        # Manual rollbacks triggered via the dashboard button are notified by the
+        # dashboard itself to avoid sending duplicate emails.
+        if reason != "Manual trigger via dashboard":
+            notify_payload: dict = {
+                "service": target,
+                "platform": config.mode,
+                "from_tag": from_tag,
+                "to_tag": to_tag,
+                "success": result["success"],
+                "message": result["message"],
+                "triggered_at": rollback_triggered_at,
+                "rollback_completed_at": rollback_completed_at,
+                "source": "agent",
+                "anomaly_type": "AUTO",
+            }
+            if tsd_snapshot:
+                notify_payload["tsd_evidence"] = _build_tsd_evidence(tsd_snapshot)
+            if lsi_snapshot:
+                notify_payload["lsi_evidence"] = _build_lsi_evidence(lsi_snapshot)
+            self._notify_dashboard(notify_payload)
+
         return result
+
+    @staticmethod
+    def _discover_current_image(container_name: str) -> str:
+        """Return the image tag of the currently running container, or empty string."""
+        if not container_name:
+            return ""
+        try:
+            result = subprocess.run(
+                ["docker", "inspect", "--format", "{{.Config.Image}}", container_name],
+                capture_output=True, text=True, timeout=5,
+            )
+            return result.stdout.strip() if result.returncode == 0 else ""
+        except Exception:
+            return ""
 
     def _rollback_docker(self, stable: Snapshot, target: str = "") -> None:
         """Docker mode: pre-pull image, then recreate container.
@@ -349,6 +477,23 @@ class RollbackExecutor:
             logger.info("MTTR entry synced to dashboard for %s (mttr=%ds)", service, mttr_seconds)
         except Exception as exc:
             logger.warning("Failed to sync MTTR to dashboard: %s", exc)
+
+    def _notify_dashboard(self, event: dict) -> None:
+        """POST a rollback notification event to the dashboard for email/webhook dispatch.
+        Fire-and-forget — a failure here must never affect the rollback result."""
+        try:
+            payload = json.dumps(event).encode()
+            req = urllib.request.Request(
+                f"{_DASHBOARD_URL}/api/notifications/rollback",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=5):
+                pass
+            logger.info("Rollback notification dispatched for %s", event.get("service"))
+        except Exception as exc:
+            logger.warning("Failed to dispatch rollback notification: %s", exc)
 
     def _flag_github(self, service: str, reason: str, from_tag: str = "") -> None:
         """Ask the dashboard to flag the bad deployment in GitHub.

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { AlertTriangle, Clock, RotateCcw, ShieldCheck, TriangleAlert, X, Zap } from "lucide-react";
 import type { DashboardAnomaly } from "@/lib/monitoring-types";
@@ -77,9 +78,17 @@ function RollbackConfirmModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  return (
+  const mounted = useRef(false);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    mounted.current = true;
+    setReady(true);
+    return () => { mounted.current = false; };
+  }, []);
+
+  const modal = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}
     >
       <div
@@ -135,10 +144,10 @@ function RollbackConfirmModal({
             { label: "Severity", value: anomaly.severity.toUpperCase() },
             { label: "Metric",   value: `${anomaly.metric}  →  ${anomaly.current} (was ${anomaly.baseline})` },
           ].map(({ label, value }) => (
-            <>
-              <span key={`l-${label}`} className="text-[10px] bt-mono uppercase tracking-[0.1em] text-[var(--text-muted)]">{label}</span>
-              <span key={`v-${label}`} className="text-[10.5px] text-[var(--text-secondary)] truncate">{value}</span>
-            </>
+            <React.Fragment key={label}>
+              <span className="text-[10px] bt-mono uppercase tracking-[0.1em] text-[var(--text-muted)]">{label}</span>
+              <span className="text-[10.5px] text-[var(--text-secondary)] truncate">{value}</span>
+            </React.Fragment>
           ))}
         </div>
 
@@ -172,6 +181,9 @@ function RollbackConfirmModal({
       </div>
     </div>
   );
+
+  if (!ready) return null;
+  return createPortal(modal, document.body);
 }
 
 function AnomalyDetection({ anomalies, onAnomalyRollback }: { anomalies: DashboardAnomaly[]; onAnomalyRollback?: (anomaly: DashboardAnomaly) => void }) {

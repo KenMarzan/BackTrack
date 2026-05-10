@@ -5,6 +5,7 @@ import { addMttrEntry } from "@/lib/metrics-store";
 import { isServiceInScope } from "@/lib/docker-discovery";
 import { notifyRollback } from "@/lib/notifier";
 import { flagBadDeployment } from "@/lib/github-status";
+import type { TsdEvidence, LsiEvidence } from "@/lib/email-templates";
 
 type RollbackPayload = {
   connectionId?: string;
@@ -14,6 +15,76 @@ type RollbackPayload = {
   anomaly_detected_at?: string;
   anomaly_type?: "TSD" | "LSI" | "BOTH" | "MANUAL";
 };
+
+function buildTsdEvidence(snap: Record<string, unknown>): TsdEvidence {
+  const current = (snap.current ?? {}) as Record<string, number>;
+  const residuals = (snap.residuals ?? {}) as Record<string, number[]>;
+  const zScores = (snap.z_scores ?? {}) as Record<string, number>;
+  const tsdStatus = (snap.tsd_status ?? {}) as Record<string, boolean>;
+  const evaluation = (snap.evaluation ?? {}) as Record<string, unknown>;
+
+  const defs = [
+    { name: "CPU",        key: "cpu",        unit: "%" },
+    { name: "Memory",     key: "memory",     unit: "MB" },
+    { name: "Latency",    key: "latency",    unit: "ms" },
+    { name: "Error Rate", key: "error_rate", unit: "%" },
+  ];
+
+  const valueKeys: Record<string, string> = {
+    cpu: "cpu_percent", memory: "memory_mb", latency: "latency_ms", error_rate: "error_rate_percent",
+  };
+
+  return {
+    is_drifting: Boolean(snap.is_drifting),
+    has_crashed: Boolean(snap.has_crashed),
+    consecutive_cycles: Number((evaluation.drift_sustained as number) ?? 0),
+    metrics: defs.map(({ name, key, unit }) => {
+      const res = residuals[key] ?? [];
+      return {
+        name,
+        value: Math.round((current[valueKeys[key]] ?? 0) * 100) / 100,
+        unit,
+        residual: res.length ? Math.round(res[res.length - 1] * 1000) / 1000 : undefined,
+        z_score: zScores[key] != null ? Math.round(zScores[key] * 1000) / 1000 : undefined,
+        drifting: Boolean(tsdStatus[key]),
+      };
+    }),
+  };
+}
+
+function buildLsiEvidence(snap: Record<string, unknown>): LsiEvidence {
+  return {
+    is_anomalous:       Boolean(snap.is_anomalous),
+    current_score:      Number(snap.current_score ?? 0),
+    baseline_mean:      Number(snap.baseline_mean ?? 0),
+    threshold:          Number(snap.threshold ?? 0),
+    is_error_anomalous: Boolean(snap.is_error_anomalous),
+    error_score:        Number(snap.error_score ?? 0),
+    error_threshold:    Number(snap.error_threshold ?? 0),
+    window_counts:      (snap.window_counts ?? {}) as Record<string, number>,
+    recent_lines: ((snap.recent_lines as Array<unknown>) ?? []).slice(0, 5).map((l) =>
+      typeof l === "string" ? l : ((l as Record<string, unknown>).line as string) ?? JSON.stringify(l)
+    ),
+  };
+}
+
+async function fetchAgentEvidence(service: string): Promise<{ tsd?: TsdEvidence; lsi?: LsiEvidence }> {
+  try {
+    const [tsdRes, lsiRes] = await Promise.allSettled([
+      fetch(`${AGENT_URL}/metrics?service=${encodeURIComponent(service)}`, { signal: AbortSignal.timeout(4000) }),
+      fetch(`${AGENT_URL}/lsi?service=${encodeURIComponent(service)}`,     { signal: AbortSignal.timeout(4000) }),
+    ]);
+    const tsd = tsdRes.status === "fulfilled" && tsdRes.value.ok
+      ? buildTsdEvidence(await tsdRes.value.json() as Record<string, unknown>)
+      : undefined;
+    const lsi = lsiRes.status === "fulfilled" && lsiRes.value.ok
+      ? buildLsiEvidence(await lsiRes.value.json() as Record<string, unknown>)
+      : undefined;
+    return { tsd, lsi };
+  } catch {
+    return {};
+  }
+}
 
 const AGENT_URL = process.env.BACKTRACK_AGENT_URL || "http://127.0.0.1:8847";
 
@@ -56,16 +127,21 @@ export async function POST(request: NextRequest) {
     // Docker rollback: forward to backtrack-agent
     if (connection.platform === "docker") {
       try {
-        const response = await fetch(`${AGENT_URL}/rollback/trigger`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reason: `Dashboard rollback for ${payload.service}`,
-            service: payload.service,
-            connectionId: connection.id,
+        // Fetch TSD/LSI state before rollback so the email shows pre-rollback metric data
+        const [evidence, response] = await Promise.all([
+          fetchAgentEvidence(payload.service),
+          fetch(`${AGENT_URL}/rollback/trigger`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              reason: `Dashboard rollback for ${payload.service}`,
+              service: payload.service,
+              connectionId: connection.id,
+            }),
           }),
-        });
+        ]);
 
+        const completedAt = new Date().toISOString();
         const agentResult = await response.json();
 
         if (!response.ok) {
@@ -75,10 +151,41 @@ export async function POST(request: NextRequest) {
           );
         }
 
+        const triggeredAt = payload.anomaly_detected_at ?? completedAt;
+        const success: boolean = agentResult.success ?? true;
+        const mttrSeconds = Math.round(
+          (new Date(completedAt).getTime() - new Date(triggeredAt).getTime()) / 1000,
+        );
+        const rollbackMessage = agentResult.message || (success ? "Rollback executed successfully." : "Rollback failed.");
+
+        notifyRollback({
+          service: payload.service,
+          platform: "docker",
+          from_tag: agentResult.from_tag,
+          to_tag: agentResult.to_tag,
+          success,
+          message: rollbackMessage,
+          triggered_at: triggeredAt,
+          rollback_completed_at: completedAt,
+          source: "manual",
+          anomaly_type: payload.anomaly_type ?? "MANUAL",
+          anomaly_detected_at: payload.anomaly_detected_at,
+          mttr_seconds: mttrSeconds,
+          tsd_evidence: evidence.tsd,
+          lsi_evidence: evidence.lsi,
+        }).catch((err) => console.error("[rollback] notifyRollback failed:", err));
+
+        if (!success) {
+          return NextResponse.json(
+            { error: rollbackMessage },
+            { status: 500 },
+          );
+        }
+
         return NextResponse.json({
           ok: true,
           message: "Docker rollback triggered via agent.",
-          output: agentResult.message || "Rollback initiated.",
+          output: rollbackMessage,
         });
       } catch {
         return NextResponse.json(

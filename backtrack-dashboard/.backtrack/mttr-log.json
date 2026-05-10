@@ -1,1 +1,189 @@
-[]
+[
+  {
+    "id": "92e8bcb7-cf86-4cc4-ba15-f156d2eb45d0",
+    "service": "mongo",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T18:49:50.806656+00:00",
+    "rollback_triggered_at": "2026-05-10T18:49:50.806656+00:00",
+    "rollback_completed_at": "2026-05-10T18:49:50.826588+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "50395509-9afc-41c4-b10a-449ffa4f8237",
+    "service": "redis",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:00:47.216080+00:00",
+    "rollback_triggered_at": "2026-05-10T19:00:47.216080+00:00",
+    "rollback_completed_at": "2026-05-10T19:00:47.229466+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "343040a3-af1f-408d-9344-38c8692efdd7",
+    "service": "rabbitmq",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:11:12.280738+00:00",
+    "rollback_triggered_at": "2026-05-10T19:11:12.280738+00:00",
+    "rollback_completed_at": "2026-05-10T19:11:12.294293+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "5ba65e88-5b8b-477b-8170-c8ffb0fc4e2e",
+    "service": "mongo",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:11:58.623979+00:00",
+    "rollback_triggered_at": "2026-05-10T19:11:58.623979+00:00",
+    "rollback_completed_at": "2026-05-10T19:11:58.646167+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "e6a1fa1c-8806-4468-ac03-7ea96551db1a",
+    "service": "mongo",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:14:12.914178+00:00",
+    "rollback_triggered_at": "2026-05-10T19:14:12.914178+00:00",
+    "rollback_completed_at": "2026-05-10T19:14:12.934747+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "c75eeb22-2ebb-4cc2-9552-0c8a76be91a9",
+    "service": "rabbitmq",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:22:18.072796+00:00",
+    "rollback_triggered_at": "2026-05-10T19:22:18.072796+00:00",
+    "rollback_completed_at": "2026-05-10T19:22:18.091610+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "68465982-2ae5-436a-8455-517a5c15e995",
+    "service": "rabbitmq",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:23:05.910245+00:00",
+    "rollback_triggered_at": "2026-05-10T19:23:05.910245+00:00",
+    "rollback_completed_at": "2026-05-10T19:23:05.931545+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "a3130319-0793-491b-99e6-b6933b951896",
+    "service": "rabbitmq",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:24:47.602513+00:00",
+    "rollback_triggered_at": "2026-05-10T19:24:47.602513+00:00",
+    "rollback_completed_at": "2026-05-10T19:24:47.628482+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "56f2b376-c655-4798-b6e1-f3837fddb0fe",
+    "service": "mongo",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:25:21.441652+00:00",
+    "rollback_triggered_at": "2026-05-10T19:25:21.441652+00:00",
+    "rollback_completed_at": "2026-05-10T19:25:21.465123+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "930a8c8e-909e-4532-b958-2850bdbc0c10",
+    "service": "traefik",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:30:06.202924+00:00",
+    "rollback_triggered_at": "2026-05-10T19:30:06.202924+00:00",
+    "rollback_completed_at": "2026-05-10T19:30:06.217524+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "573cfd70-5dce-48e4-bd69-afa5789e2e83",
+    "service": "rabbitmq",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:30:30.406932+00:00",
+    "rollback_triggered_at": "2026-05-10T19:30:30.406932+00:00",
+    "rollback_completed_at": "2026-05-10T19:30:30.419552+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "cd9ab4b9-ca23-412b-b09a-3211ebe80a6e",
+    "service": "mongo",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:41:22.134124+00:00",
+    "rollback_triggered_at": "2026-05-10T19:41:22.134124+00:00",
+    "rollback_completed_at": "2026-05-10T19:41:22.146177+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "d4fd1866-b2c5-4dbc-bb6b-36924e641833",
+    "service": "redis",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:41:46.936631+00:00",
+    "rollback_triggered_at": "2026-05-10T19:41:46.936631+00:00",
+    "rollback_completed_at": "2026-05-10T19:41:46.951669+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "a9470cb8-b002-4296-b102-9389edfbb1fd",
+    "service": "mongo",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:43:57.820379+00:00",
+    "rollback_triggered_at": "2026-05-10T19:43:57.820379+00:00",
+    "rollback_completed_at": "2026-05-10T19:43:57.838254+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "d12a1d3e-ef3c-481e-899b-dc006e1ff24c",
+    "service": "mongo",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:47:11.003823+00:00",
+    "rollback_triggered_at": "2026-05-10T19:47:11.003823+00:00",
+    "rollback_completed_at": "2026-05-10T19:47:11.021033+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "dcdfe1a5-ba9f-4333-a4b4-b34c8cc8defb",
+    "service": "mongo",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:50:50.709073+00:00",
+    "rollback_triggered_at": "2026-05-10T19:50:50.709073+00:00",
+    "rollback_completed_at": "2026-05-10T19:50:50.721282+00:00",
+    "mttr_seconds": 0,
+    "success": false,
+    "source": "agent"
+  },
+  {
+    "id": "f30a5f96-a6bf-4dba-9bf7-d1c380c41b94",
+    "service": "traefik",
+    "anomaly_type": "AUTO",
+    "anomaly_detected_at": "2026-05-10T19:54:35.610153+00:00",
+    "rollback_triggered_at": "2026-05-10T19:54:55.615988+00:00",
+    "rollback_completed_at": "2026-05-10T19:54:55.661364+00:00",
+    "mttr_seconds": 20,
+    "success": false,
+    "source": "agent"
+  }
+]

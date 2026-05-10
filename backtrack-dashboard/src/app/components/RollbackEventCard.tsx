@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Check, X } from "lucide-react";
 
 export type RollbackEvent = {
@@ -86,10 +87,10 @@ export default function RollbackEventCard({ event, onDismiss }: Props) {
           style={{ gridTemplateColumns: "auto 1fr" }}
         >
           {ROW.map(({ label, value }) => (
-            <>
-              <span key={`l-${label}`} className="text-[var(--text-muted)] bt-mono uppercase tracking-[0.1em]">{label}</span>
-              <span key={`v-${label}`} className="text-[var(--text-secondary)] truncate">{value(event)}</span>
-            </>
+            <React.Fragment key={label}>
+              <span className="text-[var(--text-muted)] bt-mono uppercase tracking-[0.1em]">{label}</span>
+              <span className="text-[var(--text-secondary)] truncate">{value(event)}</span>
+            </React.Fragment>
           ))}
           {!rolling && (
             <>

@@ -230,6 +230,8 @@ async def polling_loop() -> None:
                         reason=f"Container crash/restart detected for {svc_name} (exit_code={exit_code})",
                         service_name=svc_name,
                         first_anomaly_at=first_anomaly_at.get(svc_name),
+                        tsd_snapshot=tsd.get_metrics(),
+                        lsi_snapshot=lsi.get_lsi(),
                     )
                     if result.get("success"):
                         tsd.reset()
@@ -260,6 +262,8 @@ async def polling_loop() -> None:
                                 reason=f"{signals} anomaly on {svc_name} for 3 cycles",
                                 service_name=svc_name,
                                 first_anomaly_at=first_anomaly_at.get(svc_name),
+                                tsd_snapshot=tsd.get_metrics(),
+                                lsi_snapshot=lsi.get_lsi(),
                             )
                             if result.get("success"):
                                 tsd.reset()
@@ -305,6 +309,25 @@ async def polling_loop() -> None:
             logger.exception("Error in polling loop")
 
 
+def _discover_docker_image_tag(container_name: str) -> str:
+    """Return the image reference of a running Docker container, or empty string on failure."""
+    if not container_name:
+        return ""
+    try:
+        import subprocess as _sp
+        result = _sp.run(
+            ["docker", "inspect", "--format", "{{.Config.Image}}", container_name],
+            capture_output=True, text=True, timeout=5,
+        )
+        tag = result.stdout.strip()
+        if result.returncode == 0 and tag:
+            logger.info("Auto-discovered image tag for %s: %s", container_name, tag)
+            return tag
+    except Exception:
+        logger.warning("Could not auto-discover image tag for %s", container_name)
+    return ""
+
+
 @app.on_event("startup")
 async def startup() -> None:
     global version_store, rollback_executor, _polling_task, _deployment_watcher
@@ -312,7 +335,24 @@ async def startup() -> None:
     config.log_startup_summary()
     _load_cooldowns()
 
-    version_store = VersionStore(image_tag=config.image_tag)
+    image_tag = config.image_tag
+    if config.mode == "docker" and (not image_tag or image_tag == "unknown"):
+        image_tag = _discover_docker_image_tag(config.target) or image_tag
+    version_store = VersionStore(image_tag=image_tag)
+
+    # Backfill any existing snapshots that were saved with an empty image_tag.
+    # This happens when the agent was started without BACKTRACK_IMAGE_TAG set.
+    # Without this, rollback would try `docker pull ""` → invalid reference format.
+    if config.mode == "docker" and image_tag and image_tag != "unknown":
+        patched = 0
+        for snap in version_store.snapshots:
+            if not snap.image_tag or snap.image_tag == "unknown":
+                snap.image_tag = image_tag
+                patched += 1
+        if patched:
+            version_store._persist()
+            logger.info("Backfilled image_tag=%s into %d existing snapshot(s)", image_tag, patched)
+
     rollback_executor = RollbackExecutor(version_store)
 
     services = await _discover_services()

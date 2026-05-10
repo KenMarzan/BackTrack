@@ -10,6 +10,34 @@ const MONO = `'SFMono-Regular',Consolas,'Liberation Mono',Menlo,Courier,monospac
 // BackTrack.png resized to 40×40, circular alpha mask applied
 const LOGO_B64 = `data:image/png;base64,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`;
 
+export type TsdMetricEvidence = {
+  name: string;
+  value: number;
+  unit: string;
+  residual?: number;
+  z_score?: number;
+  drifting?: boolean;
+};
+
+export type TsdEvidence = {
+  is_drifting: boolean;
+  has_crashed: boolean;
+  consecutive_cycles: number;
+  metrics: TsdMetricEvidence[];
+};
+
+export type LsiEvidence = {
+  is_anomalous: boolean;
+  current_score: number;
+  baseline_mean: number;
+  threshold: number;
+  is_error_anomalous: boolean;
+  error_score: number;
+  error_threshold: number;
+  window_counts?: Record<string, number>;
+  recent_lines?: string[];
+};
+
 export type RollbackEvent = {
   service: string;
   namespace?: string;
@@ -24,6 +52,8 @@ export type RollbackEvent = {
   anomaly_detected_at?: string;
   rollback_completed_at?: string;
   mttr_seconds?: number;
+  tsd_evidence?: TsdEvidence;
+  lsi_evidence?: LsiEvidence;
 };
 
 export function fmtTs(iso?: string): string {
@@ -311,7 +341,32 @@ export function formatRollbackText(e: RollbackEvent): string {
     "",
     "--- Anomaly Detection ---",
     algo ? `Algorithm : ${algo.label}` : "",
-    algo ? `Detail    : ${algo.detail}` : "",
+    ...(e.tsd_evidence ? [
+      `TSD Status: ${e.tsd_evidence.is_drifting ? "DRIFTING" : "Normal"}${e.tsd_evidence.has_crashed ? " (CRASHED)" : ""}`,
+      `Cycles    : ${e.tsd_evidence.consecutive_cycles} / 3`,
+      ...e.tsd_evidence.metrics.filter(m => m.drifting).map(m =>
+        `  ${m.name.padEnd(10)}: ${m.value}${m.unit}  residual ${m.residual ?? "—"}  z ${m.z_score ?? "—"} [ANOMALOUS]`
+      ),
+    ] : []),
+    ...(e.lsi_evidence ? [
+      `LSI Score : ${e.lsi_evidence.current_score.toFixed(4)} (baseline ${e.lsi_evidence.baseline_mean.toFixed(4)}, threshold ${e.lsi_evidence.threshold.toFixed(4)})`,
+      `Error Score: ${e.lsi_evidence.error_score.toFixed(4)} (threshold ${e.lsi_evidence.error_threshold.toFixed(4)})`,
+      ...(e.lsi_evidence.recent_lines?.length ? [
+        "Recent anomalous log lines:",
+        ...e.lsi_evidence.recent_lines.slice(0, 3).map(l => {
+          try {
+            const p = JSON.parse(l);
+            if (p && typeof p === "object") {
+              const sev = p.s ?? p.level ?? "";
+              const comp = p.c ?? p.component ?? "";
+              const msg = p.msg ?? p.message ?? "";
+              return `  › [${[sev, comp].filter(Boolean).join("|")}] ${msg}`;
+            }
+          } catch { /* not JSON */ }
+          return `  › ${l}`;
+        }),
+      ] : []),
+    ] : []),
     "",
     "--- Timeline ---",
     e.anomaly_detected_at   ? `Detected  : ${fmtTs(e.anomaly_detected_at)}`   : "",
@@ -353,14 +408,15 @@ export function formatRollbackHtml(e: RollbackEvent): string {
     "Contact your on-call engineer if the service remains degraded",
   ];
 
-  const algoRow = (active: boolean, name: string, desc: string, last = false) => `
+  const algoRow = (active: boolean, name: string, desc: string, evidenceHtml = "", last = false) => `
     <tr>
-      <td width="32" style="padding:13px 0 13px 18px;vertical-align:top${last ? "" : ";border-bottom:1px solid #1a1a22"}">
+      <td width="32" style="padding:13px 0 ${evidenceHtml ? "8px" : "13px"} 18px;vertical-align:top${last && !evidenceHtml ? "" : ";border-bottom:1px solid #1a1a22"}">
         <span style="display:inline-block;width:18px;height:18px;border-radius:4px;text-align:center;line-height:18px;font-size:10px;font-family:${F};background:${active ? "rgba(94,234,212,0.1)" : "rgba(75,85,99,0.08)"};border:1px solid ${active ? "rgba(94,234,212,0.28)" : "rgba(75,85,99,0.2)"};color:${active ? "#5eead4" : "#4b5563"}">${active ? "&#10003;" : "&mdash;"}</span>
       </td>
-      <td style="padding:13px 18px 13px 10px;vertical-align:top${last ? "" : ";border-bottom:1px solid #1a1a22"}">
+      <td style="padding:13px 18px ${evidenceHtml ? "0" : "13px"} 10px;vertical-align:top${last && !evidenceHtml ? "" : ";border-bottom:1px solid #1a1a22"}">
         <div style="font-family:${F};font-size:12px;font-weight:600;color:${active ? "#5eead4" : "#4b5563"};margin-bottom:4px">${name}</div>
         <div style="font-family:${F};font-size:11px;color:#6b7280;line-height:1.6">${desc}</div>
+        ${evidenceHtml}
       </td>
     </tr>`;
 
@@ -437,12 +493,137 @@ export function formatRollbackHtml(e: RollbackEvent): string {
     <tr><td style="padding:22px 28px;border-bottom:1px solid #1e1e28">
       <p style="margin:0 0 13px;font-family:${F};font-size:10px;font-weight:700;color:#4b5563;letter-spacing:0.12em;text-transform:uppercase">Anomaly Detection</p>
       <table cellpadding="0" cellspacing="0" width="100%" style="background:#0c0c0f;border-radius:10px;border:1px solid #1e1e28">
-        ${algoRow(tsdActive, "TSD &mdash; Time Series Decomposition (STL)", "Monitors CPU, memory, HTTP latency, and error rate. Runs STL decomposition every scrape cycle and flags anomalies when the residual exceeds 3&times; IQR for 3 consecutive readings.")}
-        ${algoRow(lsiActive, "LSI &mdash; Log Semantic Indexing (SVD)",     "Streams container logs in real time. Builds a TF-IDF matrix from the baseline corpus, applies Truncated SVD (k=50), and classifies each window via cosine similarity.", true)}
-        ${algo ? `
-        <tr><td colspan="2" style="padding:12px 18px;border-top:1px solid #1a1a22;background:rgba(94,234,212,0.03)">
-          <p style="margin:0;font-family:${F};font-size:11px;color:#9ca3af;line-height:1.65;border-left:2px solid rgba(94,234,212,0.3);padding-left:10px">${algo.detail}</p>
+
+        ${(() => {
+          const tev = e.tsd_evidence;
+          const statusColor = tsdActive ? "#f87171" : (tev ? "#6b7280" : "#4b5563");
+          const statusLabel = tsdActive ? "TRIGGERED" : (tev ? "NORMAL" : "NOT CHECKED");
+          const statusBg    = tsdActive ? "rgba(248,113,113,0.1)" : "rgba(75,85,99,0.08)";
+          const statusBdr   = tsdActive ? "rgba(248,113,113,0.3)" : "rgba(75,85,99,0.2)";
+
+          const headerRow = `<tr><td colspan="2" style="padding:14px 18px;border-bottom:1px solid #1a1a22">
+            <table cellpadding="0" cellspacing="0" width="100%"><tr>
+              <td style="font-family:${F};font-size:12px;font-weight:700;color:${tsdActive ? "#f87171" : "#9ca3af"}">
+                TSD &mdash; Time Series Decomposition
+              </td>
+              <td align="right">
+                <span style="display:inline-block;padding:2px 9px;border-radius:999px;font-family:${F};font-size:10px;font-weight:700;letter-spacing:0.07em;color:${statusColor};background:${statusBg};border:1px solid ${statusBdr}">${statusLabel}</span>
+              </td>
+            </tr></table>
+          </td></tr>`;
+
+          if (!tev) return headerRow + `<tr><td colspan="2" style="padding:12px 18px;border-bottom:1px solid #1a1a22"><span style="font-family:${F};font-size:11px;color:#4b5563">Metric data unavailable</span></td></tr>`;
+
+          const metricRows = tev.metrics.map((m, i, arr) => {
+            const driftColor = m.drifting ? "#f87171" : "#9ca3af";
+            const valColor   = m.drifting ? "#f87171" : "#e2e8f0";
+            const tag = m.drifting
+              ? `<span style="display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;font-family:${F};font-size:9px;font-weight:700;color:#f87171;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.25)">&#9650; ANOMALOUS</span>`
+              : "";
+            const residual = m.residual != null ? `${m.residual > 0 ? "+" : ""}${m.residual.toFixed(3)}` : "—";
+            const zScore   = m.z_score  != null ? `${m.z_score  > 0 ? "+" : ""}${m.z_score.toFixed(2)}`  : "—";
+            const isLast = i === arr.length - 1;
+            return `<tr>
+              <td width="120" style="padding:10px 18px;font-family:${F};font-size:11px;color:#6b7280;vertical-align:middle${isLast ? "" : ";border-bottom:1px solid #111118"}">${m.name}</td>
+              <td style="padding:10px 18px 10px 0;vertical-align:middle${isLast ? "" : ";border-bottom:1px solid #111118"}">
+                <span style="font-family:${MONO};font-size:12px;font-weight:700;color:${valColor}">${m.value.toFixed(m.unit === "MB" ? 1 : 2)} ${m.unit}</span>
+                <span style="font-family:${MONO};font-size:10px;color:#4b5563;margin-left:10px">residual ${residual}</span>
+                <span style="font-family:${MONO};font-size:10px;color:${driftColor};margin-left:8px">z ${zScore}</span>
+                ${tag}
+              </td>
+            </tr>`;
+          }).join("");
+
+          const cyclesHtml = tev.has_crashed
+            ? `<span style="font-family:${F};font-size:11px;font-weight:700;color:#f87171">&#9888; Container crash / restart detected</span>`
+            : `<span style="font-family:${F};font-size:11px;color:#6b7280">Consecutive anomaly cycles: </span><span style="font-family:${MONO};font-size:11px;font-weight:700;color:${tev.consecutive_cycles >= 3 ? "#f87171" : "#e2e8f0"}">${tev.consecutive_cycles} / 3</span>${tev.consecutive_cycles >= 3 ? `<span style="font-family:${F};font-size:10px;color:#f87171;margin-left:6px">(threshold reached)</span>` : ""}`;
+
+          return headerRow + metricRows + `<tr><td colspan="2" style="padding:10px 18px;border-top:1px solid #1a1a22;border-bottom:1px solid #1a1a22;background:rgba(0,0,0,0.2)">${cyclesHtml}</td></tr>`;
+        })()}
+
+        ${(() => {
+          const lev = e.lsi_evidence;
+          const statusColor = lsiActive ? "#f87171" : (lev ? "#6b7280" : "#4b5563");
+          const statusLabel = lsiActive ? "TRIGGERED" : (lev ? "NORMAL" : "NOT CHECKED");
+          const statusBg    = lsiActive ? "rgba(248,113,113,0.1)" : "rgba(75,85,99,0.08)";
+          const statusBdr   = lsiActive ? "rgba(248,113,113,0.3)" : "rgba(75,85,99,0.2)";
+
+          const headerRow = `<tr><td colspan="2" style="padding:14px 18px;border-bottom:1px solid #1a1a22">
+            <table cellpadding="0" cellspacing="0" width="100%"><tr>
+              <td style="font-family:${F};font-size:12px;font-weight:700;color:${lsiActive ? "#f87171" : "#9ca3af"}">
+                LSI &mdash; Log Semantic Indexing
+              </td>
+              <td align="right">
+                <span style="display:inline-block;padding:2px 9px;border-radius:999px;font-family:${F};font-size:10px;font-weight:700;letter-spacing:0.07em;color:${statusColor};background:${statusBg};border:1px solid ${statusBdr}">${statusLabel}</span>
+              </td>
+            </tr></table>
+          </td></tr>`;
+
+          if (!lev) return headerRow + `<tr><td colspan="2" style="padding:12px 18px"><span style="font-family:${F};font-size:11px;color:#4b5563">Log data unavailable</span></td></tr>`;
+
+          const scoreAnom = lev.is_anomalous;
+          const errAnom   = lev.is_error_anomalous;
+          const wc = lev.window_counts ?? {};
+          const wcParts = Object.entries(wc).map(([k, v]) => {
+            const isHot = k === "ERROR" || k === "NOVEL";
+            return `<span style="margin-right:14px;font-family:${F};font-size:11px"><span style="color:#6b7280">${k}&nbsp;</span><span style="font-family:${MONO};font-weight:700;color:${isHot && (v as number) > 0 ? "#f87171" : "#e2e8f0"}">${v}</span></span>`;
+          }).join("");
+
+          const recentLines = (lev.recent_lines ?? []).slice(0, 3);
+          const linesHtml = recentLines.length > 0
+            ? `<tr><td colspan="2" style="padding:10px 18px;border-top:1px solid #1a1a22">
+                <div style="font-family:${F};font-size:10px;font-weight:700;color:#4b5563;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px">Recent anomalous log lines</div>
+                ${recentLines.map(l => {
+                  const raw = typeof l === "string" ? l : JSON.stringify(l);
+                  let display = raw;
+                  try {
+                    const parsed = JSON.parse(raw);
+                    // MongoDB structured log format: {t, s, c, msg, attr}
+                    if (parsed && typeof parsed === "object") {
+                      const sev = parsed.s ?? parsed.level ?? parsed.severity ?? "";
+                      const comp = parsed.c ?? parsed.component ?? "";
+                      const msg = parsed.msg ?? parsed.message ?? parsed.m ?? "";
+                      const ts = parsed.t?.["$date"] ?? parsed.t ?? parsed.time ?? parsed.timestamp ?? "";
+                      const tsStr = ts ? new Date(ts).toISOString().replace("T"," ").slice(0,19) : "";
+                      const prefix = [tsStr, sev, comp].filter(Boolean).join(" | ");
+                      display = prefix ? `${prefix}: ${msg}` : (msg || raw);
+                    }
+                  } catch { /* not JSON — use raw */ }
+                  return `<div style="font-family:${MONO};font-size:10px;color:#9ca3af;line-height:1.7;word-break:break-all;padding:2px 0">&rsaquo; ${display.replace(/</g,"&lt;").replace(/>/g,"&gt;")}</div>`;
+                }).join("")}
+              </td></tr>` : "";
+
+          return headerRow
+            + `<tr>
+                <td width="120" style="padding:10px 18px;font-family:${F};font-size:11px;color:#6b7280;border-bottom:1px solid #111118">Anomaly score</td>
+                <td style="padding:10px 18px 10px 0;border-bottom:1px solid #111118">
+                  <span style="font-family:${MONO};font-size:12px;font-weight:700;color:${scoreAnom ? "#f87171" : "#e2e8f0"}">${lev.current_score.toFixed(4)}</span>
+                  <span style="font-family:${MONO};font-size:10px;color:#4b5563;margin-left:8px">baseline ${lev.baseline_mean.toFixed(4)}</span>
+                  <span style="font-family:${MONO};font-size:10px;color:#4b5563;margin-left:6px">threshold ${lev.threshold.toFixed(4)}</span>
+                  ${scoreAnom ? `<span style="display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;font-family:${F};font-size:9px;font-weight:700;color:#f87171;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.25)">&#9650; EXCEEDED</span>` : ""}
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:10px 18px;font-family:${F};font-size:11px;color:#6b7280${wcParts || linesHtml ? ";border-bottom:1px solid #111118" : ""}">Error score</td>
+                <td style="padding:10px 18px 10px 0${wcParts || linesHtml ? ";border-bottom:1px solid #111118" : ""}">
+                  <span style="font-family:${MONO};font-size:12px;font-weight:700;color:${errAnom ? "#f87171" : "#e2e8f0"}">${lev.error_score.toFixed(4)}</span>
+                  <span style="font-family:${MONO};font-size:10px;color:#4b5563;margin-left:8px">threshold ${lev.error_threshold.toFixed(4)}</span>
+                  ${errAnom ? `<span style="display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;font-family:${F};font-size:9px;font-weight:700;color:#f87171;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.25)">&#9650; EXCEEDED</span>` : ""}
+                </td>
+              </tr>`
+            + (wcParts ? `<tr><td colspan="2" style="padding:10px 18px;border-top:1px solid #1a1a22${linesHtml ? ";border-bottom:1px solid #111118" : ""}">${wcParts}</td></tr>` : "")
+            + linesHtml;
+        })()}
+
+        ${e.anomaly_type === "MANUAL" || (!e.tsd_evidence && !e.lsi_evidence && e.anomaly_type !== "TSD" && e.anomaly_type !== "LSI" && e.anomaly_type !== "BOTH") ? `
+        <tr><td colspan="2" style="padding:12px 18px;border-top:1px solid #1a1a22;background:rgba(99,102,241,0.04)">
+          <p style="margin:0;font-family:${F};font-size:11px;color:#9ca3af;line-height:1.65;border-left:2px solid rgba(99,102,241,0.35);padding-left:10px">
+            ${e.anomaly_type === "MANUAL" && !e.tsd_evidence
+              ? "Rollback was triggered manually by an operator. The metric data above shows the system state at the time of rollback."
+              : "Rollback was triggered manually by an operator from the BackTrack dashboard."}
+          </p>
         </td></tr>` : ""}
+
       </table>
     </td></tr>
 
