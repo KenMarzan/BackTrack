@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { listConnections } from "@/lib/monitoring-store";
 import type { CICDData } from "@/lib/monitoring-types";
 
+export const dynamic = "force-dynamic";
+
 type GitHubCommitAPI = {
   sha: string;
   html_url: string;
@@ -88,6 +90,23 @@ export async function GET(request: NextRequest) {
       { headers, cache: "no-store" },
     ),
   ]);
+
+  // Surface GitHub API errors to the client instead of silently returning empty arrays.
+  if (!commitsRes.ok) {
+    let ghMessage = `GitHub API error ${commitsRes.status}`;
+    try {
+      const ghErr = await commitsRes.json() as { message?: string };
+      if (ghErr.message) ghMessage = ghErr.message;
+    } catch { /* ignore */ }
+    if (commitsRes.status === 401 || commitsRes.status === 403) {
+      ghMessage = token
+        ? `GitHub token rejected (${commitsRes.status}): ${ghMessage}`
+        : `GitHub API rate limit or auth required (${commitsRes.status}). Add a GitHub token to your connection.`;
+    } else if (commitsRes.status === 404) {
+      ghMessage = `Repo or branch not found: ${repo}@${branch}. Check the repo name and branch in your connection settings.`;
+    }
+    return NextResponse.json({ error: ghMessage }, { status: 502 });
+  }
 
   const commitsRaw = await safeJson<GitHubCommitAPI[]>(commitsRes);
   const runsRaw = await safeJson<{ workflow_runs: GitHubWorkflowRunAPI[] }>(runsRes);

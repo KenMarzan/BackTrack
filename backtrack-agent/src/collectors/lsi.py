@@ -16,7 +16,7 @@ import re
 import time
 from typing import Optional
 
-import numpy
+import numpy as np  # type: ignore
 from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -699,6 +699,7 @@ class LSICollector:
             return kw or "INFO"
 
     def _batch_classify(self, lines: list[str]) -> list[str]:
+        
         """Classify a batch of pre-normalised lines in a single vectorizer+SVD call.
 
         One vectorizer.transform + one svd.transform replaces N individual calls.
