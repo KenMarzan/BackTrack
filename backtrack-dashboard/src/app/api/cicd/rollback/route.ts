@@ -211,6 +211,11 @@ export async function POST(request: NextRequest) {
 
     const allOk = results.every((r) => r.ok);
 
+    const cicdTriggeredAt  = new Date().toISOString();
+    const cicdCompletedAt  = new Date().toISOString();
+    const cicdMttr = Math.round(
+      (new Date(cicdCompletedAt).getTime() - new Date(cicdTriggeredAt).getTime()) / 1000,
+    );
     await notifyRollback({
       service: services.map((s) => s.name).join(", "),
       namespace: connection.namespace,
@@ -220,8 +225,11 @@ export async function POST(request: NextRequest) {
       message: allOk
         ? `All services rolled back to ${payload.tag}.`
         : `Rollback completed with errors — check individual service results.`,
-      triggered_at: new Date().toISOString(),
+      triggered_at: cicdTriggeredAt,
       source: "cicd",
+      anomaly_type: "MANUAL",
+      rollback_completed_at: cicdCompletedAt,
+      mttr_seconds: cicdMttr,
     });
 
     // Flag the bad image tag in GitHub — marks the commit ❌ so developers

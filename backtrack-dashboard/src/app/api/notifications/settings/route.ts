@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
 import type { NotificationConfig } from "@/lib/notifier";
-import { loadNotificationConfig } from "@/lib/notifier";
+import { loadNotificationConfig, emailProvider } from "@/lib/notifier";
 
 const DATA_DIR = path.join(process.cwd(), ".backtrack");
 const FILE = path.join(DATA_DIR, "notifications.json");
@@ -20,11 +20,11 @@ function mask(s: string): string {
 
 export async function GET() {
   const cfg = loadNotificationConfig();
-  // Return full config but mask secrets for display
   return NextResponse.json({
-    webhook:  cfg.webhook,
-    telegram: { ...cfg.telegram, token: mask(cfg.telegram.token) },
-    email:    { ...cfg.email,    pass:  mask(cfg.email.pass) },
+    webhook:       cfg.webhook,
+    telegram:      { ...cfg.telegram, token: mask(cfg.telegram.token) },
+    email:         { ...cfg.email,    pass:  mask(cfg.email.pass) },
+    emailProvider: emailProvider(),
   });
 }
 

@@ -210,14 +210,21 @@ export async function POST(request: NextRequest) {
       // Non-fatal — rollback succeeded, just can't determine access URL
     }
 
+    const mttrSecs = Math.round(
+      (new Date(rollbackCompletedAt).getTime() - new Date(detectedAt).getTime()) / 1000,
+    );
     await notifyRollback({
       service: payload.service,
       namespace: ns,
       platform: "kubernetes",
       success: statusResult.code === 0,
-      message: statusResult.code === 0 ? "Rollback executed." : (statusResult.stderr || "Rollback completed with errors."),
+      message: statusResult.code === 0 ? "Rollback executed successfully." : (statusResult.stderr || "Rollback completed with errors."),
       triggered_at: rollbackTriggeredAt,
       source: "manual",
+      anomaly_type: payload.anomaly_type ?? "MANUAL",
+      anomaly_detected_at: detectedAt,
+      rollback_completed_at: rollbackCompletedAt,
+      mttr_seconds: mttrSecs,
     });
 
     // Flag the bad deployment in GitHub so developers see the ❌ on the commit

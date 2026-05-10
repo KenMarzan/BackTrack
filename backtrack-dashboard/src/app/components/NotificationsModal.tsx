@@ -14,6 +14,8 @@ type NotificationConfig = {
 
 type TestResult = "idle" | "sending" | "ok" | string;
 
+type EmailProvider = "resend" | "smtp" | "none";
+
 type NotificationsModalProps = {
   open: boolean;
   onClose: () => void;
@@ -123,6 +125,7 @@ function FieldRow({ label, hint, children }: { label: string; hint?: string; chi
 
 export default function NotificationsModal({ open, onClose }: NotificationsModalProps) {
   const [config, setConfig] = useState<NotificationConfig>(DEFAULT_CONFIG);
+  const [emailProviderInfo, setEmailProviderInfo] = useState<EmailProvider>("none");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveOk, setSaveOk] = useState(false);
@@ -136,12 +139,13 @@ export default function NotificationsModal({ open, onClose }: NotificationsModal
     setLoading(true);
     fetch("/api/notifications/settings")
       .then(r => r.json())
-      .then((data: NotificationConfig) => {
+      .then((data: NotificationConfig & { emailProvider?: EmailProvider }) => {
         setConfig({
           webhook:  { ...DEFAULT_CONFIG.webhook,  ...data.webhook },
           telegram: { ...DEFAULT_CONFIG.telegram, ...data.telegram },
           email:    { ...DEFAULT_CONFIG.email,    ...data.email },
         });
+        setEmailProviderInfo(data.emailProvider ?? "none");
       })
       .catch(() => {/* use defaults */})
       .finally(() => setLoading(false));
@@ -322,7 +326,7 @@ export default function NotificationsModal({ open, onClose }: NotificationsModal
               <div className="rounded-xl border border-[var(--border-soft)] overflow-hidden">
                 <SectionHeader
                   icon={<Mail size={14} className={config.email.enabled ? "text-[var(--accent-teal)]" : "text-[var(--text-muted)]"} />}
-                  label="Email (SMTP)"
+                  label="Email"
                   enabled={config.email.enabled}
                   expanded={expanded.email}
                   onToggleEnabled={(v) => updateEmail({ enabled: v })}
@@ -330,70 +334,44 @@ export default function NotificationsModal({ open, onClose }: NotificationsModal
                 />
                 {expanded.email && (
                   <div className="px-4 pb-4 pt-1 space-y-3 border-t border-[var(--border-soft)]">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <FieldRow label="SMTP host">
-                        <input
-                          type="text"
-                          value={config.email.host}
-                          onChange={e => updateEmail({ host: e.target.value })}
-                          className={inputCls}
-                          placeholder="smtp.gmail.com"
-                        />
-                      </FieldRow>
-                      <FieldRow label="Port">
-                        <input
-                          type="number"
-                          value={config.email.port}
-                          onChange={e => updateEmail({ port: Number(e.target.value) })}
-                          className={inputCls}
-                          placeholder="587"
-                        />
-                      </FieldRow>
+                    <div className="flex items-center gap-2 mt-1">
+                      {emailProviderInfo === "resend" && (
+                        <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full border border-[rgba(94,234,212,0.3)] bg-[rgba(94,234,212,0.07)] text-[var(--accent-teal)]">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-teal)] inline-block" />
+                          Resend · free tier
+                        </span>
+                      )}
+                      {emailProviderInfo === "smtp" && (
+                        <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full border border-[rgba(148,163,184,0.2)] bg-[rgba(148,163,184,0.05)] text-[var(--text-secondary)]">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[var(--text-muted)] inline-block" />
+                          Custom SMTP
+                        </span>
+                      )}
+                      {emailProviderInfo === "none" && (
+                        <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full border border-[rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.06)] text-rose-400">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-400 inline-block" />
+                          No provider configured
+                        </span>
+                      )}
+                      <span className="text-[10.5px] text-[var(--text-muted)]">
+                        {emailProviderInfo === "none"
+                          ? "Set BACKTRACK_RESEND_API_KEY in your environment."
+                          : "Provider is pre-configured via environment variables."}
+                      </span>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <FieldRow label="Username">
-                        <input
-                          type="text"
-                          value={config.email.user}
-                          onChange={e => updateEmail({ user: e.target.value })}
-                          className={inputCls}
-                          placeholder="you@example.com"
-                        />
-                      </FieldRow>
-                      <FieldRow label="Password / App password">
-                        <input
-                          type="password"
-                          value={config.email.pass}
-                          onChange={e => updateEmail({ pass: e.target.value })}
-                          className={inputCls}
-                          placeholder="••••••••••••"
-                        />
-                      </FieldRow>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <FieldRow label="From address">
-                        <input
-                          type="email"
-                          value={config.email.from}
-                          onChange={e => updateEmail({ from: e.target.value })}
-                          className={inputCls}
-                          placeholder="backtrack@example.com"
-                        />
-                      </FieldRow>
-                      <FieldRow label="To address(es)" hint="Comma-separated for multiple recipients.">
-                        <input
-                          type="text"
-                          value={config.email.to}
-                          onChange={e => updateEmail({ to: e.target.value })}
-                          className={inputCls}
-                          placeholder="ops@example.com, team@example.com"
-                        />
-                      </FieldRow>
-                    </div>
+                    <FieldRow label="DevOps engineer email" hint="Comma-separated for multiple recipients.">
+                      <input
+                        type="text"
+                        value={config.email.to}
+                        onChange={e => updateEmail({ to: e.target.value })}
+                        className={inputCls}
+                        placeholder="ops@example.com, team@example.com"
+                      />
+                    </FieldRow>
                     <div className="flex items-center gap-3 pt-1">
                       <button
                         type="button"
-                        disabled={!config.email.enabled || !config.email.host || !config.email.user || testResults.email === "sending"}
+                        disabled={!config.email.enabled || !config.email.to || emailProviderInfo === "none" || testResults.email === "sending"}
                         onClick={() => handleTest("email")}
                         className={testBtnCls}
                       >

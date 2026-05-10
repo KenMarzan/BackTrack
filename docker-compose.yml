@@ -22,7 +22,10 @@ services:
       # Telegram: create a bot via @BotFather and get the chat/channel ID
       - BACKTRACK_TELEGRAM_TOKEN=${BACKTRACK_TELEGRAM_TOKEN:-}
       - BACKTRACK_TELEGRAM_CHAT_ID=${BACKTRACK_TELEGRAM_CHAT_ID:-}
-      # Email via SMTP (Gmail: host=smtp.gmail.com port=587, use App Password)
+      # Email via Resend (recommended, free tier: 3 000 emails/month — resend.com)
+      - BACKTRACK_RESEND_API_KEY=${BACKTRACK_RESEND_API_KEY:-}
+      - BACKTRACK_RESEND_FROM=${BACKTRACK_RESEND_FROM:-BackTrack <onboarding@resend.dev>}
+      # Email via SMTP fallback (Gmail: host=smtp.gmail.com port=587, use App Password)
       - BACKTRACK_SMTP_HOST=${BACKTRACK_SMTP_HOST:-}
       - BACKTRACK_SMTP_PORT=${BACKTRACK_SMTP_PORT:-587}
       - BACKTRACK_SMTP_USER=${BACKTRACK_SMTP_USER:-}
