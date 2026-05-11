@@ -71,14 +71,18 @@ async function rollbackDocker(
   pullUrl: string,
   tag: string,
 ): Promise<ServiceResult[]> {
-  // Pull once before restarting containers
+  // Try to pull the image; fall back to local cache if the registry is unreachable
   const pullRes = await runCommand("docker", ["pull", pullUrl]);
   if (pullRes.code !== 0) {
-    return services.map((s) => ({
-      service: s.name,
-      ok: false,
-      message: `docker pull failed: ${pullRes.stderr.trim()}`,
-    }));
+    const localCheck = await runCommand("docker", ["image", "inspect", pullUrl, "--format", "{{.Id}}"]);
+    if (localCheck.code !== 0) {
+      return services.map((s) => ({
+        service: s.name,
+        ok: false,
+        message: `docker pull failed and image not found locally: ${pullRes.stderr.trim()}`,
+      }));
+    }
+    // Image exists locally — proceed without a fresh pull
   }
 
   const results: ServiceResult[] = [];

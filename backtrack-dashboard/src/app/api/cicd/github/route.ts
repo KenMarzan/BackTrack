@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
       return tags.map((tag) => ({
         tag,
         pushedAt: v.updated_at || v.created_at,
-        pullUrl: `ghcr.io/${repo}:${tag}`,
+        pullUrl: `ghcr.io/${repo.toLowerCase()}:${tag}`,
       }));
     })
     .slice(0, 15);
