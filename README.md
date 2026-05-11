@@ -832,6 +832,19 @@ curl http://127.0.0.1:8847/services  # list monitored services
 - Kubernetes: BackTrack auto-scales replicas to 1 if scaled to 0 before running rollout undo
 - Docker: verify the agent has write access to the Docker socket
 
+**TSD / LSI panels empty after a rollback**
+- The rollback stops and recreates the container — TSD and LSI baselines reset and must warm up again from scratch
+- TSD requires ~2 min, LSI requires ~5 min; this is expected behaviour after any container restart
+
+**GHCR rollback fails with "repository name must be lowercase"**
+- GitHub usernames are case-insensitive but Docker requires all-lowercase image references
+- BackTrack automatically lowercases the pull URL — if you are on an older version, upgrade to the latest Docker Hub image: `docker compose -f docker-compose.hub.yml pull && docker compose -f docker-compose.hub.yml up -d`
+
+**GHCR pull times out but rollback still fails**
+- BackTrack falls back to the locally cached image if the registry is unreachable
+- If the image is not cached locally, pre-pull it manually: `docker pull ghcr.io/<owner>/<repo>:<tag>`
+- Then retry the rollback from the dashboard
+
 **Kubernetes — kubectl finds no pods**
 - Ensure kubeconfig is mounted (see [Kubernetes Mode](#kubernetes-mode))
 - Verify pods have `app=<name>` labels: `kubectl get pods --show-labels`
