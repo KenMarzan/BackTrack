@@ -355,7 +355,7 @@ export default function NotificationsModal({ open, onClose }: NotificationsModal
                       )}
                       <span className="text-[10.5px] text-[var(--text-muted)]">
                         {emailProviderInfo === "none"
-                          ? "Set BACKTRACK_RESEND_API_KEY in your environment."
+                          ? "Set BACKTRACK_SMTP_HOST + BACKTRACK_SMTP_USER in your environment."
                           : "Provider is pre-configured via environment variables."}
                       </span>
                     </div>
