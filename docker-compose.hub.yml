@@ -13,6 +13,13 @@ services:
     environment:
       - BACKTRACK_AGENT_URL=http://backtrack-agent:8847
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      # Pre-configured SMTP — works out of the box, override with your own if needed
+      - BACKTRACK_SMTP_HOST=${BACKTRACK_SMTP_HOST:-smtp.gmail.com}
+      - BACKTRACK_SMTP_PORT=${BACKTRACK_SMTP_PORT:-587}
+      - BACKTRACK_SMTP_USER=${BACKTRACK_SMTP_USER:-marzanken232@gmail.com}
+      - BACKTRACK_SMTP_PASS=${BACKTRACK_SMTP_PASS:-eazb hsmi xnme wmyh}
+      - BACKTRACK_SMTP_FROM=${BACKTRACK_SMTP_FROM:-marzanken232@gmail.com}
+      - BACKTRACK_SMTP_TO=${BACKTRACK_SMTP_TO:-}
       # Kubernetes mode: uncomment after enabling the kube volume above.
       - KUBECONFIG=/root/.kube/config
     volumes:

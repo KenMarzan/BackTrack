@@ -86,12 +86,12 @@ export function loadNotificationConfig(): NotificationConfig {
       ),
     },
     email: {
-      host: process.env.BACKTRACK_SMTP_HOST ?? f.email?.host ?? "",
-      port: Number(process.env.BACKTRACK_SMTP_PORT ?? f.email?.port ?? 587),
-      user: process.env.BACKTRACK_SMTP_USER ?? f.email?.user ?? "",
-      pass: process.env.BACKTRACK_SMTP_PASS ?? f.email?.pass ?? "",
-      from: process.env.BACKTRACK_SMTP_FROM ?? f.email?.from ?? "",
-      to: process.env.BACKTRACK_SMTP_TO ?? f.email?.to ?? "",
+      host: process.env.BACKTRACK_SMTP_HOST || f.email?.host || "",
+      port: Number(process.env.BACKTRACK_SMTP_PORT || f.email?.port || 587),
+      user: process.env.BACKTRACK_SMTP_USER || f.email?.user || "",
+      pass: process.env.BACKTRACK_SMTP_PASS || f.email?.pass || "",
+      from: process.env.BACKTRACK_SMTP_FROM || f.email?.from || "",
+      to: process.env.BACKTRACK_SMTP_TO || f.email?.to || "",
       enabled: !!(
         resendConfigured ||
         smtpConfigured ||

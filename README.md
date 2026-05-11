@@ -22,6 +22,7 @@ BackTrack monitors containerized services in real time, detects metric drift and
 - [Docker Mode](#docker-mode)
 - [Configuration Reference](#configuration-reference)
 - [Connecting Your GitHub Repository](#connecting-your-github-repository)
+- [Wiring CI/CD to BackTrack](#wiring-cicd-to-backtrack)
 - [Email Notifications](#email-notifications)
 - [How TSD Works](#how-tsd-works)
 - [How LSI Works](#how-lsi-works)
@@ -460,6 +461,159 @@ The token is stored locally in `.backtrack/connections.json` and is never sent a
 | **Rollback modal** | GHCR image tags available to roll back to |
 
 If the token is missing or expired, the deployment panel shows a placeholder and the rest of BackTrack continues to work normally.
+
+---
+
+## Wiring CI/CD to BackTrack
+
+To get all three tabs of the CI/CD panel fully populated — **Commits**, **Workflows**, and **Images** — your repository needs GitHub Actions workflows that push versioned images to GHCR.
+
+### What each tab needs
+
+| Tab | Requirement |
+|---|---|
+| **Commits** | Any GitHub repo with commits — no setup needed |
+| **Workflows** | At least one `.github/workflows/*.yml` file with a completed run |
+| **Images** | Docker images pushed to `ghcr.io/<owner>/<repo>:<tag>` |
+
+---
+
+### Step 1 — Add a CI workflow
+
+Create `.github/workflows/ci.yml` in your repository:
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+```
+
+This pushes two tags on every push to `main`: `latest` and the full commit SHA.
+
+---
+
+### Step 2 — Add a release workflow
+
+Create `.github/workflows/release.yml` in your repository:
+
+```yaml
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}:latest
+```
+
+Each version tag push (e.g. `v1.0.0`) triggers this workflow and pushes a versioned image to GHCR — these become the rollback targets in BackTrack's Images tab.
+
+---
+
+### Step 3 — Push your first images
+
+Commit the workflows and push version tags:
+
+```bash
+git add .github/workflows/ci.yml .github/workflows/release.yml
+git commit -m "ci: add BackTrack CI/CD workflows"
+git push origin main
+
+# Create version tags — each one triggers a release workflow run
+git tag v1.0.0 && git push origin v1.0.0
+git tag v1.1.0 && git push origin v1.1.0
+git tag v1.2.0 && git push origin v1.2.0
+```
+
+No `DOCKERHUB_USERNAME` or `DOCKERHUB_TOKEN` secrets are needed — GHCR uses the built-in `GITHUB_TOKEN` automatically.
+
+---
+
+### Step 4 — Make the package public
+
+After the first workflow run, go to:
+
+**github.com → your profile → Packages → select the package → Package settings → Change visibility → Public**
+
+This allows BackTrack to read image tags without needing elevated token scopes.
+
+---
+
+### Step 5 — Push existing images manually (optional)
+
+If you already have images on Docker Hub and want to backfill GHCR without waiting for a workflow run:
+
+```bash
+# Login to GHCR with a classic PAT (write:packages + read:packages scope)
+echo YOUR_GITHUB_TOKEN | docker login ghcr.io -u YOUR_USERNAME --password-stdin
+
+# Tag and push from an existing local or Docker Hub image
+docker tag yourimage:v1.0.0 ghcr.io/YOUR_USERNAME/YOUR_REPO:v1.0.0
+docker push ghcr.io/YOUR_USERNAME/YOUR_REPO:v1.0.0
+```
+
+Classic PAT required — fine-grained tokens do not support `write:packages` for GHCR at this time. Generate one at **github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)** with `write:packages`, `read:packages`, and `repo` scopes checked.
+
+---
+
+### What you will see in BackTrack after setup
+
+Once at least one workflow has run and images are published to GHCR:
+
+- **Commits tab** — last 20 commits with author and timestamp
+- **Workflows tab** — pass / fail badge per run with a link to GitHub Actions
+- **Images tab** — `v1.0.0`, `v1.1.0`, `v1.2.0`, `latest` listed as rollback targets; clicking **Rollback** on any tag will roll the service back to that exact image version
 
 ---
 
