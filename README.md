@@ -21,6 +21,8 @@ BackTrack monitors containerized services in real time, detects metric drift and
 - [Kubernetes Mode](#kubernetes-mode)
 - [Docker Mode](#docker-mode)
 - [Configuration Reference](#configuration-reference)
+- [Connecting Your GitHub Repository](#connecting-your-github-repository)
+- [Email Notifications](#email-notifications)
 - [How TSD Works](#how-tsd-works)
 - [How LSI Works](#how-lsi-works)
 - [Rollback Flow](#rollback-flow)
@@ -379,6 +381,149 @@ BACKTRACK_AGENT_URL=http://127.0.0.1:8847   # URL of the running backtrack-agent
 GITHUB_TOKEN=                                # Optional — GitHub PAT for deployment panel
 BACKTRACK_MEMORY_THRESHOLD_MIB=120          # Memory anomaly threshold in MiB
 ```
+
+---
+
+## Connecting Your GitHub Repository
+
+Linking a GitHub repository unlocks three features in BackTrack:
+
+- **Recent Deployments** — shows commit history, messages, and authors on the dashboard
+- **CI/CD Workflows** — displays the status of the latest GitHub Actions run per commit
+- **GHCR Image Tags** — pulls available image tags from GitHub Container Registry for rollback targeting
+
+You will need a **repository link** and a **Personal Access Token (PAT)** with the right scopes.
+
+---
+
+### Step 1 — Get your repository link
+
+1. Open your repository on GitHub.
+2. Copy the URL from the browser address bar, e.g. `https://github.com/your-org/your-repo`.
+3. You can paste the full URL into the Connect modal — BackTrack will extract `owner/repository` automatically. Or paste `owner/repository` directly.
+
+---
+
+### Step 2 — Create a Personal Access Token
+
+BackTrack needs a **fine-grained PAT** or a **classic PAT** with the following scopes:
+
+| Scope | Why it is needed |
+|---|---|
+| `repo` | Read commit history and deployment events |
+| `workflow` | Read GitHub Actions workflow run status |
+| `read:packages` | Read image tags from GitHub Container Registry (GHCR) |
+
+**To create a classic PAT:**
+
+1. Go to **github.com → Settings** (top-right avatar menu).
+2. Scroll to **Developer settings** (bottom of the left sidebar) → **Personal access tokens → Tokens (classic)**.
+3. Click **Generate new token (classic)**.
+4. Set a descriptive name, e.g. `backtrack-local`.
+5. Set an expiration (90 days is a reasonable default).
+6. Check the three scopes: `repo`, `workflow`, `read:packages`.
+7. Click **Generate token**.
+8. **Copy the token now** — GitHub will not show it again.
+
+**To create a fine-grained PAT (more restrictive):**
+
+1. Go to **github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens**.
+2. Click **Generate new token**.
+3. Under **Repository access**, select **Only select repositories** and choose your repo.
+4. Under **Permissions**, grant:
+   - **Contents** → Read-only (commit history)
+   - **Actions** → Read-only (workflow runs)
+   - **Packages** → Read-only (GHCR image tags)
+5. Click **Generate token** and copy it immediately.
+
+---
+
+### Step 3 — Fill in the Connect modal
+
+1. Open **http://localhost:3847** → click **Configure Cluster** (top-right).
+2. Fill in your platform details (Docker or Kubernetes) as normal.
+3. In the **GitHub repository** field, paste your repo URL or `owner/repository`.
+4. In the **Branch** field, enter your default branch (default: `main`).
+5. In the **GitHub token** field, paste the PAT you just created.
+6. Click **Connect**.
+
+The token is stored locally in `.backtrack/connections.json` and is never sent anywhere except the GitHub API.
+
+---
+
+### What you will see after connecting
+
+| Dashboard area | What appears |
+|---|---|
+| **Recent Deployments** | Last 5 commits with author, message, and timestamp |
+| **CI/CD status** | Pass / fail badge next to each commit from GitHub Actions |
+| **Rollback modal** | GHCR image tags available to roll back to |
+
+If the token is missing or expired, the deployment panel shows a placeholder and the rest of BackTrack continues to work normally.
+
+---
+
+## Email Notifications
+
+BackTrack sends an email after every rollback (success or failure). SMTP is pre-configured — no account setup needed. You only need to provide the recipient address, which is set at runtime through the **Notifications** panel in the dashboard.
+
+### Docker
+
+SMTP credentials are already included in `.env.example`. No changes needed — just start the stack and open the Notifications panel:
+
+1. Open **http://localhost:3847 → Notifications**
+2. Enter a recipient address → **Save** → **Test Email**
+
+Rollback emails are sent automatically from that point on.
+
+---
+
+### Kubernetes
+
+The pre-configured SMTP credentials need to be injected as a Kubernetes Secret so the dashboard pod can read them.
+
+**Step 1 — Create the secret**
+
+```bash
+kubectl apply -f k8s/secret.smtp.yaml
+```
+
+**Step 2 — Mount the secret in your Deployment**
+
+```yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: backtrack-dashboard
+          envFrom:
+            - secretRef:
+                name: backtrack-smtp
+```
+
+**Step 3 — Persist the recipient address across restarts**
+
+The recipient address entered in the Notifications panel is saved to `.backtrack/notifications.json` inside the container. Without a persistent volume it is lost on pod restart. Apply the provided PVC and mount it:
+
+```bash
+kubectl apply -f k8s/pvc.yaml
+```
+
+```yaml
+volumes:
+  - name: backtrack-data
+    persistentVolumeClaim:
+      claimName: backtrack-data
+containers:
+  - name: backtrack-dashboard
+    volumeMounts:
+      - name: backtrack-data
+        mountPath: /app/.backtrack
+```
+
+**Step 4 — Test**
+
+Open the dashboard → **Notifications** → enter a recipient address → **Save** → **Test Email**. A confirmation email is sent immediately; rollback emails are sent automatically from that point on.
 
 ---
 

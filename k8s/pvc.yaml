@@ -1,0 +1,14 @@
+---
+# Persists .backtrack/ directory (connections.json, notifications.json, etc.)
+# so runtime config survives pod restarts.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backtrack-data
+  namespace: backtrack
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
