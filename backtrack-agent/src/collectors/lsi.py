@@ -45,9 +45,12 @@ SEED_KEYWORDS = {
 class LSICollector:
     """Collects container logs, classifies them with SVD, and scores anomaly windows."""
 
-    def __init__(self, service_name: str = "", label_selector: str = "") -> None:
+    def __init__(self, service_name: str = "", label_selector: str = "", container_name: str = "") -> None:
         self.service_name = service_name or config.target
         self.label_selector = label_selector or config.k8s_label_selector
+        # Actual Docker container name — may differ from service_name when dashboard sends
+        # compose short names (e.g. "rabbitmq") but container is "myproject-rabbitmq-1".
+        self.container_name: str = container_name or self.service_name
         self.vectorizer: Optional[TfidfVectorizer] = None
         self.svd: Optional[TruncatedSVD] = None
         self.centroids: dict[str, np.ndarray] = {}
@@ -76,12 +79,24 @@ class LSICollector:
         # Recent classified lines for the /lsi endpoint
         self.recent_lines: collections.deque[dict] = collections.deque(maxlen=50)
 
-        # Confusion matrix: keyword label (reference) vs SVD label (predicted)
+        # SVD-vs-keyword confusion matrix (ambiguous lines only — fast-path lines skip SVD)
         _classes = ["INFO", "WARN", "ERROR", "NOVEL"]
         self._confusion: dict[str, dict[str, int]] = {
             ref: {pred: 0 for pred in _classes} for ref in _classes
         }
         self._svd_classified_count: int = 0
+
+        # Window-level detection confusion matrix.
+        # Each 30-second window is scored: was there a real error signal AND did LSI flag it?
+        # TP: anomaly detected AND error lines present in the window
+        # FP: anomaly detected AND no error lines (false alarm)
+        # FN: not detected AND error lines present above baseline rate
+        # TN: not detected AND no error lines
+        # This is what the metrics page confusion matrix should show.
+        self._window_tp: int = 0
+        self._window_fp: int = 0
+        self._window_fn: int = 0
+        self._window_tn: int = 0
 
         # Pre-normalised centroids — computed at fit time, used for fast dot-product cosine sim
         self._centroids_norm: dict[str, np.ndarray] = {}
@@ -215,6 +230,10 @@ class LSICollector:
         self._window_buffer = []
         self.recent_lines.clear()
         self._windows_since_fit = 0
+        self._window_tp = 0
+        self._window_fp = 0
+        self._window_fn = 0
+        self._window_tn = 0
         logger.info("LSI collector reset for %s after rollback", self.service_name)
 
     async def stop(self) -> None:
@@ -283,7 +302,7 @@ class LSICollector:
         try:
             snap = await asyncio.create_subprocess_exec(
                 "docker", "logs", "--tail", "500",
-                self.service_name,
+                self.container_name,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
             )
@@ -299,14 +318,14 @@ class LSICollector:
                         await self._enqueue(line)
                 await asyncio.sleep(0)  # yield once per batch, not per line
         except Exception:
-            logger.warning("Docker log snapshot failed for %s", self.service_name)
+            logger.warning("Docker log snapshot failed for %s", self.container_name)
 
         # Step 2: follow live log stream for ongoing anomaly detection
         proc = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 "docker", "logs", "--follow", "--tail", "0",
-                self.service_name,
+                self.container_name,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
             )
@@ -322,7 +341,7 @@ class LSICollector:
                 except asyncio.TimeoutError:
                     continue  # quiet service — keep waiting
         except Exception:
-            logger.exception("Docker log tailing failed for %s", self.service_name)
+            logger.exception("Docker log tailing failed for %s", self.container_name)
         finally:
             if proc and proc.returncode is None:
                 try:
@@ -473,7 +492,7 @@ class LSICollector:
                 if config.mode == "docker":
                     proc = await asyncio.create_subprocess_exec(
                         "docker", "logs", "--tail", "20",
-                        self.service_name,
+                        self.container_name,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.STDOUT,
                     )
@@ -731,13 +750,19 @@ class LSICollector:
             self._svd_classified_count += len(lines)
             labels: list[str] = []
             for i, (err, bi, bs) in enumerate(zip(recon_errors, best_idx, best_sims)):
+                # Keyword label = ground truth for confusion matrix
+                ref = (self._extract_structured_level(lines[i])
+                       or self._keyword_classify(lines[i])
+                       or "INFO")
                 if err > novel_threshold or bs <= SVD_SIMILARITY_THRESHOLD:
-                    # Line doesn't fit the model — use keyword fallback so genuinely
-                    # novel-but-harmless lines don't inflate the score as NOVEL.
                     kw = self._keyword_classify(lines[i])
-                    labels.append(kw if kw else "INFO")
+                    pred = kw if kw else "INFO"
                 else:
-                    labels.append(label_order[int(bi)])
+                    pred = label_order[int(bi)]
+                labels.append(pred)
+                # Update confusion matrix: rows = keyword ref, cols = SVD pred
+                if ref in self._confusion and pred in self._confusion[ref]:
+                    self._confusion[ref][pred] += 1
             return labels
         except Exception:
             logger.warning("Batch classify failed for %s", self.service_name)
@@ -797,6 +822,22 @@ class LSICollector:
             if error_score <= error_threshold:
                 self.error_baseline_scores.append(error_score)
                 self.error_baseline_scores = self.error_baseline_scores[-ERROR_BASELINE_WINDOWS:]
+
+        # Window-level detection quality tracking.
+        # Uses error_count as ground truth: if there were ERROR-labelled lines in this window
+        # we treat it as a "fault window" and check whether LSI flagged it.
+        # Only counts after the baseline is locked (before that, detection isn't active).
+        if self.error_baseline_locked:
+            anomaly_detected = self.is_error_anomalous()
+            had_errors = error_count > 0
+            if had_errors and anomaly_detected:
+                self._window_tp += 1
+            elif not had_errors and anomaly_detected:
+                self._window_fp += 1
+            elif had_errors and not anomaly_detected:
+                self._window_fn += 1
+            else:
+                self._window_tn += 1
 
         self._compute_semantics(error_count, warning_count, self.window_total)
 
@@ -1041,11 +1082,31 @@ class LSICollector:
         return current > config.lsi_score_multiplier * baseline_mean
 
     def get_evaluation(self) -> dict:
-        """Compute confusion matrix + precision/recall/F1 per class (keyword vs SVD)."""
+        """Return window-level detection quality metrics plus SVD-vs-keyword per-class data.
+
+        Window confusion matrix (primary — what the metrics page displays):
+          TP: windows where error lines were present AND LSI flagged anomaly
+          FP: windows where no error lines but LSI flagged anomaly (false alarm)
+          FN: windows where error lines present but LSI did not flag (missed)
+          TN: clean windows correctly not flagged
+
+        SVD per-class matrix (secondary — keyword vs SVD agreement on ambiguous lines only):
+          Only populated for lines that didn't match structured level or keywords.
+          Most structured-log services will have low counts here.
+        """
+        # Window-level stats (primary)
+        wtp, wfp, wfn, wtn = self._window_tp, self._window_fp, self._window_fn, self._window_tn
+        total_w = wtp + wfp + wfn + wtn
+        w_precision = wtp / (wtp + wfp) if (wtp + wfp) > 0 else 0.0
+        w_recall    = wtp / (wtp + wfn) if (wtp + wfn) > 0 else 0.0
+        w_f1        = (2 * w_precision * w_recall / (w_precision + w_recall)
+                       if (w_precision + w_recall) > 0 else 0.0)
+        w_accuracy  = (wtp + wtn) / total_w if total_w > 0 else 0.0
+
+        # SVD per-class stats (secondary)
         classes = ["INFO", "WARN", "ERROR", "NOVEL"]
         matrix = self._confusion
-        metrics: dict[str, dict] = {}
-
+        per_class: dict[str, dict] = {}
         for cls in classes:
             tp = matrix[cls][cls]
             fp = sum(matrix[ref][cls] for ref in classes if ref != cls)
@@ -1056,21 +1117,27 @@ class LSICollector:
                 if ref != cls and pred != cls
             )
             precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-            recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            recall    = tp / (tp + fn) if (tp + fn) > 0 else 0.0
             f1 = (2 * precision * recall / (precision + recall)
                   if (precision + recall) > 0 else 0.0)
-            metrics[cls] = {
+            per_class[cls] = {
                 "precision": round(precision, 4),
-                "recall": round(recall, 4),
-                "f1": round(f1, 4),
+                "recall":    round(recall, 4),
+                "f1":        round(f1, 4),
                 "tp": tp, "fp": fp, "fn": fn, "tn": tn,
             }
 
         return {
-            "confusion_matrix": {
-                ref: dict(row) for ref, row in matrix.items()
-            },
-            "per_class": metrics,
+            # Window-level — primary signal for the metrics page
+            "tp": wtp, "fp": wfp, "fn": wfn, "tn": wtn,
+            "precision": round(w_precision, 4),
+            "recall":    round(w_recall, 4),
+            "f1":        round(w_f1, 4),
+            "accuracy":  round(w_accuracy, 4),
+            "total_windows": total_w,
+            # SVD per-class — secondary, shown in extended view
+            "confusion_matrix": {ref: dict(row) for ref, row in matrix.items()},
+            "per_class": per_class,
             "svd_classified_total": self._svd_classified_count,
             "classes": classes,
         }

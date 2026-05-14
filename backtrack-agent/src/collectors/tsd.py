@@ -152,9 +152,12 @@ def _parse_mem_to_mb(raw: str) -> float:
 class TSDCollector:
     """Collects metrics and runs STL decomposition to detect anomalies."""
 
-    def __init__(self, service_name: str = "", label_selector: str = "") -> None:
+    def __init__(self, service_name: str = "", label_selector: str = "", container_name: str = "") -> None:
         self.service_name = service_name or config.target
         self.label_selector = label_selector or config.k8s_label_selector
+        # Actual Docker container name — may differ from service_name when dashboard sends
+        # compose short names (e.g. "rabbitmq") but container is "myproject-rabbitmq-1".
+        self.container_name: str = container_name or self.service_name
 
         self.cpu_history: collections.deque[float] = collections.deque(maxlen=DEQUE_SIZE)
         self.memory_history: collections.deque[float] = collections.deque(maxlen=DEQUE_SIZE)
@@ -270,7 +273,7 @@ class TSDCollector:
         """Start the background collection loop."""
         self.load_state()
         self._running = True
-        _monitored_containers.add(self.service_name)
+        _monitored_containers.add(self.container_name)
         self._task = asyncio.create_task(self._collect_loop())
         logger.info("TSD collector started for %s (interval=%ds)", self.service_name, config.scrape_interval)
 
@@ -296,7 +299,7 @@ class TSDCollector:
     async def stop(self) -> None:
         """Stop the background collection loop and persist metric histories."""
         self._running = False
-        _monitored_containers.discard(self.service_name)
+        _monitored_containers.discard(self.container_name)
         if self._task:
             self._task.cancel()
             try:
@@ -342,7 +345,7 @@ class TSDCollector:
     async def _scrape_docker(self) -> None:
         """Read from the shared docker stats cache (one CLI call serves all collectors)."""
         await _refresh_docker_stats(max_age=config.scrape_interval * 0.8)
-        entry = _stats_cache.get(self.service_name, {})
+        entry = _stats_cache.get(self.container_name, {})
         self.current_cpu = entry.get("cpu", 0.0)
         self.current_memory = entry.get("mem_mb", 0.0)
         self.current_latency = await self._probe_latency()
@@ -509,7 +512,7 @@ class TSDCollector:
             proc = await asyncio.create_subprocess_exec(
                 "docker", "inspect", "--format",
                 "{{.RestartCount}} {{.State.ExitCode}} {{.State.Status}}",
-                self.service_name,
+                self.container_name,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
