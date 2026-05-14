@@ -597,6 +597,15 @@ class LSICollector:
             self.fitted = True
             logger.info("LSI model fitted. Centroids: %s", list(self.centroids.keys()))
 
+            # Backfill recent_lines from the corpus so the classified stream is populated
+            # immediately after fit rather than waiting for the next live log line.
+            # Classify each line so labels are meaningful (not just a flat "INFO").
+            if not self.recent_lines:
+                t = time.time()
+                for raw in self.corpus[-50:]:
+                    label = self._classify(raw)
+                    self.recent_lines.append({"line": raw[:500], "label": label, "timestamp": t})
+
         except Exception:
             logger.exception("LSI fit failed")
 
@@ -1162,6 +1171,7 @@ class LSICollector:
             "corpus_size": len(self.corpus),
             "current_score": round(current_score, 4),
             "baseline_mean": round(baseline_mean, 4),
+            "baseline_locked": self.baseline_locked,
             "threshold": round(1.5 if baseline_mean <= 0 else config.lsi_score_multiplier * baseline_mean, 4),
             "is_anomalous": self.is_anomalous(),
             "is_error_anomalous": self.is_error_anomalous(),

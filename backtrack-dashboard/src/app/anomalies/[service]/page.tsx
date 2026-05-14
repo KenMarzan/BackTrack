@@ -64,6 +64,7 @@ type LSIData = {
   corpus_size: number;
   current_score: number;
   baseline_mean: number;
+  baseline_locked: boolean;
   threshold: number;
   is_anomalous: boolean;
   is_error_anomalous: boolean;
@@ -928,7 +929,7 @@ function ServiceDiagnosticsPage() {
                       <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
                         <div className="text-[9px] uppercase tracking-wide text-white/30">Baseline Mean</div>
                         <div className="mt-0.5 text-base font-bold text-white/40">
-                          {(lsi && lsi.baseline_mean > 0) ? lsi.baseline_mean.toFixed(4) : <span className="text-[11px] text-white/30">warming up…</span>}
+                          {lsi?.baseline_locked ? lsi.baseline_mean.toFixed(4) : <span className="text-[11px] text-white/30">warming up…</span>}
                         </div>
                       </div>
                       <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
@@ -1566,7 +1567,7 @@ function ServiceDiagnosticsPage() {
           <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
             <div className="text-[11px] uppercase tracking-wide text-white/40">Baseline Mean</div>
             <div className="mt-1 text-2xl font-bold text-white/80">
-              {(lsi && lsi.baseline_mean > 0) ? lsi.baseline_mean.toFixed(4) : <span className="text-sm text-white/30">warming up…</span>}
+              {lsi?.baseline_locked ? lsi.baseline_mean.toFixed(4) : <span className="text-sm text-white/30">warming up…</span>}
             </div>
           </div>
           <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
