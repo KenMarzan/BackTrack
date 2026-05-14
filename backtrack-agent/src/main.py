@@ -60,6 +60,28 @@ service_monitors: dict[str, tuple[TSDCollector, LSICollector]] = {}
 # Maps container_name → app_group_name; populated during discovery and reconfigure
 _container_app_group: dict[str, str] = {}
 
+# Maps compose short name → service_monitors key for Docker fuzzy lookup.
+# Needed because startup uses container names but the dashboard queries with compose names.
+_compose_alias: dict[str, str] = {}
+
+
+def _find_monitors(service: str) -> Optional[tuple[TSDCollector, LSICollector]]:
+    """Look up service monitors by exact name, compose alias, or container-name suffix."""
+    if service in service_monitors:
+        return service_monitors[service]
+    # Check compose-alias table populated during discovery
+    alias_key = _compose_alias.get(service.lower())
+    if alias_key and alias_key in service_monitors:
+        return service_monitors[alias_key]
+    # Fuzzy: container name may be "<project>-<service>-<n>" or "<project>_<service>_<n>"
+    s = service.lower()
+    for name, monitors in service_monitors.items():
+        n = name.lower()
+        if (n.endswith(f"-{s}-1") or n.endswith(f"_{s}_1") or
+                n.endswith(f"-{s}") or n.endswith(f"_{s}")):
+            return monitors
+    return None
+
 version_store: Optional[VersionStore] = None
 rollback_executor: Optional[RollbackExecutor] = None
 _polling_task: Optional[asyncio.Task] = None
@@ -116,11 +138,15 @@ async def _discover_services() -> list[tuple[str, str]]:
             return [(config.target, "")]
         # No explicit target — delegate to app_registry for scoped Docker discovery
         groups = await app_registry.discover()
-        # Populate the app-group mapping for rollback context
+        # Populate the app-group mapping and compose-alias table for rollback context
         _container_app_group.clear()
+        _compose_alias.clear()
         for g in groups:
             for svc in g.services:
                 _container_app_group[svc.container_name] = g.name
+                # Map compose short name → container name for dashboard queries
+                if svc.service_name and svc.service_name != svc.container_name:
+                    _compose_alias[svc.service_name.lower()] = svc.container_name
         services = [(svc.container_name, "") for g in groups for svc in g.services]
         if not services:
             logger.warning(
@@ -180,10 +206,10 @@ async def on_deployment_event(event: DeploymentEvent) -> None:
     clean_seconds_map.pop(event.service, None)
     first_anomaly_at.pop(event.service, None)
 
-    if event.service in service_monitors:
-        tsd, lsi = service_monitors[event.service]
-        tsd.reset()
-        lsi.reset()
+    monitors = _find_monitors(event.service)
+    if monitors:
+        monitors[0].reset()
+        monitors[1].reset()
         logger.info("Reset collectors for %s after deployment event", event.service)
 
 
@@ -449,8 +475,9 @@ async def get_services() -> list[dict]:
 @app.get("/metrics")
 async def get_metrics(service: str = Query(default="")) -> dict:
     svc = service or config.target
-    if svc in service_monitors:
-        return service_monitors[svc][0].get_metrics()
+    monitors = _find_monitors(svc) if svc else None
+    if monitors:
+        return monitors[0].get_metrics()
     if service_monitors:
         return next(iter(service_monitors.values()))[0].get_metrics()
     return {}
@@ -459,8 +486,9 @@ async def get_metrics(service: str = Query(default="")) -> dict:
 @app.get("/lsi")
 async def get_lsi(service: str = Query(default="")) -> dict:
     svc = service or config.target
-    if svc in service_monitors:
-        return service_monitors[svc][1].get_lsi()
+    monitors = _find_monitors(svc) if svc else None
+    if monitors:
+        return monitors[1].get_lsi()
     if service_monitors:
         return next(iter(service_monitors.values()))[1].get_lsi()
     return {}
@@ -549,7 +577,34 @@ async def reconfigure(body: dict) -> dict:
         d.clear()
 
     # Build service list — prefer explicit list from dashboard (one entry per service)
-    if explicit_services:
+    if explicit_services and config.mode == "docker":
+        # Resolve compose short names (e.g. "rabbitmq") to actual Docker container names
+        # (e.g. "myproject-rabbitmq-1"). Without this, docker logs/stats silently fail
+        # because Docker requires the full container name, not the compose service name.
+        groups = await app_registry.discover()
+        _container_app_group.clear()
+        _compose_alias.clear()
+        svc_to_container: dict[str, str] = {}
+        for g in groups:
+            for svc in g.services:
+                _container_app_group[svc.container_name] = g.name
+                svc_to_container[svc.service_name.lower()] = svc.container_name
+                svc_to_container[svc.container_name.lower()] = svc.container_name
+                # After explicit reconfigure, service_monitors is keyed by compose name,
+                # so direct lookup works — no alias needed.
+
+        logger.info("Using %d explicit services from dashboard: %s", len(explicit_services), explicit_services)
+        for svc_name in explicit_services:
+            container = svc_to_container.get(svc_name.lower(), svc_name)
+            tsd = TSDCollector(service_name=svc_name, container_name=container)
+            lsi = LSICollector(service_name=svc_name, container_name=container)
+            await tsd.start()
+            await lsi.start()
+            service_monitors[svc_name] = (tsd, lsi)
+            if container != svc_name:
+                logger.info("Resolved %s → %s for docker operations", svc_name, container)
+        services = []  # already started above
+    elif explicit_services:
         services = [(svc, f"app={svc}") for svc in explicit_services]
         logger.info("Using %d explicit services from dashboard: %s", len(services), explicit_services)
     else:
@@ -557,9 +612,12 @@ async def reconfigure(body: dict) -> dict:
         if config.mode == "docker" and not config.target:
             groups = await app_registry.discover()
             _container_app_group.clear()
+            _compose_alias.clear()
             for g in groups:
                 for svc in g.services:
                     _container_app_group[svc.container_name] = g.name
+                    if svc.service_name and svc.service_name != svc.container_name:
+                        _compose_alias[svc.service_name.lower()] = svc.container_name
         services = await _discover_services()
 
     if config.mode == "kubernetes":

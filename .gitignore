@@ -24,3 +24,11 @@ __pycache__/
 # Node
 node_modules/
 .next/
+
+# Local dev / evaluation artifacts
+test-bench/
+tests/
+backtrack_technical_evaluation.txt
+CLAUDE.md
+.claude/
+backtrack-agent/.claude/

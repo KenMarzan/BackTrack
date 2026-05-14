@@ -132,6 +132,8 @@ export default function AnomaliesPage() {
   const [clusterName, setClusterName] = useState<string>("local");
   const [minReadings, setMinReadings] = useState<number>(12);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null); // null = loading
+  const [monitoredServices, setMonitoredServices] = useState<string[]>([]);
+  const [selectedService, setSelectedService] = useState<string>("");
 
   useEffect(() => {
     fetch("/api/connections")
@@ -151,10 +153,11 @@ export default function AnomaliesPage() {
 
     const poll = async () => {
       try {
+        const svcParam = selectedService ? `&service=${encodeURIComponent(selectedService)}` : "";
         const [healthRes, metricsRes, lsiRes] = await Promise.all([
           fetch("/api/agent?path=health", { cache: "no-store" }),
-          fetch("/api/agent?path=metrics", { cache: "no-store" }),
-          fetch("/api/agent?path=lsi", { cache: "no-store" }),
+          fetch(`/api/agent?path=metrics${svcParam}`, { cache: "no-store" }),
+          fetch(`/api/agent?path=lsi${svcParam}`, { cache: "no-store" }),
         ]);
 
         if (!active) return;
@@ -174,6 +177,11 @@ export default function AnomaliesPage() {
         if (healthRes.ok) {
           const hData = await healthRes.json();
           if (typeof hData.min_readings === "number") setMinReadings(hData.min_readings);
+          if (Array.isArray(hData.monitored_services) && hData.monitored_services.length > 0) {
+            setMonitoredServices(hData.monitored_services);
+            // Auto-select first service if nothing selected yet
+            setSelectedService((prev) => prev || hData.monitored_services[0]);
+          }
         }
         setAgentOnline(healthRes.ok);
       } catch {
@@ -184,7 +192,7 @@ export default function AnomaliesPage() {
     poll();
     const timer = window.setInterval(poll, 5000);
     return () => { active = false; window.clearInterval(timer); };
-  }, []);
+  }, [selectedService]);
 
   // Only show "agent offline" when connections exist but the agent isn't reachable.
   // When nothing is connected yet, show the "connect first" prompt instead.
@@ -252,6 +260,40 @@ export default function AnomaliesPage() {
                 <code className="bt-mono text-[10px] text-[var(--accent-teal)] whitespace-pre-wrap break-all leading-relaxed">
                   cd backtrack-agent{"\n"}pip install -r requirements.txt{"\n"}python3 -m uvicorn src.main:app --port 8847
                 </code>
+              </div>
+            </div>
+          )}
+
+          {/* Service chip strip — controls both TSD and LSI panels */}
+          {hasConnections === true && !agentOffline && monitoredServices.length > 0 && (
+            <div className="bt-panel p-3 flex-shrink-0">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Server size={11} className="text-[var(--accent-teal)]" />
+                <span className="bt-label text-[9px]">Services</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {monitoredServices.map((svc) => {
+                  const isSelected = svc === selectedService;
+                  return (
+                    <button
+                      key={svc}
+                      type="button"
+                      onClick={() => setSelectedService(svc)}
+                      className="bt-mono text-[9px] px-2 py-[3px] rounded-full border transition-all"
+                      style={isSelected ? {
+                        color: "var(--accent-teal)",
+                        borderColor: "rgba(94,234,212,0.5)",
+                        background: "rgba(94,234,212,0.1)",
+                      } : {
+                        color: "var(--text-muted)",
+                        borderColor: "var(--border-soft)",
+                        background: "transparent",
+                      }}
+                    >
+                      {svc}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

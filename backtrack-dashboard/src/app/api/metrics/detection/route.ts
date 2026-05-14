@@ -18,6 +18,9 @@ type AgentLSIPerClass = {
 };
 
 type AgentLSIEval = {
+  // Window-level confusion matrix (primary)
+  tp: number; fp: number; fn: number; tn: number;
+  // SVD per-class (secondary, kept for extended view)
   per_class: Record<string, AgentLSIPerClass>;
   svd_classified_total: number;
 };
@@ -80,17 +83,14 @@ async function fetchAgentMatrix() {
         if (lRes.ok) {
           const l = await lRes.json() as { evaluation?: AgentLSIEval };
           const ev = l.evaluation;
-          if (ev?.per_class) {
-            // Only ERROR class = true anomaly detection signal.
-            // NOVEL = "SVD didn't recognise pattern" which fires on any unseen log line
-            // during normal operation — inflates FP massively on healthy systems.
-            const c = ev.per_class["ERROR"];
-            if (c) {
-              lsiAgg.tp += c.tp;
-              lsiAgg.fp += c.fp;
-              lsiAgg.fn += c.fn;
-              lsiAgg.tn += c.tn;
-            }
+          if (ev) {
+            // Use window-level confusion matrix (TP/FP/FN/TN at 30s window granularity).
+            // Each window: TP = had error lines AND LSI flagged it; FP = no errors but flagged;
+            // FN = had errors but LSI missed; TN = clean window correctly not flagged.
+            lsiAgg.tp += ev.tp ?? 0;
+            lsiAgg.fp += ev.fp ?? 0;
+            lsiAgg.fn += ev.fn ?? 0;
+            lsiAgg.tn += ev.tn ?? 0;
           }
         }
       } catch { /* skip service */ }
