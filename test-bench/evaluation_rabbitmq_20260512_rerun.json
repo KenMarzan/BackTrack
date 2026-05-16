@@ -1,0 +1,108 @@
+{
+  "app": "app-rabbitmq",
+  "method": "rabbitmqctl_eval_rabbit_log_error",
+  "evaluated_at": "2026-05-12T11:52:18.333769+00:00",
+  "lsi_evaluation": {
+    "total_lines_evaluated": 50,
+    "ground_truth_breakdown": {
+      "ERROR_lines_injected": 50,
+      "INFO_lines_baseline": 0
+    },
+    "anomaly_detected": true,
+    "current_score": 5.0,
+    "baseline_mean": 0.0,
+    "threshold": 1.5,
+    "per_class_metrics": {
+      "INFO": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "WARN": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "ERROR": {
+        "TP": 50,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "accuracy": 1.0
+      },
+      "NOVEL": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    "macro_averages": {
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5
+    },
+    "overall_accuracy": 1.0
+  },
+  "tsd_cpu_evaluation": {
+    "cpu_baseline_readings": [
+      0.7,
+      0.35,
+      0.74,
+      1.2,
+      0.52,
+      0.38
+    ],
+    "cpu_baseline_mean": 0.65,
+    "cpu_during_fault": [
+      400.48,
+      401.18,
+      401.97,
+      401.0,
+      400.6,
+      402.29
+    ],
+    "cpu_fault_mean": 401.25,
+    "tsd_detected": true,
+    "detection_cycles": 6
+  },
+  "tsd_memory_evaluation": {
+    "memory_before_mb": 176.0,
+    "memory_after_mb": 179.8,
+    "memory_growth_mb": 3.8,
+    "memory_readings": [
+      176.3,
+      175.8,
+      176.1,
+      176.3,
+      175.8,
+      175.5,
+      177.0,
+      178.2,
+      178.9,
+      179.1,
+      179.5,
+      179.8,
+      180.0,
+      179.8
+    ],
+    "tsd_detected": false
+  }
+}

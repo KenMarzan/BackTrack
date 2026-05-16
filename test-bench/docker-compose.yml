@@ -1,0 +1,138 @@
+# ============================================================
+# BackTrack Test Bench — 10 target apps + BackTrack agent
+# Run: docker compose up -d
+# BackTrack auto-discovers all 10 apps. No config needed.
+#
+# Apps 1-5: custom fault-app (fully controllable, accurate testing)
+# Apps 6-10: real production apps (observe-only, stable baseline)
+# ============================================================
+
+networks:
+  testbench:
+    driver: bridge
+
+services:
+
+  # ── Apps 1-5: Custom fault-injection apps (fully controllable) ──
+  # These have /fault/cpu-spike, /fault/memory-leak, /fault/log-errors
+  # endpoints. Logs go to stdout so LSI captures them. Memory is real RAM.
+
+  app-fault-1:
+    build:
+      context: ./fault-app
+      dockerfile: Dockerfile
+    networks: [testbench]
+    ports: ["8101:5000"]
+    environment:
+      APP_NAME: "fault-app-1"
+    labels:
+      backtrack.app: "app-fault-1"
+
+  app-fault-2:
+    build:
+      context: ./fault-app
+      dockerfile: Dockerfile
+    networks: [testbench]
+    ports: ["8102:5000"]
+    environment:
+      APP_NAME: "fault-app-2"
+    labels:
+      backtrack.app: "app-fault-2"
+
+  app-fault-3:
+    build:
+      context: ./fault-app
+      dockerfile: Dockerfile
+    networks: [testbench]
+    ports: ["8103:5000"]
+    environment:
+      APP_NAME: "fault-app-3"
+    labels:
+      backtrack.app: "app-fault-3"
+
+  app-fault-4:
+    build:
+      context: ./fault-app
+      dockerfile: Dockerfile
+    networks: [testbench]
+    ports: ["8104:5000"]
+    environment:
+      APP_NAME: "fault-app-4"
+    labels:
+      backtrack.app: "app-fault-4"
+
+  app-fault-5:
+    build:
+      context: ./fault-app
+      dockerfile: Dockerfile
+    networks: [testbench]
+    ports: ["8105:5000"]
+    environment:
+      APP_NAME: "fault-app-5"
+    labels:
+      backtrack.app: "app-fault-5"
+
+  # ── Apps 6-10: Real production apps (stable baseline, observe-only) ─
+  # These cannot be fault-injected directly but provide realistic
+  # log diversity and resource profiles for the TSD baseline.
+
+  app-nginx:
+    image: nginx:latest
+    networks: [testbench]
+    ports: ["8106:80"]
+    labels:
+      backtrack.app: "app-nginx"
+
+  app-grafana:
+    image: grafana/grafana:latest
+    networks: [testbench]
+    ports: ["8107:3000"]
+    labels:
+      backtrack.app: "app-grafana"
+
+  app-prometheus:
+    image: prom/prometheus:latest
+    networks: [testbench]
+    ports: ["8108:9090"]
+    labels:
+      backtrack.app: "app-prometheus"
+
+  app-rabbitmq:
+    image: rabbitmq:3-management
+    networks: [testbench]
+    ports: ["8119:15672"]
+    labels:
+      backtrack.app: "app-rabbitmq"
+
+  app-redis:
+    image: redis:7-alpine
+    networks: [testbench]
+    ports: ["8110:6379"]
+    labels:
+      backtrack.app: "app-redis"
+
+  # ── BackTrack Agent ─────────────────────────────────────────────
+  backtrack-agent:
+    build:
+      context: ../backtrack-agent
+      dockerfile: Dockerfile
+    networks: [testbench]
+    ports: ["8848:8847"]
+    environment:
+      BACKTRACK_MODE: docker
+      BACKTRACK_ROLLBACK_ENABLED: "false"
+      BACKTRACK_SCRAPE_INTERVAL: "10"
+      BACKTRACK_STL_MIN_READINGS: "12"
+      BACKTRACK_DEQUE_SIZE: "72"
+      BACKTRACK_DATA_DIR: /data
+      BACKTRACK_APP_LABEL: backtrack.app
+    volumes:
+      - backtrack-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - app-fault-1
+      - app-fault-2
+      - app-nginx
+
+volumes:
+  backtrack-data:

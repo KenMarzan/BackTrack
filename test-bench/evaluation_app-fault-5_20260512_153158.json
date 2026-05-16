@@ -1,0 +1,245 @@
+{
+  "app": "app-fault-5",
+  "evaluated_at": "2026-05-12T07:36:17.108205+00:00",
+  "lsi_evaluation": {
+    "total_lines_evaluated": 50,
+    "ground_truth_breakdown": {
+      "ERROR_lines_injected": 0,
+      "INFO_lines_baseline": 50
+    },
+    "anomaly_detected": false,
+    "current_score": 0.0,
+    "baseline_mean": 0.0,
+    "threshold": 1.5,
+    "per_class_metrics": {
+      "INFO": {
+        "TP": 50,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "accuracy": 1.0
+      },
+      "WARN": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "ERROR": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "NOVEL": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    "macro_averages": {
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5
+    },
+    "overall_accuracy": 1.0,
+    "classified_lines_sample": [
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 06:50:07,182 INFO fault-app: Processed request successfully"
+      }
+    ]
+  },
+  "tsd_cpu_evaluation": {
+    "cpu_baseline_readings": [
+      0.12,
+      0.02,
+      0.02,
+      0.05,
+      0.03,
+      0.02
+    ],
+    "cpu_baseline_mean": 0.04,
+    "cpu_during_fault": [
+      0.02,
+      101.08,
+      101.94,
+      101.36,
+      101.08,
+      101.53
+    ],
+    "cpu_fault_mean": 84.5,
+    "cpu_increase_pct": 84.46,
+    "tsd_detected": true,
+    "detection_cycles": 6,
+    "tsd_eval": {
+      "drift_events_total": 1,
+      "drift_sustained": 11,
+      "drift_spikes": 0,
+      "total_readings": 254,
+      "estimated_precision": 11.0,
+      "per_metric_drifts": {
+        "cpu": 5,
+        "memory": 13,
+        "latency": 0,
+        "error_rate": 0,
+        "restarts": 2
+      },
+      "confusion_matrix": {
+        "TP_sustained": 11,
+        "FP_spikes": 0,
+        "TN_clean_cycles": 253,
+        "note": "FN unknown without fault injection ground truth"
+      }
+      
+    }
+  },
+  "tsd_memory_evaluation": {
+    "memory_before_mb": 21.68,
+    "memory_after_mb": 222.1,
+    "memory_growth_mb": 200.42,
+    "memory_readings": [
+      51.68,
+      111.8,
+      172.0,
+      172.0,
+      222.1,
+      222.1,
+      222.1,
+      222.1
+    ],
+    "tsd_detected": true
+  }
+}

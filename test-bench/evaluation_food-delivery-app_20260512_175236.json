@@ -1,0 +1,103 @@
+{
+  "app": "food-delivery-app",
+  "evaluated_at": "2026-05-12T09:57:37.171383+00:00",
+  "app_type": "production",
+  "lsi_evaluation": {
+    "total_lines_evaluated": 0,
+    "ground_truth_breakdown": {
+      "ERROR_lines_injected": 0,
+      "INFO_lines_baseline": 0
+    },
+    "anomaly_detected": false,
+    "current_score": 0.0,
+    "baseline_mean": 0.0,
+    "threshold": 1.5,
+    "per_class_metrics": {
+      "INFO": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 0.0
+      },
+      "WARN": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 0.0
+      },
+      "ERROR": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 0.0
+      },
+      "NOVEL": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 0.0
+      }
+    },
+    "macro_averages": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "overall_accuracy": 0.0,
+    "classified_lines_sample": []
+  },
+  "tsd_cpu_evaluation": {
+    "cpu_baseline_readings": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "cpu_baseline_mean": 0.0,
+    "cpu_during_fault": [
+      0.0,
+      402.73,
+      400.09,
+      400.22,
+      400.65,
+      400.65
+    ],
+    "cpu_fault_mean": 334.06,
+    "tsd_detected": true,
+    "detection_cycles": 4
+  },
+  "tsd_memory_evaluation": {
+    "memory_before_mb": 16.46,
+    "memory_after_mb": 15.52,
+    "memory_growth_mb": -0.94,
+    "memory_readings": [
+      22.2,
+      22.17,
+      22.17,
+      22.48,
+      15.77,
+      15.65,
+      15.52,
+      15.52
+    ],
+    "tsd_detected": true
+  }
+}

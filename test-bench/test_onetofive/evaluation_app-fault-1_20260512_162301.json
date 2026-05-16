@@ -1,0 +1,244 @@
+{
+  "app": "app-fault-1",
+  "evaluated_at": "2026-05-12T08:28:06.173779+00:00",
+  "lsi_evaluation": {
+    "total_lines_evaluated": 50,
+    "ground_truth_breakdown": {
+      "ERROR_lines_injected": 41,
+      "INFO_lines_baseline": 9
+    },
+    "anomaly_detected": true,
+    "current_score": 4.717,
+    "baseline_mean": 0.0455,
+    "threshold": 0.0909,
+    "per_class_metrics": {
+      "INFO": {
+        "TP": 3,
+        "FP": 0,
+        "FN": 6,
+        "TN": 41,
+        "precision": 1.0,
+        "recall": 0.3333,
+        "f1": 0.5,
+        "accuracy": 0.88
+      },
+      "WARN": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "ERROR": {
+        "TP": 41,
+        "FP": 6,
+        "FN": 0,
+        "TN": 3,
+        "precision": 0.8723,
+        "recall": 1.0,
+        "f1": 0.9318,
+        "accuracy": 0.88
+      },
+      "NOVEL": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    "macro_averages": {
+      "precision": 0.9362,
+      "recall": 0.6666,
+      "f1": 0.7159
+    },
+    "overall_accuracy": 0.88,
+    "classified_lines_sample": [
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 08:23:45,532 INFO fault-app: Active connections: 48"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "ERROR",
+        "correct": false,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:23:42,913 ERROR fault-app: [fault-app-1] Disk I/O error writing to"
+      }
+    ]
+  },
+  "tsd_cpu_evaluation": {
+    "cpu_baseline_readings": [
+      0.01,
+      0.01,
+      0.02,
+      0.01,
+      0.01,
+      0.03
+    ],
+    "cpu_baseline_mean": 0.01,
+    "cpu_during_fault": [
+      101.01,
+      100.97,
+      100.86,
+      100.86,
+      101.07,
+      100.59
+    ],
+    "cpu_fault_mean": 100.89,
+    "cpu_increase_pct": 100.88,
+    "tsd_detected": true,
+    "detection_cycles": 4,
+    "tsd_eval": {
+      "drift_events_total": 1,
+      "drift_sustained": 1,
+      "drift_spikes": 0,
+      "total_readings": 19,
+      "estimated_precision": 1.0,
+      "per_metric_drifts": {
+        "cpu": 3,
+        "memory": 0,
+        "latency": 0,
+        "error_rate": 0,
+        "restarts": 0
+      },
+      "confusion_matrix": {
+        "TP_sustained": 1,
+        "FP_spikes": 0,
+        "TN_clean_cycles": 18,
+        "note": "FN unknown without fault injection ground truth"
+      }
+    }
+  },
+  "tsd_memory_evaluation": {
+    "memory_before_mb": 21.61,
+    "memory_after_mb": 222.1,
+    "memory_growth_mb": 200.49,
+    "memory_readings": [
+      21.61,
+      82.0,
+      141.9,
+      202.1,
+      222.1,
+      222.1,
+      222.1,
+      222.1
+    ],
+    "tsd_detected": true
+  }
+}

@@ -1,0 +1,204 @@
+{
+  "app": "postgres",
+  "evaluated_at": "2026-05-12T10:02:44.335448+00:00",
+  "app_type": "production",
+  "lsi_evaluation": {
+    "total_lines_evaluated": 50,
+    "ground_truth_breakdown": {
+      "ERROR_lines_injected": 25,
+      "INFO_lines_baseline": 25
+    },
+    "anomaly_detected": true,
+    "current_score": 2.451,
+    "baseline_mean": 0.0,
+    "threshold": 1.5,
+    "per_class_metrics": {
+      "INFO": {
+        "TP": 25,
+        "FP": 0,
+        "FN": 0,
+        "TN": 25,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "accuracy": 1.0
+      },
+      "WARN": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "ERROR": {
+        "TP": 25,
+        "FP": 0,
+        "FN": 0,
+        "TN": 25,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "accuracy": 1.0
+      },
+      "NOVEL": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    "macro_averages": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "overall_accuracy": 1.0,
+    "classified_lines_sample": [
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      }
+    ]
+  },
+  "tsd_cpu_evaluation": {
+    "cpu_baseline_readings": [
+      0.01,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "cpu_baseline_mean": 0.0,
+    "cpu_during_fault": [
+      400.71,
+      400.71,
+      400.84,
+      400.78,
+      402.14,
+      400.22
+    ],
+    "cpu_fault_mean": 400.9,
+    "tsd_detected": true,
+    "detection_cycles": 6
+  },
+  "tsd_memory_evaluation": {
+    "memory_before_mb": 41.67,
+    "memory_after_mb": 47.29,
+    "memory_growth_mb": 5.62,
+    "memory_readings": [
+      46.3,
+      46.33,
+      46.33,
+      46.57,
+      46.57,
+      46.66,
+      47.29,
+      47.29
+    ],
+    "tsd_detected": true
+  }
+}

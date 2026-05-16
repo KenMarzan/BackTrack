@@ -1,0 +1,244 @@
+{
+  "app": "app-fault-3",
+  "evaluated_at": "2026-05-12T07:14:45.945778+00:00",
+  "lsi_evaluation": {
+    "total_lines_evaluated": 50,
+    "ground_truth_breakdown": {
+      "ERROR_lines_injected": 42,
+      "INFO_lines_baseline": 8
+    },
+    "anomaly_detected": true,
+    "current_score": 3.6577,
+    "baseline_mean": 0.0,
+    "threshold": 1.5,
+    "per_class_metrics": {
+      "INFO": {
+        "TP": 3,
+        "FP": 0,
+        "FN": 5,
+        "TN": 42,
+        "precision": 1.0,
+        "recall": 0.375,
+        "f1": 0.5455,
+        "accuracy": 0.9
+      },
+      "WARN": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "ERROR": {
+        "TP": 42,
+        "FP": 5,
+        "FN": 0,
+        "TN": 3,
+        "precision": 0.8936,
+        "recall": 1.0,
+        "f1": 0.9438,
+        "accuracy": 0.9
+      },
+      "NOVEL": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    "macro_averages": {
+      "precision": 0.9468,
+      "recall": 0.6875,
+      "f1": 0.7447
+    },
+    "overall_accuracy": 0.9,
+    "classified_lines_sample": [
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 07:11:07,388 INFO fault-app: Active connections: 26"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "ERROR",
+        "correct": false,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "ERROR",
+        "correct": false,
+        "line": "2026-05-12 07:11:04,459 ERROR fault-app: [fault-app-3] Fatal: uncaught exception"
+      }
+    ]
+  },
+  "tsd_cpu_evaluation": {
+    "cpu_baseline_readings": [
+      0.15,
+      0.07,
+      0.02,
+      0.02,
+      0.07,
+      0.02
+    ],
+    "cpu_baseline_mean": 0.06,
+    "cpu_during_fault": [
+      101.07,
+      100.96,
+      100.96,
+      101.68,
+      101.44,
+      101.08
+    ],
+    "cpu_fault_mean": 101.2,
+    "cpu_increase_pct": 101.14,
+    "tsd_detected": true,
+    "detection_cycles": 3,
+    "tsd_eval": {
+      "drift_events_total": 5,
+      "drift_sustained": 6,
+      "drift_spikes": 0,
+      "total_readings": 147,
+      "estimated_precision": 1.2,
+      "per_metric_drifts": {
+        "cpu": 5,
+        "memory": 14,
+        "latency": 0,
+        "error_rate": 0,
+        "restarts": 0
+      },
+      "confusion_matrix": {
+        "TP_sustained": 6,
+        "FP_spikes": 0,
+        "TN_clean_cycles": 142,
+        "note": "FN unknown without fault injection ground truth"
+      }
+    }
+  },
+  "tsd_memory_evaluation": {
+    "memory_before_mb": 22.62,
+    "memory_after_mb": 222.9,
+    "memory_growth_mb": 200.28,
+    "memory_readings": [
+      42.81,
+      102.7,
+      162.8,
+      212.9,
+      212.9,
+      222.9,
+      222.9,
+      222.9
+    ],
+    "tsd_detected": true
+  }
+}

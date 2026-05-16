@@ -1,0 +1,204 @@
+{
+  "app": "mongo",
+  "evaluated_at": "2026-05-12T10:13:06.308363+00:00",
+  "app_type": "production",
+  "lsi_evaluation": {
+    "total_lines_evaluated": 50,
+    "ground_truth_breakdown": {
+      "ERROR_lines_injected": 0,
+      "INFO_lines_baseline": 50
+    },
+    "anomaly_detected": false,
+    "current_score": 0.0,
+    "baseline_mean": 0.0,
+    "threshold": 1.5,
+    "per_class_metrics": {
+      "INFO": {
+        "TP": 50,
+        "FP": 0,
+        "FN": 0,
+        "TN": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "accuracy": 1.0
+      },
+      "WARN": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "ERROR": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "NOVEL": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    "macro_averages": {
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5
+    },
+    "overall_accuracy": 1.0,
+    "classified_lines_sample": [
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      }
+    ]
+  },
+  "tsd_cpu_evaluation": {
+    "cpu_baseline_readings": [
+      0.86,
+      1.09,
+      1.04,
+      1.03,
+      0.97,
+      0.97
+    ],
+    "cpu_baseline_mean": 0.99,
+    "cpu_during_fault": [
+      400.89,
+      400.76,
+      400.98,
+      401.56,
+      401.56,
+      401.27
+    ],
+    "cpu_fault_mean": 401.17,
+    "tsd_detected": true,
+    "detection_cycles": 6
+  },
+  "tsd_memory_evaluation": {
+    "memory_before_mb": 298.3,
+    "memory_after_mb": 304.0,
+    "memory_growth_mb": 5.7,
+    "memory_readings": [
+      298.3,
+      304.0,
+      304.0,
+      304.0,
+      304.3,
+      304.3,
+      304.3,
+      304.0
+    ],
+    "tsd_detected": true
+  }
+}

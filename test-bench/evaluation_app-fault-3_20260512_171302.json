@@ -1,0 +1,244 @@
+{
+  "app": "app-fault-3",
+  "evaluated_at": "2026-05-12T09:18:06.660134+00:00",
+  "lsi_evaluation": {
+    "total_lines_evaluated": 50,
+    "ground_truth_breakdown": {
+      "ERROR_lines_injected": 42,
+      "INFO_lines_baseline": 8
+    },
+    "anomaly_detected": true,
+    "current_score": 4.7143,
+    "baseline_mean": 0.0,
+    "threshold": 1.5,
+    "per_class_metrics": {
+      "INFO": {
+        "TP": 3,
+        "FP": 0,
+        "FN": 5,
+        "TN": 42,
+        "precision": 1.0,
+        "recall": 0.375,
+        "f1": 0.5455,
+        "accuracy": 0.9
+      },
+      "WARN": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "ERROR": {
+        "TP": 42,
+        "FP": 5,
+        "FN": 0,
+        "TN": 3,
+        "precision": 0.8936,
+        "recall": 1.0,
+        "f1": 0.9438,
+        "accuracy": 0.9
+      },
+      "NOVEL": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    "macro_averages": {
+      "precision": 0.9468,
+      "recall": 0.6875,
+      "f1": 0.7447
+    },
+    "overall_accuracy": 0.9,
+    "classified_lines_sample": [
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "ERROR",
+        "correct": false,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "ERROR",
+        "correct": false,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 09:13:57,412 INFO fault-app: GET / 200 OK 1ms"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 09:13:55,138 ERROR fault-app: [fault-app-3] NullPointerException in P"
+      }
+    ]
+  },
+  "tsd_cpu_evaluation": {
+    "cpu_baseline_readings": [
+      0.02,
+      0.02,
+      0.02,
+      0.02,
+      0.09,
+      0.02
+    ],
+    "cpu_baseline_mean": 0.03,
+    "cpu_during_fault": [
+      91.2,
+      101.04,
+      100.79,
+      101.01,
+      100.19,
+      100.19
+    ],
+    "cpu_fault_mean": 99.07,
+    "cpu_increase_pct": 99.04,
+    "tsd_detected": true,
+    "detection_cycles": 4,
+    "tsd_eval": {
+      "drift_events_total": 3,
+      "drift_sustained": 34,
+      "drift_spikes": 0,
+      "total_readings": 103,
+      "estimated_precision": 11.3333,
+      "per_metric_drifts": {
+        "cpu": 5,
+        "memory": 35,
+        "latency": 0,
+        "error_rate": 0,
+        "restarts": 0
+      },
+      "confusion_matrix": {
+        "TP_sustained": 34,
+        "FP_spikes": 0,
+        "TN_clean_cycles": 100,
+        "note": "FN unknown without fault injection ground truth"
+      }
+    }
+  },
+  "tsd_memory_evaluation": {
+    "memory_before_mb": 22.71,
+    "memory_after_mb": 223.2,
+    "memory_growth_mb": 200.49,
+    "memory_readings": [
+      62.82,
+      123.2,
+      123.2,
+      183.1,
+      223.2,
+      223.2,
+      223.2,
+      223.2
+    ],
+    "tsd_detected": true
+  }
+}

@@ -1,0 +1,244 @@
+{
+  "app": "app-fault-2",
+  "evaluated_at": "2026-05-12T08:33:39.883420+00:00",
+  "lsi_evaluation": {
+    "total_lines_evaluated": 50,
+    "ground_truth_breakdown": {
+      "ERROR_lines_injected": 42,
+      "INFO_lines_baseline": 8
+    },
+    "anomaly_detected": true,
+    "current_score": 4.717,
+    "baseline_mean": 0.0,
+    "threshold": 1.5,
+    "per_class_metrics": {
+      "INFO": {
+        "TP": 3,
+        "FP": 0,
+        "FN": 5,
+        "TN": 42,
+        "precision": 1.0,
+        "recall": 0.375,
+        "f1": 0.5455,
+        "accuracy": 0.9
+      },
+      "WARN": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "ERROR": {
+        "TP": 42,
+        "FP": 5,
+        "FN": 0,
+        "TN": 3,
+        "precision": 0.8936,
+        "recall": 1.0,
+        "f1": 0.9438,
+        "accuracy": 0.9
+      },
+      "NOVEL": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    "macro_averages": {
+      "precision": 0.9468,
+      "recall": 0.6875,
+      "f1": 0.7447
+    },
+    "overall_accuracy": 0.9,
+    "classified_lines_sample": [
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "ERROR",
+        "correct": false,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 08:29:15,571 INFO fault-app: Cache hit ratio: 94%%"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "ERROR",
+        "correct": false,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:29:13,331 ERROR fault-app: [fault-app-2] HTTP 500 Internal Server "
+      }
+    ]
+  },
+  "tsd_cpu_evaluation": {
+    "cpu_baseline_readings": [
+      0.01,
+      0.02,
+      0.02,
+      0.02,
+      0.01,
+      0.01
+    ],
+    "cpu_baseline_mean": 0.01,
+    "cpu_during_fault": [
+      101.21,
+      101.02,
+      101.02,
+      100.65,
+      100.53,
+      100.92
+    ],
+    "cpu_fault_mean": 100.89,
+    "cpu_increase_pct": 100.88,
+    "tsd_detected": true,
+    "detection_cycles": 3,
+    "tsd_eval": {
+      "drift_events_total": 2,
+      "drift_sustained": 4,
+      "drift_spikes": 0,
+      "total_readings": 47,
+      "estimated_precision": 2.0,
+      "per_metric_drifts": {
+        "cpu": 3,
+        "memory": 5,
+        "latency": 0,
+        "error_rate": 0,
+        "restarts": 0
+      },
+      "confusion_matrix": {
+        "TP_sustained": 4,
+        "FP_spikes": 0,
+        "TN_clean_cycles": 45,
+        "note": "FN unknown without fault injection ground truth"
+      }
+    }
+  },
+  "tsd_memory_evaluation": {
+    "memory_before_mb": 27.07,
+    "memory_after_mb": 227.5,
+    "memory_growth_mb": 200.43,
+    "memory_readings": [
+      37.03,
+      97.4,
+      157.3,
+      217.5,
+      227.5,
+      227.5,
+      227.5,
+      227.5
+    ],
+    "tsd_detected": true
+  }
+}

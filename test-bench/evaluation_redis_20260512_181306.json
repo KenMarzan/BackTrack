@@ -1,0 +1,204 @@
+{
+  "app": "redis",
+  "evaluated_at": "2026-05-12T10:18:26.451028+00:00",
+  "app_type": "production",
+  "lsi_evaluation": {
+    "total_lines_evaluated": 50,
+    "ground_truth_breakdown": {
+      "ERROR_lines_injected": 3,
+      "INFO_lines_baseline": 47
+    },
+    "anomaly_detected": false,
+    "current_score": 0.0,
+    "baseline_mean": 0.0,
+    "threshold": 1.5,
+    "per_class_metrics": {
+      "INFO": {
+        "TP": 47,
+        "FP": 0,
+        "FN": 0,
+        "TN": 3,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "accuracy": 1.0
+      },
+      "WARN": {
+        "TP": 0,
+        "FP": 1,
+        "FN": 0,
+        "TN": 49,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 0.98
+      },
+      "ERROR": {
+        "TP": 2,
+        "FP": 0,
+        "FN": 1,
+        "TN": 47,
+        "precision": 1.0,
+        "recall": 0.6667,
+        "f1": 0.8,
+        "accuracy": 0.98
+      },
+      "NOVEL": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    "macro_averages": {
+      "precision": 1.0,
+      "recall": 0.8334,
+      "f1": 0.9
+    },
+    "overall_accuracy": 0.98,
+    "classified_lines_sample": [
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "WARN",
+        "correct": false
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true
+      }
+    ]
+  },
+  "tsd_cpu_evaluation": {
+    "cpu_baseline_readings": [
+      0.54,
+      0.61,
+      0.45,
+      0.52,
+      0.35,
+      0.49
+    ],
+    "cpu_baseline_mean": 0.49,
+    "cpu_during_fault": [
+      402.56,
+      404.37,
+      401.59,
+      401.59,
+      401.22,
+      407.15
+    ],
+    "cpu_fault_mean": 403.08,
+    "tsd_detected": true,
+    "detection_cycles": 6
+  },
+  "tsd_memory_evaluation": {
+    "memory_before_mb": 177.4,
+    "memory_after_mb": 183.7,
+    "memory_growth_mb": 6.3,
+    "memory_readings": [
+      177.4,
+      183.4,
+      183.7,
+      183.4,
+      183.4,
+      183.4,
+      183.4,
+      183.7
+    ],
+    "tsd_detected": true
+  }
+}

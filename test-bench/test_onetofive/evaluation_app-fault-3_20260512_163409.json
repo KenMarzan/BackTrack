@@ -1,0 +1,244 @@
+{
+  "app": "app-fault-3",
+  "evaluated_at": "2026-05-12T08:39:13.932198+00:00",
+  "lsi_evaluation": {
+    "total_lines_evaluated": 50,
+    "ground_truth_breakdown": {
+      "ERROR_lines_injected": 42,
+      "INFO_lines_baseline": 8
+    },
+    "anomaly_detected": true,
+    "current_score": 4.717,
+    "baseline_mean": 0.0,
+    "threshold": 1.5,
+    "per_class_metrics": {
+      "INFO": {
+        "TP": 3,
+        "FP": 0,
+        "FN": 5,
+        "TN": 42,
+        "precision": 1.0,
+        "recall": 0.375,
+        "f1": 0.5455,
+        "accuracy": 0.9
+      },
+      "WARN": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "ERROR": {
+        "TP": 42,
+        "FP": 5,
+        "FN": 0,
+        "TN": 3,
+        "precision": 0.8936,
+        "recall": 1.0,
+        "f1": 0.9438,
+        "accuracy": 0.9
+      },
+      "NOVEL": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    "macro_averages": {
+      "precision": 0.9468,
+      "recall": 0.6875,
+      "f1": 0.7447
+    },
+    "overall_accuracy": 0.9,
+    "classified_lines_sample": [
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "ERROR",
+        "correct": false,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 08:34:50,652 INFO fault-app: Worker heartbeat OK"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "ERROR",
+        "correct": false,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:34:47,016 ERROR fault-app: [fault-app-3] Rate limit exceeded: 429 "
+      }
+    ]
+  },
+  "tsd_cpu_evaluation": {
+    "cpu_baseline_readings": [
+      0.02,
+      0.01,
+      0.01,
+      0.01,
+      0.03,
+      0.02
+    ],
+    "cpu_baseline_mean": 0.02,
+    "cpu_during_fault": [
+      101.22,
+      101.22,
+      101.14,
+      100.96,
+      100.77,
+      100.95
+    ],
+    "cpu_fault_mean": 101.04,
+    "cpu_increase_pct": 101.03,
+    "tsd_detected": true,
+    "detection_cycles": 4,
+    "tsd_eval": {
+      "drift_events_total": 2,
+      "drift_sustained": 25,
+      "drift_spikes": 0,
+      "total_readings": 75,
+      "estimated_precision": 12.5,
+      "per_metric_drifts": {
+        "cpu": 3,
+        "memory": 29,
+        "latency": 0,
+        "error_rate": 0,
+        "restarts": 0
+      },
+      "confusion_matrix": {
+        "TP_sustained": 25,
+        "FP_spikes": 0,
+        "TN_clean_cycles": 73,
+        "note": "FN unknown without fault injection ground truth"
+      }
+    }
+  },
+  "tsd_memory_evaluation": {
+    "memory_before_mb": 22.14,
+    "memory_after_mb": 222.5,
+    "memory_growth_mb": 200.36,
+    "memory_readings": [
+      42.12,
+      102.4,
+      162.6,
+      222.8,
+      222.8,
+      222.5,
+      222.5,
+      222.5
+    ],
+    "tsd_detected": true
+  }
+}

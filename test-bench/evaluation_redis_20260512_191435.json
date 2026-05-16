@@ -1,0 +1,102 @@
+{
+  "app": "redis",
+  "method": "lua_redis_log",
+  "evaluated_at": "2026-05-12T11:20:32.898372",
+  "lsi_evaluation": {
+    "total_lines_evaluated": 50,
+    "ground_truth_breakdown": {
+      "ERROR_lines_injected": 17,
+      "INFO_lines_baseline": 33
+    },
+    "anomaly_detected": true,
+    "current_score": 1.6667,
+    "baseline_mean": 0.0,
+    "threshold": 1.5,
+    "per_class_metrics": {
+      "INFO": {
+        "TP": 33,
+        "FP": 0,
+        "FN": 0,
+        "TN": 17,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "accuracy": 1.0
+      },
+      "WARN": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "ERROR": {
+        "TP": 17,
+        "FP": 0,
+        "FN": 0,
+        "TN": 33,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "accuracy": 1.0
+      },
+      "NOVEL": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    "macro_averages": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "overall_accuracy": 1.0
+  },
+  "tsd_cpu_evaluation": {
+    "cpu_baseline_readings": [
+      0.58,
+      0.74,
+      0.75,
+      0.75,
+      0.39,
+      0.67
+    ],
+    "cpu_baseline_mean": 0.65,
+    "cpu_during_fault": [
+      267.28,
+      278.64,
+      262.0,
+      262.0,
+      271.49,
+      268.85
+    ],
+    "cpu_fault_mean": 268.38,
+    "tsd_detected": true,
+    "detection_cycles": 3
+  },
+  "tsd_memory_evaluation": {
+    "memory_before_mb": 187.2,
+    "memory_after_mb": 140.6,
+    "memory_growth_mb": -46.6,
+    "memory_readings": [
+      177.3,
+      177.9,
+      140.9,
+      140.9,
+      140.6,
+      140.6,
+      140.4,
+      140.6
+    ],
+    "tsd_detected": true
+  }
+}

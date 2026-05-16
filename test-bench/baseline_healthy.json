@@ -1,0 +1,1435 @@
+{
+  "collected_at": "2026-05-12T08:31:21.385232+00:00",
+  "agent_url": "http://localhost:8847",
+  "services": {
+    "app-fault-1": {
+      "tsd": {
+        "readings_count": 72,
+        "is_drifting": false,
+        "has_crashed": false,
+        "tsd_confidence": 1.0,
+        "tsd_status": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "z_scores": {
+          "cpu": -0.0169,
+          "memory": 0.0,
+          "latency": 0.0,
+          "error_rate": 0.0
+        },
+        "trend_directions": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "current": {
+          "cpu_percent": 0.02,
+          "memory_mb": 21.61,
+          "latency_ms": 0.0,
+          "error_rate_percent": 100.0
+        },
+        "evaluation": {
+          "drift_events_total": 2,
+          "drift_sustained": 15,
+          "drift_spikes": 0,
+          "total_readings": 42,
+          "estimated_precision": 7.5,
+          "per_metric_drifts": {
+            "cpu": 3,
+            "memory": 16,
+            "latency": 0,
+            "error_rate": 0,
+            "restarts": 0
+          },
+          "confusion_matrix": {
+            "TP_sustained": 15,
+            "FP_spikes": 0,
+            "TN_clean_cycles": 40,
+            "note": "FN unknown without fault injection ground truth"
+          }
+        }
+      },
+      "lsi": {
+        "fitted": true,
+        "corpus_size": 50,
+        "is_anomalous": false,
+        "is_error_anomalous": false,
+        "current_score": 0.0,
+        "baseline_mean": 0.0417,
+        "threshold": 0.0833,
+        "error_score": 0.0,
+        "error_threshold": 0.3,
+        "log_diversity": "LOW",
+        "dominant_themes": [
+          "GENERAL_OPERATIONS",
+          "REQUEST_HANDLING"
+        ],
+        "error_patterns": [],
+        "evaluation": {
+          "confusion_matrix": {
+            "INFO": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "WARN": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "ERROR": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "NOVEL": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            }
+          },
+          "per_class": {
+            "INFO": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "WARN": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "ERROR": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "NOVEL": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            }
+          },
+          "svd_classified_total": 0,
+          "classes": [
+            "INFO",
+            "WARN",
+            "ERROR",
+            "NOVEL"
+          ]
+        }
+      }
+    },
+    "app-fault-2": {
+      "tsd": {
+        "readings_count": 72,
+        "is_drifting": false,
+        "has_crashed": false,
+        "tsd_confidence": 1.0,
+        "tsd_status": {
+          "cpu": "ANOMALY",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "z_scores": {
+          "cpu": 68302448.4554,
+          "memory": 0.0,
+          "latency": 0.0,
+          "error_rate": 0.0
+        },
+        "trend_directions": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "current": {
+          "cpu_percent": 101.21,
+          "memory_mb": 27.09,
+          "latency_ms": 0.0,
+          "error_rate_percent": 100.0
+        },
+        "evaluation": {
+          "drift_events_total": 1,
+          "drift_sustained": 3,
+          "drift_spikes": 0,
+          "total_readings": 43,
+          "estimated_precision": 3.0,
+          "per_metric_drifts": {
+            "cpu": 0,
+            "memory": 5,
+            "latency": 0,
+            "error_rate": 0,
+            "restarts": 0
+          },
+          "confusion_matrix": {
+            "TP_sustained": 3,
+            "FP_spikes": 0,
+            "TN_clean_cycles": 42,
+            "note": "FN unknown without fault injection ground truth"
+          }
+        }
+      },
+      "lsi": {
+        "fitted": true,
+        "corpus_size": 43,
+        "is_anomalous": false,
+        "is_error_anomalous": false,
+        "current_score": 0.0,
+        "baseline_mean": 0.0,
+        "threshold": 1.5,
+        "error_score": 0.0,
+        "error_threshold": 0.3,
+        "log_diversity": "LOW",
+        "dominant_themes": [
+          "PERFORMANCE",
+          "NETWORK_OPERATIONS"
+        ],
+        "error_patterns": [
+          "Connection Refused - Dependency unavailable",
+          "Timeout - Slow response or network issue",
+          "Out of Memory - Resource exhaustion",
+          "Deadlock - Concurrency issue",
+          "HTTP 500 - Internal server error"
+        ],
+        "evaluation": {
+          "confusion_matrix": {
+            "INFO": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "WARN": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "ERROR": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "NOVEL": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            }
+          },
+          "per_class": {
+            "INFO": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "WARN": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "ERROR": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "NOVEL": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            }
+          },
+          "svd_classified_total": 4,
+          "classes": [
+            "INFO",
+            "WARN",
+            "ERROR",
+            "NOVEL"
+          ]
+        }
+      }
+    },
+    "app-fault-3": {
+      "tsd": {
+        "readings_count": 72,
+        "is_drifting": false,
+        "has_crashed": false,
+        "tsd_confidence": 1.0,
+        "tsd_status": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "z_scores": {
+          "cpu": -0.0,
+          "memory": 0.0,
+          "latency": 0.0,
+          "error_rate": 0.0
+        },
+        "trend_directions": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "current": {
+          "cpu_percent": 0.02,
+          "memory_mb": 21.8,
+          "latency_ms": 0.0,
+          "error_rate_percent": 100.0
+        },
+        "evaluation": {
+          "drift_events_total": 1,
+          "drift_sustained": 23,
+          "drift_spikes": 0,
+          "total_readings": 43,
+          "estimated_precision": 23.0,
+          "per_metric_drifts": {
+            "cpu": 0,
+            "memory": 25,
+            "latency": 0,
+            "error_rate": 0,
+            "restarts": 0
+          },
+          "confusion_matrix": {
+            "TP_sustained": 23,
+            "FP_spikes": 0,
+            "TN_clean_cycles": 42,
+            "note": "FN unknown without fault injection ground truth"
+          }
+        }
+      },
+      "lsi": {
+        "fitted": true,
+        "corpus_size": 50,
+        "is_anomalous": false,
+        "is_error_anomalous": false,
+        "current_score": 0.0,
+        "baseline_mean": 0.0,
+        "threshold": 1.5,
+        "error_score": 0.0,
+        "error_threshold": 0.3,
+        "log_diversity": "LOW",
+        "dominant_themes": [
+          "GENERAL_OPERATIONS",
+          "GENERAL_OPERATIONS"
+        ],
+        "error_patterns": [],
+        "evaluation": {
+          "confusion_matrix": {
+            "INFO": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "WARN": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "ERROR": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "NOVEL": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            }
+          },
+          "per_class": {
+            "INFO": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "WARN": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "ERROR": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "NOVEL": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            }
+          },
+          "svd_classified_total": 0,
+          "classes": [
+            "INFO",
+            "WARN",
+            "ERROR",
+            "NOVEL"
+          ]
+        }
+      }
+    },
+    "app-fault-4": {
+      "tsd": {
+        "readings_count": 72,
+        "is_drifting": false,
+        "has_crashed": false,
+        "tsd_confidence": 1.0,
+        "tsd_status": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "z_scores": {
+          "cpu": -0.0,
+          "memory": 0.0,
+          "latency": 0.0,
+          "error_rate": 0.0
+        },
+        "trend_directions": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "current": {
+          "cpu_percent": 0.01,
+          "memory_mb": 21.35,
+          "latency_ms": 0.0,
+          "error_rate_percent": 100.0
+        },
+        "evaluation": {
+          "drift_events_total": 1,
+          "drift_sustained": 33,
+          "drift_spikes": 0,
+          "total_readings": 43,
+          "estimated_precision": 33.0,
+          "per_metric_drifts": {
+            "cpu": 0,
+            "memory": 35,
+            "latency": 0,
+            "error_rate": 0,
+            "restarts": 0
+          },
+          "confusion_matrix": {
+            "TP_sustained": 33,
+            "FP_spikes": 0,
+            "TN_clean_cycles": 42,
+            "note": "FN unknown without fault injection ground truth"
+          }
+        }
+      },
+      "lsi": {
+        "fitted": true,
+        "corpus_size": 50,
+        "is_anomalous": false,
+        "is_error_anomalous": false,
+        "current_score": 0.0,
+        "baseline_mean": 0.0,
+        "threshold": 1.5,
+        "error_score": 0.0,
+        "error_threshold": 0.3,
+        "log_diversity": "LOW",
+        "dominant_themes": [
+          "GENERAL_OPERATIONS",
+          "GENERAL_OPERATIONS"
+        ],
+        "error_patterns": [],
+        "evaluation": {
+          "confusion_matrix": {
+            "INFO": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "WARN": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "ERROR": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "NOVEL": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            }
+          },
+          "per_class": {
+            "INFO": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "WARN": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "ERROR": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "NOVEL": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            }
+          },
+          "svd_classified_total": 4,
+          "classes": [
+            "INFO",
+            "WARN",
+            "ERROR",
+            "NOVEL"
+          ]
+        }
+      }
+    },
+    "app-fault-5": {
+      "tsd": {
+        "readings_count": 72,
+        "is_drifting": false,
+        "has_crashed": false,
+        "tsd_confidence": 1.0,
+        "tsd_status": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "z_scores": {
+          "cpu": 0.0,
+          "memory": 0.0,
+          "latency": 0.0,
+          "error_rate": 0.0
+        },
+        "trend_directions": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "current": {
+          "cpu_percent": 0.02,
+          "memory_mb": 21.59,
+          "latency_ms": 0.0,
+          "error_rate_percent": 100.0
+        },
+        "evaluation": {
+          "drift_events_total": 1,
+          "drift_sustained": 32,
+          "drift_spikes": 0,
+          "total_readings": 43,
+          "estimated_precision": 32.0,
+          "per_metric_drifts": {
+            "cpu": 0,
+            "memory": 34,
+            "latency": 0,
+            "error_rate": 0,
+            "restarts": 0
+          },
+          "confusion_matrix": {
+            "TP_sustained": 32,
+            "FP_spikes": 0,
+            "TN_clean_cycles": 42,
+            "note": "FN unknown without fault injection ground truth"
+          }
+        }
+      },
+      "lsi": {
+        "fitted": true,
+        "corpus_size": 50,
+        "is_anomalous": false,
+        "is_error_anomalous": false,
+        "current_score": 0.0,
+        "baseline_mean": 0.0,
+        "threshold": 1.5,
+        "error_score": 0.0,
+        "error_threshold": 0.3,
+        "log_diversity": "LOW",
+        "dominant_themes": [
+          "PERFORMANCE",
+          "REQUEST_HANDLING"
+        ],
+        "error_patterns": [],
+        "evaluation": {
+          "confusion_matrix": {
+            "INFO": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "WARN": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "ERROR": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "NOVEL": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            }
+          },
+          "per_class": {
+            "INFO": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "WARN": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "ERROR": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "NOVEL": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            }
+          },
+          "svd_classified_total": 8,
+          "classes": [
+            "INFO",
+            "WARN",
+            "ERROR",
+            "NOVEL"
+          ]
+        }
+      }
+    },
+    "app-nginx": {
+      "tsd": {
+        "readings_count": 72,
+        "is_drifting": false,
+        "has_crashed": false,
+        "tsd_confidence": 1.0,
+        "tsd_status": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "z_scores": {
+          "cpu": 0.0,
+          "memory": 0.0,
+          "latency": 0.0,
+          "error_rate": 0.0
+        },
+        "trend_directions": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "current": {
+          "cpu_percent": 0.0,
+          "memory_mb": 19.55,
+          "latency_ms": 1.67,
+          "error_rate_percent": 0.0
+        },
+        "evaluation": {
+          "drift_events_total": 1,
+          "drift_sustained": 20,
+          "drift_spikes": 0,
+          "total_readings": 43,
+          "estimated_precision": 20.0,
+          "per_metric_drifts": {
+            "cpu": 0,
+            "memory": 22,
+            "latency": 0,
+            "error_rate": 0,
+            "restarts": 0
+          },
+          "confusion_matrix": {
+            "TP_sustained": 20,
+            "FP_spikes": 0,
+            "TN_clean_cycles": 42,
+            "note": "FN unknown without fault injection ground truth"
+          }
+        }
+      },
+      "lsi": {
+        "fitted": true,
+        "corpus_size": 49,
+        "is_anomalous": false,
+        "is_error_anomalous": false,
+        "current_score": 0.0,
+        "baseline_mean": 0.0,
+        "threshold": 1.5,
+        "error_score": 0.0,
+        "error_threshold": 0.3,
+        "log_diversity": "LOW",
+        "dominant_themes": [
+          "GENERAL_OPERATIONS",
+          "GENERAL_OPERATIONS"
+        ],
+        "error_patterns": [],
+        "evaluation": {
+          "confusion_matrix": {
+            "INFO": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "WARN": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "ERROR": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "NOVEL": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            }
+          },
+          "per_class": {
+            "INFO": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "WARN": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "ERROR": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "NOVEL": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            }
+          },
+          "svd_classified_total": 514,
+          "classes": [
+            "INFO",
+            "WARN",
+            "ERROR",
+            "NOVEL"
+          ]
+        }
+      }
+    },
+    "app-grafana": {
+      "tsd": {
+        "readings_count": 72,
+        "is_drifting": false,
+        "has_crashed": false,
+        "tsd_confidence": 1.0,
+        "tsd_status": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "z_scores": {
+          "cpu": -0.0,
+          "memory": 0.0,
+          "latency": 0.0,
+          "error_rate": 0.0
+        },
+        "trend_directions": {
+          "cpu": "STABLE",
+          "memory": "INCREASING",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "current": {
+          "cpu_percent": 0.46,
+          "memory_mb": 348.9,
+          "latency_ms": 0.0,
+          "error_rate_percent": 100.0
+        },
+        "evaluation": {
+          "drift_events_total": 1,
+          "drift_sustained": 33,
+          "drift_spikes": 0,
+          "total_readings": 43,
+          "estimated_precision": 33.0,
+          "per_metric_drifts": {
+            "cpu": 0,
+            "memory": 35,
+            "latency": 0,
+            "error_rate": 0,
+            "restarts": 0
+          },
+          "confusion_matrix": {
+            "TP_sustained": 33,
+            "FP_spikes": 0,
+            "TN_clean_cycles": 42,
+            "note": "FN unknown without fault injection ground truth"
+          }
+        }
+      },
+      "lsi": {
+        "fitted": true,
+        "corpus_size": 200,
+        "is_anomalous": false,
+        "is_error_anomalous": false,
+        "current_score": 0.0,
+        "baseline_mean": 0.0,
+        "threshold": 1.5,
+        "error_score": 0.0,
+        "error_threshold": 0.3,
+        "log_diversity": "LOW",
+        "dominant_themes": [
+          "GENERAL_OPERATIONS",
+          "GENERAL_OPERATIONS"
+        ],
+        "error_patterns": [
+          "Permission Denied - Authorization issue",
+          "HTTP 503 - Service unavailable"
+        ],
+        "evaluation": {
+          "confusion_matrix": {
+            "INFO": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "WARN": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "ERROR": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "NOVEL": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            }
+          },
+          "per_class": {
+            "INFO": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "WARN": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "ERROR": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "NOVEL": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            }
+          },
+          "svd_classified_total": 510,
+          "classes": [
+            "INFO",
+            "WARN",
+            "ERROR",
+            "NOVEL"
+          ]
+        }
+      }
+    },
+    "app-prometheus": {
+      "tsd": {
+        "readings_count": 72,
+        "is_drifting": false,
+        "has_crashed": false,
+        "tsd_confidence": 1.0,
+        "tsd_status": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "z_scores": {
+          "cpu": -0.0,
+          "memory": -0.0,
+          "latency": 0.0,
+          "error_rate": 0.0
+        },
+        "trend_directions": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "current": {
+          "cpu_percent": 0.0,
+          "memory_mb": 52.74,
+          "latency_ms": 0.0,
+          "error_rate_percent": 100.0
+        },
+        "evaluation": {
+          "drift_events_total": 1,
+          "drift_sustained": 34,
+          "drift_spikes": 0,
+          "total_readings": 43,
+          "estimated_precision": 34.0,
+          "per_metric_drifts": {
+            "cpu": 0,
+            "memory": 36,
+            "latency": 0,
+            "error_rate": 0,
+            "restarts": 0
+          },
+          "confusion_matrix": {
+            "TP_sustained": 34,
+            "FP_spikes": 0,
+            "TN_clean_cycles": 42,
+            "note": "FN unknown without fault injection ground truth"
+          }
+        }
+      },
+      "lsi": {
+        "fitted": true,
+        "corpus_size": 21,
+        "is_anomalous": false,
+        "is_error_anomalous": false,
+        "current_score": 0.0,
+        "baseline_mean": 0.0,
+        "threshold": 1.5,
+        "error_score": 0.0,
+        "error_threshold": 0.3,
+        "log_diversity": "INSUFFICIENT",
+        "dominant_themes": [
+          "GENERAL_OPERATIONS",
+          "GENERAL_OPERATIONS"
+        ],
+        "error_patterns": [],
+        "evaluation": {
+          "confusion_matrix": {
+            "INFO": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "WARN": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "ERROR": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "NOVEL": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            }
+          },
+          "per_class": {
+            "INFO": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "WARN": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "ERROR": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "NOVEL": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            }
+          },
+          "svd_classified_total": 44,
+          "classes": [
+            "INFO",
+            "WARN",
+            "ERROR",
+            "NOVEL"
+          ]
+        }
+      }
+    },
+    "app-rabbitmq": {
+      "tsd": {
+        "readings_count": 72,
+        "is_drifting": false,
+        "has_crashed": false,
+        "tsd_confidence": 1.0,
+        "tsd_status": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "z_scores": {
+          "cpu": 0.0013,
+          "memory": 0.0,
+          "latency": 0.0,
+          "error_rate": 0.0
+        },
+        "trend_directions": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "current": {
+          "cpu_percent": 0.11,
+          "memory_mb": 185.5,
+          "latency_ms": 0.0,
+          "error_rate_percent": 100.0
+        },
+        "evaluation": {
+          "drift_events_total": 1,
+          "drift_sustained": 34,
+          "drift_spikes": 0,
+          "total_readings": 43,
+          "estimated_precision": 34.0,
+          "per_metric_drifts": {
+            "cpu": 1,
+            "memory": 36,
+            "latency": 0,
+            "error_rate": 0,
+            "restarts": 0
+          },
+          "confusion_matrix": {
+            "TP_sustained": 34,
+            "FP_spikes": 0,
+            "TN_clean_cycles": 42,
+            "note": "FN unknown without fault injection ground truth"
+          }
+        }
+      },
+      "lsi": {
+        "fitted": true,
+        "corpus_size": 200,
+        "is_anomalous": false,
+        "is_error_anomalous": false,
+        "current_score": 0.0,
+        "baseline_mean": 0.0,
+        "threshold": 1.5,
+        "error_score": 0.0,
+        "error_threshold": 0.3,
+        "log_diversity": "INSUFFICIENT",
+        "dominant_themes": [
+          "GENERAL_OPERATIONS",
+          "GENERAL_OPERATIONS"
+        ],
+        "error_patterns": [],
+        "evaluation": {
+          "confusion_matrix": {
+            "INFO": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "WARN": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "ERROR": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "NOVEL": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            }
+          },
+          "per_class": {
+            "INFO": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "WARN": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "ERROR": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "NOVEL": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            }
+          },
+          "svd_classified_total": 354,
+          "classes": [
+            "INFO",
+            "WARN",
+            "ERROR",
+            "NOVEL"
+          ]
+        }
+      }
+    },
+    "app-redis": {
+      "tsd": {
+        "readings_count": 72,
+        "is_drifting": false,
+        "has_crashed": false,
+        "tsd_confidence": 1.0,
+        "tsd_status": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "z_scores": {
+          "cpu": -0.0,
+          "memory": 0.0,
+          "latency": 0.0,
+          "error_rate": 0.0
+        },
+        "trend_directions": {
+          "cpu": "STABLE",
+          "memory": "STABLE",
+          "latency": "STABLE",
+          "error_rate": "STABLE"
+        },
+        "current": {
+          "cpu_percent": 0.41,
+          "memory_mb": 9.24,
+          "latency_ms": 0.0,
+          "error_rate_percent": 100.0
+        },
+        "evaluation": {
+          "drift_events_total": 1,
+          "drift_sustained": 18,
+          "drift_spikes": 0,
+          "total_readings": 43,
+          "estimated_precision": 18.0,
+          "per_metric_drifts": {
+            "cpu": 0,
+            "memory": 20,
+            "latency": 0,
+            "error_rate": 0,
+            "restarts": 0
+          },
+          "confusion_matrix": {
+            "TP_sustained": 18,
+            "FP_spikes": 0,
+            "TN_clean_cycles": 42,
+            "note": "FN unknown without fault injection ground truth"
+          }
+        }
+      },
+      "lsi": {
+        "fitted": true,
+        "corpus_size": 14,
+        "is_anomalous": false,
+        "is_error_anomalous": false,
+        "current_score": 0.0,
+        "baseline_mean": 0.0,
+        "threshold": 1.5,
+        "error_score": 0.0,
+        "error_threshold": 0.3,
+        "log_diversity": "INSUFFICIENT",
+        "dominant_themes": [
+          "DATABASE_OPERATIONS",
+          "GENERAL_OPERATIONS"
+        ],
+        "error_patterns": [],
+        "evaluation": {
+          "confusion_matrix": {
+            "INFO": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "WARN": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "ERROR": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            },
+            "NOVEL": {
+              "INFO": 0,
+              "WARN": 0,
+              "ERROR": 0,
+              "NOVEL": 0
+            }
+          },
+          "per_class": {
+            "INFO": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "WARN": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "ERROR": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            },
+            "NOVEL": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0
+            }
+          },
+          "svd_classified_total": 0,
+          "classes": [
+            "INFO",
+            "WARN",
+            "ERROR",
+            "NOVEL"
+          ]
+        }
+      }
+    }
+  }
+}

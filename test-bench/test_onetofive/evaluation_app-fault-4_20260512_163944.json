@@ -1,0 +1,244 @@
+{
+  "app": "app-fault-4",
+  "evaluated_at": "2026-05-12T08:44:47.711827+00:00",
+  "lsi_evaluation": {
+    "total_lines_evaluated": 50,
+    "ground_truth_breakdown": {
+      "ERROR_lines_injected": 44,
+      "INFO_lines_baseline": 6
+    },
+    "anomaly_detected": true,
+    "current_score": 4.717,
+    "baseline_mean": 0.0,
+    "threshold": 1.5,
+    "per_class_metrics": {
+      "INFO": {
+        "TP": 2,
+        "FP": 0,
+        "FN": 4,
+        "TN": 44,
+        "precision": 1.0,
+        "recall": 0.3333,
+        "f1": 0.5,
+        "accuracy": 0.92
+      },
+      "WARN": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      },
+      "ERROR": {
+        "TP": 44,
+        "FP": 4,
+        "FN": 0,
+        "TN": 2,
+        "precision": 0.9167,
+        "recall": 1.0,
+        "f1": 0.9565,
+        "accuracy": 0.92
+      },
+      "NOVEL": {
+        "TP": 0,
+        "FP": 0,
+        "FN": 0,
+        "TN": 50,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    "macro_averages": {
+      "precision": 0.9584,
+      "recall": 0.6666,
+      "f1": 0.7283
+    },
+    "overall_accuracy": 0.92,
+    "classified_lines_sample": [
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "INFO",
+        "predicted": "INFO",
+        "correct": true,
+        "line": "2026-05-12 08:40:25,731 INFO fault-app: Cache hit ratio: 94%%"
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      },
+      {
+        "ground_truth": "ERROR",
+        "predicted": "ERROR",
+        "correct": true,
+        "line": "2026-05-12 08:40:20,775 ERROR fault-app: [fault-app-4] Out of memory: failed to "
+      }
+    ]
+  },
+  "tsd_cpu_evaluation": {
+    "cpu_baseline_readings": [
+      0.15,
+      0.15,
+      0.01,
+      0.01,
+      0.01,
+      0.01
+    ],
+    "cpu_baseline_mean": 0.06,
+    "cpu_during_fault": [
+      0.02,
+      100.77,
+      100.7,
+      100.99,
+      101.47,
+      101.47
+    ],
+    "cpu_fault_mean": 84.24,
+    "cpu_increase_pct": 84.18,
+    "tsd_detected": true,
+    "detection_cycles": 3,
+    "tsd_eval": {
+      "drift_events_total": 3,
+      "drift_sustained": 54,
+      "drift_spikes": 0,
+      "total_readings": 102,
+      "estimated_precision": 18.0,
+      "per_metric_drifts": {
+        "cpu": 3,
+        "memory": 58,
+        "latency": 0,
+        "error_rate": 0,
+        "restarts": 0
+      },
+      "confusion_matrix": {
+        "TP_sustained": 54,
+        "FP_spikes": 0,
+        "TN_clean_cycles": 99,
+        "note": "FN unknown without fault injection ground truth"
+      }
+    }
+  },
+  "tsd_memory_evaluation": {
+    "memory_before_mb": 22.1,
+    "memory_after_mb": 222.5,
+    "memory_growth_mb": 200.4,
+    "memory_readings": [
+      62.18,
+      62.18,
+      132.3,
+      192.5,
+      222.5,
+      222.5,
+      222.5,
+      222.5
+    ],
+    "tsd_detected": true
+  }
+}
