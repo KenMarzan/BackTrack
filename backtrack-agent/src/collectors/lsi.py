@@ -320,34 +320,37 @@ class LSICollector:
         except Exception:
             logger.warning("Docker log snapshot failed for %s", self.container_name)
 
-        # Step 2: follow live log stream for ongoing anomaly detection
-        proc = None
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "docker", "logs", "--follow", "--tail", "0",
-                self.container_name,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-            )
-            assert proc.stdout is not None
-            while self._running:
-                try:
-                    raw_line = await asyncio.wait_for(proc.stdout.readline(), timeout=30)
-                    if not raw_line:
-                        break
-                    line = raw_line.decode("utf-8", errors="replace").strip()
-                    if line:
-                        await self._enqueue(line)
-                except asyncio.TimeoutError:
-                    continue  # quiet service — keep waiting
-        except Exception:
-            logger.exception("Docker log tailing failed for %s", self.container_name)
-        finally:
-            if proc and proc.returncode is None:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
+        # Step 2: follow live log stream with retry — reconnects after container restart/EOF
+        while self._running:
+            proc = None
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "docker", "logs", "--follow", "--tail", "0",
+                    self.container_name,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
+                )
+                assert proc.stdout is not None
+                while self._running:
+                    try:
+                        raw_line = await asyncio.wait_for(proc.stdout.readline(), timeout=30)
+                        if not raw_line:
+                            break  # EOF — container restarted or stopped; retry below
+                        line = raw_line.decode("utf-8", errors="replace").strip()
+                        if line:
+                            await self._enqueue(line)
+                    except asyncio.TimeoutError:
+                        continue  # quiet service — keep waiting
+            except Exception:
+                logger.warning("Docker log tailing failed for %s — retrying in 3s", self.container_name)
+            finally:
+                if proc and proc.returncode is None:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+            if self._running:
+                await asyncio.sleep(3)  # brief delay before reconnect
 
     async def _resolve_pod_name(self) -> Optional[str]:
         """Find a pod whose name contains the service name. More robust than label selectors."""

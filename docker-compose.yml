@@ -22,15 +22,12 @@ services:
       # Telegram: create a bot via @BotFather and get the chat/channel ID
       - BACKTRACK_TELEGRAM_TOKEN=${BACKTRACK_TELEGRAM_TOKEN:-}
       - BACKTRACK_TELEGRAM_CHAT_ID=${BACKTRACK_TELEGRAM_CHAT_ID:-}
-      # Email via Resend (recommended, free tier: 3 000 emails/month — resend.com)
-      - BACKTRACK_RESEND_API_KEY=${BACKTRACK_RESEND_API_KEY:-}
-      - BACKTRACK_RESEND_FROM=${BACKTRACK_RESEND_FROM:-BackTrack <onboarding@resend.dev>}
-      # Email via SMTP — pre-configured out of the box, override with your own if needed
-      - BACKTRACK_SMTP_HOST=${BACKTRACK_SMTP_HOST:-smtp.gmail.com}
+      # Email via SMTP (Gmail: host=smtp.gmail.com port=587, use App Password)
+      - BACKTRACK_SMTP_HOST=${BACKTRACK_SMTP_HOST:-}
       - BACKTRACK_SMTP_PORT=${BACKTRACK_SMTP_PORT:-587}
-      - BACKTRACK_SMTP_USER=${BACKTRACK_SMTP_USER:-marzanken232@gmail.com}
-      - BACKTRACK_SMTP_PASS=${BACKTRACK_SMTP_PASS:-eazb hsmi xnme wmyh}
-      - BACKTRACK_SMTP_FROM=${BACKTRACK_SMTP_FROM:-marzanken232@gmail.com}
+      - BACKTRACK_SMTP_USER=${BACKTRACK_SMTP_USER:-}
+      - BACKTRACK_SMTP_PASS=${BACKTRACK_SMTP_PASS:-}
+      - BACKTRACK_SMTP_FROM=${BACKTRACK_SMTP_FROM:-}
       - BACKTRACK_SMTP_TO=${BACKTRACK_SMTP_TO:-}
       # ── Security ─────────────────────────────────────────────────────────────
       - BACKTRACK_API_SECRET=${BACKTRACK_API_SECRET:-}
