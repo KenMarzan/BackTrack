@@ -61,6 +61,8 @@ export type DashboardService = {
   memoryMiB: number;
   requestRate: number;
   ports: string[];
+  netRxMB?: number;
+  netTxMB?: number;
 };
 
 export type CICDCommit = {

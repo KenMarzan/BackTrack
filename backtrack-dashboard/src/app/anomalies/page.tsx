@@ -540,8 +540,8 @@ export default function AnomaliesPage() {
                   {/* Dominant themes */}
                   {lsi.dominant_themes && lsi.dominant_themes.length > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      {lsi.dominant_themes.map((theme) => (
-                        <span key={theme} className="text-[8px] px-1.5 py-[2px] rounded border bt-mono"
+                      {lsi.dominant_themes.map((theme, i) => (
+                        <span key={`${theme}-${i}`} className="text-[8px] px-1.5 py-[2px] rounded border bt-mono"
                           style={{ color: "var(--accent-violet)", borderColor: "rgba(139,92,246,0.3)", background: "rgba(139,92,246,0.08)" }}>
                           {theme.replace(/_/g, " ")}
                         </span>

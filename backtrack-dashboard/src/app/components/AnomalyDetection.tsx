@@ -186,8 +186,179 @@ function RollbackConfirmModal({
   return createPortal(modal, document.body);
 }
 
+function AnomalyRow({
+  anomaly,
+  onRollback,
+  large = false,
+  stopProp = false,
+}: {
+  anomaly: DashboardAnomaly;
+  onRollback?: () => void;
+  large?: boolean;
+  stopProp?: boolean;
+}) {
+  const sev = (anomaly.severity as Severity) in SEV ? (anomaly.severity as Severity) : "warning";
+  const t = SEV[sev];
+  const href = `/anomalies/${encodeURIComponent(anomaly.service)}?namespace=${encodeURIComponent(anomaly.namespace)}&severity=${encodeURIComponent(anomaly.severity)}&metric=${encodeURIComponent(anomaly.metric)}&current=${encodeURIComponent(anomaly.current)}&baseline=${encodeURIComponent(anomaly.baseline)}&message=${encodeURIComponent(anomaly.message)}&platform=${encodeURIComponent(anomaly.platform ?? "kubernetes")}`;
+
+  return (
+    <Link
+      href={href}
+      className="bt-anomaly-row block"
+      style={{ border: `1px solid ${t.border}`, background: t.bg, padding: large ? "16px 18px" : undefined }}
+      onClick={stopProp ? (e) => e.stopPropagation() : undefined}
+    >
+      <div className="absolute left-0 top-3 bottom-3 w-[2px] rounded-r-full" style={{ background: t.bar }} />
+
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <span style={{ color: t.text }}>{t.icon}</span>
+          <span className={`font-medium leading-none truncate ${large ? "text-[15px]" : "text-[13px]"}`} style={{ color: t.text }}>
+            {anomaly.service}
+          </span>
+          <span className={t.chip}>{anomaly.severity}</span>
+          {anomaly.autoRollback && (
+            <span
+              className="bt-mono inline-flex items-center gap-1 shrink-0"
+              style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.08em", color: "#fcd34d", padding: "2px 7px", borderRadius: 5, border: "1px solid rgba(251,191,36,0.30)", background: "rgba(251,191,36,0.06)" }}
+            >
+              <Zap size={10} />auto-rollback
+            </span>
+          )}
+        </div>
+        {anomaly.detectedAt && (
+          <span className="text-[10px] text-[var(--text-muted)] bt-mono shrink-0">{relativeTime(anomaly.detectedAt)}</span>
+        )}
+      </div>
+
+      <p className={`text-[var(--text-secondary)] leading-[1.55] mb-3 ${large ? "text-[13px]" : "text-[11.5px]"}`}>
+        {anomaly.message}
+      </p>
+
+      <div className="h-px mb-2.5" style={{ background: t.border }} />
+
+      <div className="flex items-end gap-2">
+        <div className="grid grid-cols-3 gap-2 flex-1">
+          {[
+            { label: "Metric",   value: anomaly.metric },
+            { label: "Baseline", value: anomaly.baseline },
+            { label: "Current",  value: anomaly.current },
+          ].map(({ label, value }) => (
+            <div key={label}>
+              <p className={`text-[var(--text-muted)] mb-0.5 ${large ? "text-[11px]" : "text-[10px]"}`}>{label}</p>
+              <p className={`font-medium bt-mono ${large ? "text-[13px]" : "text-[11.5px]"}`} style={{ color: t.text }}>{value}</p>
+            </div>
+          ))}
+        </div>
+        {onRollback && (
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRollback(); }}
+            className="shrink-0 flex items-center gap-1.5"
+            style={{ padding: large ? "5px 14px" : "3px 10px", borderRadius: 6, border: "1px solid rgba(251,191,36,0.35)", background: "rgba(251,191,36,0.07)", color: "#fcd34d", fontSize: large ? 12 : 11, cursor: "pointer" }}
+          >
+            <RotateCcw size={10} />Rollback now
+          </button>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+function AnomalyDetectionModal({
+  anomalies,
+  onClose,
+  onRollback,
+  onPendingRollback,
+}: {
+  anomalies: DashboardAnomaly[];
+  onClose: () => void;
+  onRollback?: (a: DashboardAnomaly) => void;
+  onPendingRollback: (a: DashboardAnomaly) => void;
+}) {
+  const mounted = useRef(false);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    mounted.current = true;
+    setReady(true);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => { mounted.current = false; window.removeEventListener("keydown", onKey); };
+  }, [onClose]);
+
+  const critical = anomalies.filter((a) => a.severity === "critical").length;
+  const high     = anomalies.filter((a) => a.severity === "high").length;
+  const warning  = anomalies.filter((a) => a.severity === "warning").length;
+
+  const modal = (
+    <div
+      className="fixed inset-0 z-[9990] flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-[1100px] max-h-[92vh] flex flex-col rounded-[20px] border shadow-2xl"
+        style={{ background: "rgba(11,16,26,0.98)", borderColor: "rgba(251,113,133,0.22)", boxShadow: "0 24px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(251,113,133,0.06)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 p-8 flex-shrink-0">
+          <div>
+            <div className="flex items-center gap-3">
+              <TriangleAlert size={22} className="text-[var(--accent-rose)]" />
+              <span className="text-[22px] font-semibold text-[var(--text-primary)] leading-none">Anomaly Detection</span>
+            </div>
+            <p className="text-[13px] text-[var(--text-muted)] mt-2 ml-[33px]">BackTrack Analysis · {anomalies.length} active anomal{anomalies.length === 1 ? "y" : "ies"}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <SeverityCount label="Critical" count={critical} sev="critical" />
+            <SeverityCount label="High"     count={high}     sev="high" />
+            <SeverityCount label="Medium"   count={warning}  sev="warning" />
+            <button
+              type="button"
+              onClick={onClose}
+              className="ml-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+
+        <div className="bt-card-divider flex-shrink-0 mx-8" />
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto min-h-0 p-8 pt-5 space-y-4 scrollbar-hide">
+          {anomalies.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.05)] px-4 py-10">
+              <ShieldCheck size={28} className="text-[var(--accent-green)]" />
+              <div className="text-center">
+                <p className="text-[14px] text-[var(--accent-green)] font-medium">All systems nominal</p>
+                <p className="text-[12px] text-[var(--text-muted)] mt-1">No active anomalies detected</p>
+              </div>
+            </div>
+          ) : (
+            anomalies.map((anomaly) => (
+              <AnomalyRow
+                key={anomaly.id}
+                anomaly={anomaly}
+                onRollback={onRollback ? () => onPendingRollback(anomaly) : undefined}
+                large={true}
+                stopProp={false}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!ready) return null;
+  return createPortal(modal, document.body);
+}
+
 function AnomalyDetection({ anomalies, onAnomalyRollback }: { anomalies: DashboardAnomaly[]; onAnomalyRollback?: (anomaly: DashboardAnomaly) => void }) {
   const [pendingRollback, setPendingRollback] = useState<DashboardAnomaly | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const critical = anomalies.filter((a) => a.severity === "critical").length;
   const high     = anomalies.filter((a) => a.severity === "high").length;
@@ -205,7 +376,18 @@ function AnomalyDetection({ anomalies, onAnomalyRollback }: { anomalies: Dashboa
         onCancel={() => setPendingRollback(null)}
       />
     )}
-    <div className="bt-panel h-full flex flex-col overflow-hidden p-5">
+    {modalOpen && (
+      <AnomalyDetectionModal
+        anomalies={anomalies}
+        onClose={() => setModalOpen(false)}
+        onRollback={onAnomalyRollback}
+        onPendingRollback={(a) => { setModalOpen(false); setPendingRollback(a); }}
+      />
+    )}
+    <div
+      className="bt-panel h-full flex flex-col overflow-hidden p-5 cursor-pointer"
+      onClick={() => setModalOpen(true)}
+    >
 
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-3 mb-4 flex-shrink-0">
@@ -239,110 +421,14 @@ function AnomalyDetection({ anomalies, onAnomalyRollback }: { anomalies: Dashboa
             </div>
           </div>
         ) : (
-          anomalies.map((anomaly) => {
-            const sev = (anomaly.severity as Severity) in SEV ? (anomaly.severity as Severity) : "warning";
-            const t = SEV[sev];
-
-            const href = `/anomalies/${encodeURIComponent(anomaly.service)}?namespace=${encodeURIComponent(anomaly.namespace)}&severity=${encodeURIComponent(anomaly.severity)}&metric=${encodeURIComponent(anomaly.metric)}&current=${encodeURIComponent(anomaly.current)}&baseline=${encodeURIComponent(anomaly.baseline)}&message=${encodeURIComponent(anomaly.message)}&platform=${encodeURIComponent(anomaly.platform ?? "kubernetes")}`;
-
-            return (
-              <Link
-                key={anomaly.id}
-                href={href}
-                className="bt-anomaly-row block"
-                style={{ border: `1px solid ${t.border}`, background: t.bg }}
-              >
-                {/* Left severity bar */}
-                <div
-                  className="absolute left-0 top-3 bottom-3 w-[2px] rounded-r-full"
-                  style={{ background: t.bar }}
-                />
-
-                {/* Service + chip + timestamp */}
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span style={{ color: t.text }}>{t.icon}</span>
-                    <span
-                      className="text-[13px] font-medium leading-none truncate"
-                      style={{ color: t.text }}
-                    >
-                      {anomaly.service}
-                    </span>
-                    <span className={t.chip}>{anomaly.severity}</span>
-                    {anomaly.autoRollback && (
-                      <span
-                        className="bt-mono inline-flex items-center gap-1 shrink-0"
-                        style={{
-                          fontSize: 9.5,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.08em",
-                          color: "#fcd34d",
-                          padding: "2px 7px",
-                          borderRadius: 5,
-                          border: "1px solid rgba(251,191,36,0.30)",
-                          background: "rgba(251,191,36,0.06)",
-                        }}
-                      >
-                        <Zap size={10} />auto-rollback
-                      </span>
-                    )}
-                  </div>
-                  {anomaly.detectedAt && (
-                    <span className="text-[10px] text-[var(--text-muted)] bt-mono shrink-0">
-                      {relativeTime(anomaly.detectedAt)}
-                    </span>
-                  )}
-                </div>
-
-                {/* Message */}
-                <p className="text-[11.5px] text-[var(--text-secondary)] leading-[1.55] mb-3">
-                  {anomaly.message}
-                </p>
-
-                {/* Horizontal rule */}
-                <div className="h-px mb-2.5" style={{ background: t.border }} />
-
-                {/* Metric / Baseline / Current columns */}
-                <div className="flex items-end gap-2">
-                  <div className="grid grid-cols-3 gap-2 flex-1">
-                    {[
-                      { label: "Metric",   value: anomaly.metric },
-                      { label: "Baseline", value: anomaly.baseline },
-                      { label: "Current",  value: anomaly.current },
-                    ].map(({ label, value }) => (
-                      <div key={label}>
-                        <p className="text-[10px] text-[var(--text-muted)] mb-0.5">{label}</p>
-                        <p
-                          className="text-[11.5px] font-medium bt-mono"
-                          style={{ color: t.text }}
-                        >
-                          {value}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                  {onAnomalyRollback && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.preventDefault(); setPendingRollback(anomaly); }}
-                      className="shrink-0 flex items-center gap-1.5"
-                      style={{
-                        padding: "3px 10px",
-                        borderRadius: 6,
-                        border: "1px solid rgba(251,191,36,0.35)",
-                        background: "rgba(251,191,36,0.07)",
-                        color: "#fcd34d",
-                        fontSize: 11,
-                        cursor: "pointer",
-                      }}
-                    >
-                      <RotateCcw size={10} />Rollback now
-                    </button>
-                  )}
-                </div>
-              </Link>
-            );
-          })
+          anomalies.map((anomaly) => (
+            <AnomalyRow
+              key={anomaly.id}
+              anomaly={anomaly}
+              onRollback={onAnomalyRollback ? () => setPendingRollback(anomaly) : undefined}
+              stopProp={true}
+            />
+          ))
         )}
       </div>
     </div>

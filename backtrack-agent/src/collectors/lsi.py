@@ -73,6 +73,12 @@ class LSICollector:
         self.error_baseline_scores: list[float] = []
         self.error_baseline_locked = False
 
+        # Raw error count per window — detects count spikes in high-baseline services
+        # (ratio-only detection fails when the service already logs many errors normally)
+        self.error_count_history: collections.deque[int] = collections.deque(maxlen=500)
+        self.error_count_baseline: list[int] = []
+        self.error_count_baseline_locked = False
+
         # Re-fit counter — triggers vocabulary refresh every N windows
         self._windows_since_fit: int = 0
 
@@ -136,6 +142,9 @@ class LSICollector:
                 "error_baseline_locked": self.error_baseline_locked,
                 "score_history": list(self.score_history)[-50:],
                 "error_score_history": list(self.error_score_history)[-50:],
+                "error_count_baseline": list(self.error_count_baseline),
+                "error_count_baseline_locked": self.error_count_baseline_locked,
+                "error_count_history": list(self.error_count_history)[-50:],
             }
             tmp = path + ".tmp"
             with open(tmp, "w") as f:
@@ -159,10 +168,14 @@ class LSICollector:
             self.baseline_locked = bool(data.get("baseline_locked", False))
             self.error_baseline_scores = data.get("error_baseline_scores") or []
             self.error_baseline_locked = bool(data.get("error_baseline_locked", False))
+            self.error_count_baseline = [int(v) for v in (data.get("error_count_baseline") or [])]
+            self.error_count_baseline_locked = bool(data.get("error_count_baseline_locked", False))
             for v in (data.get("score_history") or []):
                 self.score_history.append(float(v))
             for v in (data.get("error_score_history") or []):
                 self.error_score_history.append(float(v))
+            for v in (data.get("error_count_history") or []):
+                self.error_count_history.append(int(v))
             if len(self.corpus) >= 2:
                 self._fit()
             logger.info(
@@ -224,6 +237,9 @@ class LSICollector:
         self.error_score_history.clear()
         self.error_baseline_scores = []
         self.error_baseline_locked = False
+        self.error_count_history.clear()
+        self.error_count_baseline = []
+        self.error_count_baseline_locked = False
         self.window_counts = {"INFO": 0, "WARN": 0, "ERROR": 0, "NOVEL": 0}
         self.window_total = 0
         self.window_start = time.time()
@@ -804,6 +820,19 @@ class LSICollector:
         error_score = (error_count * 3 / self.window_total) if self.window_total > 0 else 0.0
         self.error_score_history.append(error_score)
 
+        # Raw error count — used by count-spike detector in is_error_anomalous()
+        self.error_count_history.append(error_count)
+        if not self.error_count_baseline_locked and len(self.error_count_history) >= ERROR_BASELINE_WINDOWS:
+            self.error_count_baseline = list(self.error_count_history)[:ERROR_BASELINE_WINDOWS]
+            self.error_count_baseline_locked = True
+        elif self.error_count_baseline_locked:
+            # Update with non-spiking windows only (reuse ratio threshold for consistency)
+            ebm = float(np.mean(self.error_baseline_scores)) if self.error_baseline_scores else 0.0
+            ratio_thresh = 0.3 if ebm <= 0 else config.lsi_score_multiplier * ebm
+            if error_score <= ratio_thresh:
+                self.error_count_baseline.append(error_count)
+                self.error_count_baseline = self.error_count_baseline[-ERROR_BASELINE_WINDOWS:]
+
         # Lock baseline after first BASELINE_WINDOWS windows
         if not self.baseline_locked and len(self.score_history) >= BASELINE_WINDOWS:
             # score_history is a deque — convert to list before slicing
@@ -1066,7 +1095,7 @@ class LSICollector:
         return current_score > config.lsi_score_multiplier * baseline_mean
 
     def is_error_anomalous(self) -> bool:
-        """True only when the ERROR-only window score exceeds baseline.
+        """True only when the ERROR-only window score or count exceeds baseline.
 
         WARN and NOVEL lines are informational — they do not trigger rollback.
 
@@ -1077,6 +1106,8 @@ class LSICollector:
           2. Post-baseline relative threshold: current > lsi_score_multiplier × mean.
           3. Clean-baseline floor: when baseline mean is 0 (pure-INFO service),
              a floor of 0.3 is used so ~10 ERROR lines per 100 avoid false negatives.
+          4. Count spike: error count far above baseline count — catches injection into
+             high-volume services where ratio barely moves (e.g. >50% above p75 + 3×IQR).
         """
         if not self.error_score_history:
             return False
@@ -1090,8 +1121,27 @@ class LSICollector:
         # Post-baseline: relative check with floor for zero-error baselines
         baseline_mean = float(np.mean(self.error_baseline_scores))
         if baseline_mean <= 0:
-            return current > 0.3
-        return current > config.lsi_score_multiplier * baseline_mean
+            ratio_detected = current > 0.3
+        else:
+            ratio_detected = current > config.lsi_score_multiplier * baseline_mean
+
+        if ratio_detected:
+            return True
+
+        # Count spike: detect absolute error-count surges that ratio misses in
+        # high-volume services (many normal log lines dilute the ratio).
+        if self.error_count_baseline_locked and len(self.error_count_history) >= 1:
+            count_baseline = list(self.error_count_baseline)
+            if len(count_baseline) >= 2:
+                count_mean = float(np.mean(count_baseline))
+                count_q3 = float(np.percentile(count_baseline, 75))
+                count_iqr = max(float(np.percentile(count_baseline, 75)) - float(np.percentile(count_baseline, 25)), 1.0)
+                # Tukey outer fence: Q3 + 3×IQR, floored at 50% above mean
+                count_threshold = max(count_q3 + 3.0 * count_iqr, count_mean * 1.5 + 5)
+                if int(self.error_count_history[-1]) > count_threshold:
+                    return True
+
+        return False
 
     def get_evaluation(self) -> dict:
         """Return window-level detection quality metrics plus SVD-vs-keyword per-class data.

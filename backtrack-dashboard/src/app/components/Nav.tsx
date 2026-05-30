@@ -1,10 +1,11 @@
 "use client";
-import { BellRing, Boxes, CircuitBoard, Cloud, Info, Menu, Plug, Settings2, Trash2, X } from "lucide-react";
+import { BellRing, Boxes, Check, Cloud, Copy, Info, Menu, Plug, Settings2, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import CustomSelect from "./CustomSelect";
 import NotificationsModal from "./NotificationsModal";
+import LogFlowAnimation from "./LogFlowAnimation";
 
 type ConnectionForm = {
   appName: string;
@@ -23,6 +24,31 @@ type ConnectionForm = {
 type NavProps = {
   healthSummary?: { total: number; up: number; down: number };
 };
+
+function CopyCommand({ cmd }: { cmd: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(cmd).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <div className="relative group">
+      <code className="block bt-mono text-[11px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2 pr-8">
+        {cmd}
+      </code>
+      <button
+        type="button"
+        onClick={copy}
+        title="Copy"
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--accent-teal)] transition-colors"
+      >
+        {copied ? <Check size={13} className="text-[var(--accent-teal)]" /> : <Copy size={13} />}
+      </button>
+    </div>
+  );
+}
 
 function Nav({ healthSummary }: NavProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -206,8 +232,8 @@ function Nav({ healthSummary }: NavProps) {
         <div className="px-4 sm:px-6 lg:px-8 xl:px-10 py-3.5 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           {/* Brand — left column */}
           <div className="flex items-center gap-3 min-w-0">
-            <div className="relative h-9 w-9 rounded-xl border border-[var(--border-mid)] bg-gradient-to-br from-[rgba(94,234,212,0.12)] to-[rgba(167,139,250,0.10)] flex items-center justify-center">
-              <CircuitBoard size={16} className="text-[var(--accent-teal)]" />
+            <div className="relative h-10 w-10 flex items-center justify-center">
+              <img src="/backtrack-logo.png" alt="BackTrack" className="h-10 w-10 object-contain" />
               <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-[var(--accent-teal)] shadow-[0_0_10px_rgba(94,234,212,0.65)]" />
             </div>
             <div className="flex flex-col min-w-0">
@@ -334,6 +360,18 @@ function Nav({ healthSummary }: NavProps) {
       {isOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4 py-6">
           <div className="relative w-full max-w-[760px] max-h-[92vh] overflow-y-auto rounded-2xl border border-[var(--border-mid)] bg-[#0b1018] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.6)] scrollbar-hide">
+            {/* Full overlay while submitting */}
+            {isSubmitting && (
+              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 rounded-2xl bg-[#0b1018]/95 backdrop-blur-sm">
+                <LogFlowAnimation width={360} height={126} />
+                <p className="text-[13px] font-mono text-white/50">
+                  {lastAction === "test" ? "Testing connection…" : "Connecting and discovering services…"}
+                </p>
+                <p className="text-[11px] text-white/25 max-w-xs text-center">
+                  {lastAction === "test" ? "Probing Docker socket and verifying credentials." : "Discovering services and registering collectors."}
+                </p>
+              </div>
+            )}
             {/* Decorative header band */}
             <div className="relative h-20 bt-grid border-b border-[var(--border-soft)] overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-r from-[rgba(94,234,212,0.10)] via-transparent to-[rgba(167,139,250,0.12)]" />
@@ -611,38 +649,35 @@ function Nav({ healthSummary }: NavProps) {
 
                 {isDocker ? (
                   <div className="rounded-xl border border-[var(--border-soft)] bg-[rgba(148,163,184,0.03)] p-4 space-y-4">
-                    {/* Single container */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Boxes size={13} className="text-[var(--accent-teal)]" />
-                        <h3 className="text-[12px] font-semibold text-white">Single container</h3>
+                    {/* Single container — shown only for monolith */}
+                    {form.architecture === "monolith" && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Boxes size={13} className="text-[var(--accent-teal)]" />
+                          <h3 className="text-[12px] font-semibold text-white">Single container</h3>
+                        </div>
+                        <p className="text-[11px] text-[var(--text-muted)] mb-2">Find your container name and enter it in <strong>Application name</strong> above.</p>
+                        <CopyCommand cmd={`docker ps --format "{{.Names}}"`} />
                       </div>
-                      <p className="text-[11px] text-[var(--text-muted)] mb-2">Find your container name and enter it in <strong>Application name</strong> above.</p>
-                      <code className="block bt-mono text-[11px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2">
-                        docker ps --format &quot;&#123;&#123;.Names&#125;&#125;&quot;
-                      </code>
-                    </div>
+                    )}
 
-                    {/* Divider */}
-                    <div className="border-t border-[var(--border-soft)]" />
-
-                    {/* Microservices — Docker Compose */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Boxes size={13} className="text-[var(--accent-violet)]" />
-                        <h3 className="text-[12px] font-semibold text-white">Microservices (Docker Compose)</h3>
+                    {/* Microservices — shown only for microservices */}
+                    {form.architecture === "microservices" && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Boxes size={13} className="text-[var(--accent-violet)]" />
+                          <h3 className="text-[12px] font-semibold text-white">Microservices (Docker Compose)</h3>
+                        </div>
+                        <p className="text-[11px] text-[var(--text-muted)] mb-2">
+                          Enter your <strong>Compose project name</strong> — BackTrack will discover and monitor all services in that project at once.
+                        </p>
+                        <p className="text-[10.5px] text-[var(--text-muted)] mb-1.5">Find your Compose project name:</p>
+                        <CopyCommand cmd={`docker ps --format "{{.Names}}\\t{{.Label \\"com.docker.compose.project\\"}}"`} />
+                        <p className="text-[10.5px] text-[var(--text-muted)] mt-2">
+                          The value in the second column is your project name. Enter it above with <strong>Architecture → Microservices</strong>.
+                        </p>
                       </div>
-                      <p className="text-[11px] text-[var(--text-muted)] mb-2">
-                        Enter your <strong>Compose project name</strong> — BackTrack will discover and monitor all services in that project at once.
-                      </p>
-                      <p className="text-[10.5px] text-[var(--text-muted)] mb-1.5">Find your Compose project name:</p>
-                      <code className="block bt-mono text-[11px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2 mb-2">
-                        docker ps --format &quot;&#123;&#123;.Names&#125;&#125;\t&#123;&#123;.Label \&quot;com.docker.compose.project\&quot;&#125;&#125;&quot;
-                      </code>
-                      <p className="text-[10.5px] text-[var(--text-muted)]">
-                        The value in the second column is your project name. Enter it above with <strong>Architecture → Microservices</strong>.
-                      </p>
-                    </div>
+                    )}
 
                     <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/[0.05] px-3 py-2">
                       <p className="text-[11px] text-cyan-300 font-medium mb-0.5">What happens after Connect</p>

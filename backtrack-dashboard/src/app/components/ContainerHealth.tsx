@@ -15,6 +15,7 @@ type ServiceSnapshot = {
   cpuCores: number;
   memoryMiB: number;
   requestRate: number;
+  netMB: number;
 };
 
 type TrendSnapshot = {
@@ -27,7 +28,7 @@ const TAB_META: Record<TrendView, { label: string; icon: React.ReactNode; color:
   cpu:      { label: "CPU",      icon: <Cpu size={13} />,    color: "#7CFC00", key: "cpu",     yAxisLabel: "CPU Cores" },
   memory:   { label: "Memory",   icon: <HardDrive size={13} />, color: "#38BDF8", key: "memory", yAxisLabel: "MiB" },
   request:  { label: "Request",  icon: <TrendingUp size={13} />, color: "#A855F7", key: "request", yAxisLabel: "Req/s" },
-  network:  { label: "Network",  icon: <Wifi size={13} />,   color: "#2563EB", key: "network", yAxisLabel: "Trend" },
+  network:  { label: "Network",  icon: <Wifi size={13} />,   color: "#2563EB", key: "network", yAxisLabel: "MB" },
 };
 
 function ContainerHealth({ services }: { services: DashboardService[] }) {
@@ -52,7 +53,8 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
             snap.id === s.id &&
             snap.cpuCores === s.cpuCores &&
             snap.memoryMiB === s.memoryMiB &&
-            snap.requestRate === s.requestRate
+            snap.requestRate === s.requestRate &&
+            snap.netMB === (s.netRxMB ?? 0) + (s.netTxMB ?? 0)
           );
         });
       if (unchanged) return prev;
@@ -64,6 +66,7 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
           services: services.map((s) => ({
             id: s.id, name: s.name,
             cpuCores: s.cpuCores, memoryMiB: s.memoryMiB, requestRate: s.requestRate,
+            netMB: (s.netRxMB ?? 0) + (s.netTxMB ?? 0),
           })),
         },
       ].slice(-20);
@@ -91,7 +94,8 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
       const cpu     = selectedServiceId === "all" ? snapshot.services.reduce((a, s) => a + s.cpuCores, 0)    : sel?.cpuCores ?? 0;
       const memory  = selectedServiceId === "all" ? snapshot.services.reduce((a, s) => a + s.memoryMiB, 0)   : sel?.memoryMiB ?? 0;
       const request = selectedServiceId === "all" ? snapshot.services.reduce((a, s) => a + s.requestRate, 0) : sel?.requestRate ?? 0;
-      return { at: snapshot.at, cpu, memory, request, network: request };
+      const network = selectedServiceId === "all" ? snapshot.services.reduce((a, s) => a + s.netMB, 0) : sel?.netMB ?? 0;
+      return { at: snapshot.at, cpu, memory, request, network };
     });
   }, [history, selectedServiceId]);
 
@@ -132,13 +136,22 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
   const totalMemory = services.reduce((a, s) => a + s.memoryMiB, 0);
   const totalRate   = services.reduce((a, s) => a + s.requestRate, 0);
   const running     = services.filter((s) => s.status === "running").length;
+  const totalNetRx  = services.reduce((a, s) => a + (s.netRxMB ?? 0), 0);
+  const totalNetTx  = services.reduce((a, s) => a + (s.netTxMB ?? 0), 0);
+  const hasNetIO    = services.some((s) => (s.netRxMB ?? 0) > 0 || (s.netTxMB ?? 0) > 0);
+
+  const fmtNet = (mb: number) => {
+    if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
+    if (mb >= 1)    return `${mb.toFixed(0)} MB`;
+    return `${(mb * 1024).toFixed(0)} kB`;
+  };
 
   const handleServiceClick = (svc: { name: string; namespace: string; platform?: string }) => {
     router.push(`/anomalies/${encodeURIComponent(svc.name)}?namespace=${encodeURIComponent(svc.namespace)}&severity=warning&metric=cpu&current=—&baseline=—&message=Inspecting+service&platform=${encodeURIComponent(svc.platform ?? "kubernetes")}`);
   };
 
   return (
-    <div className="bt-panel h-full flex flex-col p-5" style={{ overflow: "visible" }}>
+    <div className="bt-panel h-full flex flex-col p-5" style={{ overflow: "visible", position: "relative", zIndex: 10 }}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-shrink-0 mb-4 relative z-10">
         <div className="flex items-center gap-2">
@@ -201,7 +214,7 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
       </div>
 
       {/* Stats row */}
-      <div className="mt-3 grid grid-cols-4 gap-2 flex-shrink-0">
+      <div className={`mt-3 grid gap-2 flex-shrink-0 ${hasNetIO ? "grid-cols-5" : "grid-cols-4"}`}>
         {[
           { icon: <Cpu size={12} />, label: "CPU", value: totalCpu.toFixed(3), unit: "cores" },
           { icon: <HardDrive size={12} />, label: "MEM", value: totalMemory.toFixed(1), unit: "MiB" },
@@ -214,6 +227,16 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
             <span className="text-[9px] uppercase tracking-widest text-[var(--text-muted)]">{stat.unit}</span>
           </div>
         ))}
+        {hasNetIO && (
+          <div className="bt-tile flex flex-col items-center justify-center py-2 gap-0.5">
+            <span className="text-[var(--accent-teal)]"><Wifi size={12} /></span>
+            <span className="bt-mono text-[11px] font-semibold text-[var(--text-primary)] text-center leading-tight">
+              <span className="text-[var(--accent-teal)]">↓</span>{fmtNet(totalNetRx)}<br />
+              <span className="text-violet-400">↑</span>{fmtNet(totalNetTx)}
+            </span>
+            <span className="text-[9px] uppercase tracking-widest text-[var(--text-muted)]">net i/o</span>
+          </div>
+        )}
       </div>
 
       {/* Clickable service list */}

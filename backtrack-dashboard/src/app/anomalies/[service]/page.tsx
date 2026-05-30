@@ -24,6 +24,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import AnomalyModal from "./AnomalyModal";
 import { useLongPress } from "./useLongPress";
+import LogFlowAnimation from "@/app/components/LogFlowAnimation";
 
 const AnomalyTerminal = dynamic(() => import("../KubernetesTerminal"), { ssr: false });
 
@@ -229,6 +230,8 @@ function SparkLine({
   lineColor,
   id,
   height = 88,
+  showAxes = false,
+  scrapeIntervalSecs = 10,
 }: {
   values: number[];
   threshold?: number;
@@ -237,9 +240,12 @@ function SparkLine({
   id: string;
   height?: number;
   unit?: string;
+  showAxes?: boolean;
+  scrapeIntervalSecs?: number;
 }) {
-  const W = 400; const H = height;
-  const P = { t: 8, b: 8, l: 4, r: 4 };
+  const W = showAxes ? 500 : 400;
+  const H = height;
+  const P = showAxes ? { t: 14, b: 26, l: 48, r: 10 } : { t: 8, b: 8, l: 4, r: 4 };
   const iW = W - P.l - P.r; const iH = H - P.t - P.b;
 
   if (values.length < 1) {
@@ -276,6 +282,32 @@ function SparkLine({
   const lastPt = pts.at(-1)!;
   const gradId = `spk-${id}`;
 
+  // Axis ticks (only when showAxes=true)
+  // When all values are constant (range ≈ 0), expand the tick range by ±10% so labels are meaningful
+  const Y_TICKS = 4;
+  const tickMin = range < 0.01 ? vMin * 0.9 - 0.1 : vMin;
+  const tickMax = range < 0.01 ? vMax * 1.1 + 0.1 : vMax;
+  const tickRange = tickMax - tickMin;
+  const yTicks = showAxes ? Array.from({ length: Y_TICKS + 1 }, (_, i) => {
+    const v = tickMin + (tickRange * i) / Y_TICKS;
+    const y = toY(v);
+    const label = Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : v >= 10 ? v.toFixed(0) : v.toFixed(2);
+    return { v, y, label };
+  }) : [];
+
+  const X_TICKS = 5;
+  const now = Date.now();
+  const xTicks = showAxes ? Array.from({ length: X_TICKS }, (_, i) => {
+    const idx = Math.round((i / (X_TICKS - 1)) * (values.length - 1));
+    const x = toX(idx);
+    const tsMs = now - (values.length - 1 - idx) * scrapeIntervalSecs * 1000;
+    const d = new Date(tsMs);
+    const hh = d.getHours().toString().padStart(2, "0");
+    const mm = d.getMinutes().toString().padStart(2, "0");
+    const ss = d.getSeconds().toString().padStart(2, "0");
+    return { x, label: `${hh}:${mm}:${ss}` };
+  }) : [];
+
   return (
     <div className="rounded-xl border border-white/5 bg-[#0b101a] overflow-hidden" style={{ height }}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
@@ -285,6 +317,15 @@ function SparkLine({
             <stop offset="100%" stopColor={lineColor} stopOpacity="0.02" />
           </linearGradient>
         </defs>
+
+        {/* Grid lines */}
+        {showAxes && yTicks.map((tick, i) => (
+          <line key={`yg${i}`} x1={P.l} y1={tick.y} x2={W - P.r} y2={tick.y} stroke="rgba(255,255,255,0.07)" strokeWidth="0.8" />
+        ))}
+        {showAxes && xTicks.map((tick, i) => (
+          <line key={`xg${i}`} x1={tick.x} y1={P.t} x2={tick.x} y2={H - P.b} stroke="rgba(255,255,255,0.07)" strokeWidth="0.8" />
+        ))}
+
         {thY !== null && (
           <>
             <rect x={P.l} y={thY} width={iW} height={Math.max(0, H - P.b - thY)} fill="rgba(239,68,68,0.04)" />
@@ -297,6 +338,28 @@ function SparkLine({
         <path d={areaPath} fill={`url(#${gradId})`} />
         <path d={linePath} fill="none" stroke={lineColor} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         <circle cx={lastPt.x} cy={lastPt.y} r="2.5" fill={lineColor} />
+
+        {/* Axis borders */}
+        {showAxes && <>
+          <line x1={P.l} y1={P.t} x2={P.l} y2={H - P.b} stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" />
+          <line x1={P.l} y1={H - P.b} x2={W - P.r} y2={H - P.b} stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" />
+        </>}
+
+        {/* Y-axis labels */}
+        {showAxes && yTicks.map((tick, i) => (
+          <text key={`yl${i}`} x={P.l - 5} y={tick.y + 3.5}
+            textAnchor="end" fontSize="9" fontFamily="'IBM Plex Mono',monospace" fill="rgba(255,255,255,0.35)">
+            {tick.label}
+          </text>
+        ))}
+
+        {/* X-axis labels */}
+        {showAxes && xTicks.map((tick, i) => (
+          <text key={`xl${i}`} x={tick.x} y={H - P.b + 15}
+            textAnchor="middle" fontSize="8" fontFamily="'IBM Plex Mono',monospace" fill="rgba(255,255,255,0.35)">
+            {tick.label}
+          </text>
+        ))}
       </svg>
     </div>
   );
@@ -310,15 +373,20 @@ function ResidualSparkline({
   lineColor,
   id,
   height = 88,
+  showAxes = false,
+  scrapeIntervalSecs = 10,
 }: {
   values: number[];
   threshold: number;
   lineColor: string;
   id: string;
   height?: number;
+  showAxes?: boolean;
+  scrapeIntervalSecs?: number;
 }) {
-  const W = 400; const H = height;
-  const P = { t: 8, b: 8, l: 4, r: 4 };
+  const W = showAxes ? 500 : 400;
+  const H = height;
+  const P = showAxes ? { t: 14, b: 26, l: 52, r: 10 } : { t: 8, b: 8, l: 4, r: 4 };
   const iW = W - P.l - P.r; const iH = H - P.t - P.b;
 
   if (values.length < 1) {
@@ -356,6 +424,31 @@ function ResidualSparkline({
   const stroke = isHot ? "#f87171" : lineColor;
   const gradId = `res-${id}`;
 
+  // Y ticks: symmetric around 0 — show ±threshold and ±absMax
+  const yTicks = showAxes ? [
+    { v: vMax * 0.9,  y: toY(vMax * 0.9) },
+    { v: threshold,   y: thrTopY },
+    { v: 0,           y: zeroY },
+    { v: -threshold,  y: thrBotY },
+    { v: vMin * 0.9,  y: toY(vMin * 0.9) },
+  ].map(t => ({
+    ...t,
+    label: t.v === 0 ? "0" : (t.v > 0 ? "+" : "") + (Math.abs(t.v) >= 10 ? t.v.toFixed(1) : t.v.toFixed(3)),
+  })) : [];
+
+  const X_TICKS = 5;
+  const now = Date.now();
+  const xTicks = showAxes ? Array.from({ length: X_TICKS }, (_, i) => {
+    const idx = Math.round((i / (X_TICKS - 1)) * (values.length - 1));
+    const x = toX(idx);
+    const tsMs = now - (values.length - 1 - idx) * scrapeIntervalSecs * 1000;
+    const d = new Date(tsMs);
+    const hh = d.getHours().toString().padStart(2, "0");
+    const mm = d.getMinutes().toString().padStart(2, "0");
+    const ss = d.getSeconds().toString().padStart(2, "0");
+    return { x, label: `${hh}:${mm}:${ss}` };
+  }) : [];
+
   return (
     <div className="rounded-xl border border-white/5 bg-[#0b101a] overflow-hidden" style={{ height }}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
@@ -365,6 +458,18 @@ function ResidualSparkline({
             <stop offset="100%" stopColor={stroke} stopOpacity="0.02" />
           </linearGradient>
         </defs>
+
+        {/* Horizontal grid lines */}
+        {showAxes && yTicks.map((tick, i) => (
+          <line key={`rg${i}`} x1={P.l} y1={tick.y} x2={W - P.r} y2={tick.y}
+            stroke="rgba(255,255,255,0.06)" strokeWidth="0.8" />
+        ))}
+        {/* Vertical grid lines */}
+        {showAxes && xTicks.map((tick, i) => (
+          <line key={`rxg${i}`} x1={tick.x} y1={P.t} x2={tick.x} y2={H - P.b}
+            stroke="rgba(255,255,255,0.06)" strokeWidth="0.8" />
+        ))}
+
         {/* Safe zone */}
         <rect x={P.l} y={thrTopY} width={iW} height={Math.max(0, thrBotY - thrTopY)} fill="rgba(52,211,153,0.04)" />
         {/* Threshold lines */}
@@ -378,6 +483,29 @@ function ResidualSparkline({
         <path d={linePath} fill="none" stroke={stroke} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         {/* Last point dot */}
         <circle cx={pts.at(-1)!.x} cy={pts.at(-1)!.y} r="2.5" fill={stroke} />
+
+        {/* Axis borders */}
+        {showAxes && <>
+          <line x1={P.l} y1={P.t} x2={P.l} y2={H - P.b} stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" />
+          <line x1={P.l} y1={H - P.b} x2={W - P.r} y2={H - P.b} stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" />
+        </>}
+
+        {/* Y-axis labels */}
+        {showAxes && yTicks.map((tick, i) => (
+          <text key={`ryl${i}`} x={P.l - 5} y={tick.y + 3.5}
+            textAnchor="end" fontSize="9" fontFamily="'IBM Plex Mono',monospace"
+            fill={tick.v === 0 ? "rgba(255,255,255,0.45)" : Math.abs(tick.v) === threshold ? "rgba(239,68,68,0.7)" : "rgba(255,255,255,0.3)"}>
+            {tick.label}
+          </text>
+        ))}
+
+        {/* X-axis labels */}
+        {showAxes && xTicks.map((tick, i) => (
+          <text key={`rxl${i}`} x={tick.x} y={H - P.b + 15}
+            textAnchor="middle" fontSize="8" fontFamily="'IBM Plex Mono',monospace" fill="rgba(255,255,255,0.35)">
+            {tick.label}
+          </text>
+        ))}
       </svg>
     </div>
   );
@@ -837,15 +965,16 @@ function ServiceDiagnosticsPage() {
 
                 {/* TSD warmup progress */}
                 {tsd && tsd.readings_count < 12 && (
-                  <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/[0.05] px-3 py-2.5">
-                    <div className="flex items-center justify-between mb-1.5">
+                  <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/[0.05] px-3 py-3 flex flex-col items-center gap-1">
+                    <LogFlowAnimation width={220} height={78} />
+                    <div className="flex items-center justify-between w-full mt-1">
                       <span className="text-[11px] font-semibold text-cyan-300">Building TSD baseline…</span>
                       <span className="text-[10px] font-mono text-white/40">{tsd.readings_count} / 12 readings</span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                    <div className="h-1.5 w-full rounded-full bg-white/[0.06] overflow-hidden">
                       <div className="h-full rounded-full bg-cyan-400 transition-all duration-700" style={{ width: `${(tsd.readings_count / 12) * 100}%` }} />
                     </div>
-                    <p className="mt-1.5 text-[10px] text-white/35">STL decomposition activates after 12 readings (~2 min). Anomaly detection starts automatically.</p>
+                    <p className="text-[10px] text-white/35 self-start">STL decomposition activates after 12 readings (~2 min).</p>
                   </div>
                 )}
 
@@ -1079,13 +1208,19 @@ function ServiceDiagnosticsPage() {
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto p-3 font-mono text-xs leading-5 bg-[#0d1117] scrollbar-hide">
               {recentLines.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-white/25 text-[11px]">
-                  {!agentOnline
-                    ? "Connect backtrack-agent to see classified logs."
-                    : lsi && !lsi.fitted
-                      ? `Building log corpus — ${lsi.corpus_size} / 200 lines collected. Classification starts after corpus is full.`
-                      : "Waiting for classified log lines..."
-                  }
+                <div className="flex flex-col items-center justify-center h-full gap-3">
+                  {!agentOnline ? (
+                    <span className="text-white/25 text-[11px]">Connect backtrack-agent to see classified logs.</span>
+                  ) : lsi && !lsi.fitted ? (
+                    <>
+                      <LogFlowAnimation width={300} height={105} />
+                      <span className="text-[11px] font-mono text-white/40">
+                        Building log corpus — {lsi.corpus_size} / 200 lines collected. Classification starts after corpus is full.
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-white/25 text-[11px]">Waiting for classified log lines...</span>
+                  )}
                 </div>
               ) : (
                 <>
@@ -1430,7 +1565,7 @@ function ServiceDiagnosticsPage() {
                 <span className="text-white/55">{h.label}</span>
                 <span className="font-mono text-white/40">{h.values.at(-1)?.toFixed(2) ?? "—"}</span>
               </div>
-              <SparkLine values={h.values} lineColor={h.color} id={h.id} height={140} />
+              <SparkLine values={h.values} lineColor={h.color} id={h.id} height={140} showAxes={true} />
             </div>
           ))}
         </div>
@@ -1485,7 +1620,7 @@ function ServiceDiagnosticsPage() {
                 </div>
               </div>
               <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3 mb-4">
-                <ResidualSparkline values={values} threshold={thr} lineColor={meta.color} id={`big-${m}`} height={320} />
+                <ResidualSparkline values={values} threshold={thr} lineColor={meta.color} id={`big-${m}`} height={320} showAxes={true} />
               </div>
               <div className="grid grid-cols-3 gap-2 text-[11px]">
                 <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] px-3 py-2">
@@ -1543,7 +1678,7 @@ function ServiceDiagnosticsPage() {
                 ))}
               </div>
               <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
-                <SparkLine values={values} lineColor={color} id={`big-${m}-hist`} height={300} unit={unit} />
+                <SparkLine values={values} lineColor={color} id={`big-${m}-hist`} height={300} unit={unit} showAxes={true} />
               </div>
             </>
           );
@@ -1596,7 +1731,7 @@ function ServiceDiagnosticsPage() {
         size="lg"
       >
         <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
-          <SparkLine values={scoreHistory} threshold={lsi?.threshold} baseline={lsi?.baseline_mean} lineColor="#67e8f9" id="big-lsi-score" height={300} />
+          <SparkLine values={scoreHistory} threshold={lsi?.threshold} baseline={lsi?.baseline_mean} lineColor="#67e8f9" id="big-lsi-score" height={300} showAxes={true} />
         </div>
         <div className="mt-3 flex items-center gap-4 text-[11px] text-white/40">
           <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t border-dashed border-red-400/60" /> Threshold {lsi?.threshold?.toFixed(4) ?? "—"}</span>

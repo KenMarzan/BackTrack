@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "BackTrack — Telemetry & Self-Healing",
   description: "Local-first observability and self-healing for Kubernetes & Docker.",
+  icons: { icon: "/favicon.ico" },
 };
 
 export default function RootLayout({

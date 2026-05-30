@@ -4,8 +4,8 @@ services:
   # Example: your application container
   app:
     image: ${APP_IMAGE:-nginx:latest}
-    ports:
-      - "8080:80"
+    expose:
+      - "80"
 
   # Backtrack agent — sidecar that monitors the app container
   backtrack:

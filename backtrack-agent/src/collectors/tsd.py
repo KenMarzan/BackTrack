@@ -106,7 +106,7 @@ async def _refresh_docker_stats(max_age: float = 5.0) -> None:
             # every container on the host which is slow when many are running.
             targets = list(_monitored_containers)
             cmd = ["docker", "stats", "--no-stream", "--format",
-                   "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"] + targets
+                   "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"] + targets
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -125,7 +125,13 @@ async def _refresh_docker_stats(max_age: float = 5.0) -> None:
                     except ValueError:
                         cpu = 0.0
                     mem_str = parts[2].split("/")[0].strip()
-                    cache[name] = {"cpu": cpu, "mem_mb": _parse_mem_to_mb(mem_str)}
+                    net_rx_mb, net_tx_mb = 0.0, 0.0
+                    if len(parts) >= 4:
+                        net_parts = parts[3].split("/")
+                        if len(net_parts) == 2:
+                            net_rx_mb = _parse_mem_to_mb(net_parts[0].strip())
+                            net_tx_mb = _parse_mem_to_mb(net_parts[1].strip())
+                    cache[name] = {"cpu": cpu, "mem_mb": _parse_mem_to_mb(mem_str), "net_rx_mb": net_rx_mb, "net_tx_mb": net_tx_mb}
                 _stats_cache = cache
                 _stats_cache_at = time.monotonic()
         except Exception:
@@ -168,6 +174,8 @@ class TSDCollector:
         self.current_memory: float = 0.0
         self.current_latency: float = 0.0
         self.current_error_rate: float = 0.0
+        self.current_net_rx_mb: float = 0.0
+        self.current_net_tx_mb: float = 0.0
 
         self.residuals: dict[str, list[float]] = {
             "cpu": [], "memory": [], "latency": [], "error_rate": [],
@@ -348,6 +356,8 @@ class TSDCollector:
         entry = _stats_cache.get(self.container_name, {})
         self.current_cpu = entry.get("cpu", 0.0)
         self.current_memory = entry.get("mem_mb", 0.0)
+        self.current_net_rx_mb = entry.get("net_rx_mb", 0.0)
+        self.current_net_tx_mb = entry.get("net_tx_mb", 0.0)
         self.current_latency = await self._probe_latency()
         # Error rate derived from latency probe result: 100% if probe failed (service unreachable),
         # 0% if probe succeeded. More nuanced than a flat zero.
@@ -750,9 +760,8 @@ class TSDCollector:
 
             hist_mean = float(np.mean(baseline_series))
             hist_q1, hist_q3 = float(np.percentile(baseline_series, 25)), float(np.percentile(baseline_series, 75))
-            hist_iqr = hist_q3 - hist_q1
+            hist_iqr = max(hist_q3 - hist_q1, 0.01)
             hist_std = float(np.std(baseline_series))
-            spread = max(hist_iqr, hist_std, 0.01)
 
             # Flat-zero crash: was active, now near-zero
             if hist_mean > 1.0 and all(v < 0.01 for v in recent):
@@ -763,27 +772,45 @@ class TSDCollector:
                 _metric_hits[name] = _metric_hits.get(name, 0) + 1
                 drifting_now = True
 
-            # Spike detection: recent readings are far above baseline (sustained step-up)
-            spike_threshold = hist_mean + 5.0 * spread
+            # Spike detection: Tukey outer fence (Q3 + 3×IQR) — robust to outliers
+            # that inflate std-based thresholds. Also requires 3 consecutive readings
+            # above the fence so single noisy samples don't trigger.
+            spike_threshold = hist_q3 + 3.0 * hist_iqr
             if spike_threshold > 0 and all(v > spike_threshold for v in recent):
                 logger.warning(
-                    "TSD SPIKE DRIFT on %s: baseline_mean=%.2f recent=%s threshold=%.2f",
-                    name, hist_mean, [round(v, 2) for v in recent], spike_threshold,
+                    "TSD SPIKE DRIFT on %s: baseline_q3=%.2f recent=%s threshold=%.2f (Tukey)",
+                    name, hist_q3, [round(v, 2) for v in recent], spike_threshold,
                 )
                 _metric_hits[name] = _metric_hits.get(name, 0) + 1
                 drifting_now = True
 
-        # Memory leak: monotonically increasing for 6+ consecutive readings AND >15% above baseline
+        # Memory anomaly: two complementary detectors
         if len(mem_series) >= 8:
             recent_mem = mem_series[-6:]
+            baseline_mem = float(np.mean(mem_series[:len(mem_series) // 2]))
+
+            # Detector A — monotonic leak: strictly increasing for all 6 readings
             if all(recent_mem[i] < recent_mem[i + 1] for i in range(len(recent_mem) - 1)):
-                baseline_mem = float(np.mean(mem_series[:len(mem_series) // 2]))
                 mem_growth = recent_mem[-1] - recent_mem[0]
                 if baseline_mem > 1.0 and mem_growth / baseline_mem > 0.15:
                     logger.warning(
                         "TSD MEMORY LEAK on %s: monotonic growth %.1f→%.1f MB (+%.1f%% over 6 readings)",
                         self.service_name, recent_mem[0], recent_mem[-1],
                         100 * mem_growth / baseline_mem,
+                    )
+                    _metric_hits["memory"] = _metric_hits.get("memory", 0) + 1
+                    drifting_now = True
+
+            # Detector B — step-jump: recent window average significantly above prior window.
+            # Catches allocate-and-hold patterns that plateau immediately (not strictly monotonic).
+            if len(mem_series) >= 12:
+                recent_avg = float(np.mean(mem_series[-6:]))
+                prior_avg = float(np.mean(mem_series[-12:-6]))
+                if baseline_mem > 1.0 and (recent_avg - prior_avg) / baseline_mem > 0.20:
+                    logger.warning(
+                        "TSD MEMORY STEP-JUMP on %s: prior_avg=%.1f MB recent_avg=%.1f MB (+%.1f%% of baseline)",
+                        self.service_name, prior_avg, recent_avg,
+                        100 * (recent_avg - prior_avg) / baseline_mem,
                     )
                     _metric_hits["memory"] = _metric_hits.get("memory", 0) + 1
                     drifting_now = True
@@ -877,6 +904,8 @@ class TSDCollector:
                 "memory_mb":          round(self.current_memory, 2),
                 "latency_ms":         round(self.current_latency, 2),
                 "error_rate_percent": round(self.current_error_rate, 3),
+                "net_rx_mb":          round(self.current_net_rx_mb, 2),
+                "net_tx_mb":          round(self.current_net_tx_mb, 2),
             },
             "history": {
                 "cpu":        _r(list(self.cpu_history), 3),

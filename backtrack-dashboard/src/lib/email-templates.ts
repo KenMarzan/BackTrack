@@ -7,8 +7,8 @@
 const F = `-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif`;
 const MONO = `'SFMono-Regular',Consolas,'Liberation Mono',Menlo,Courier,monospace`;
 
-// BackTrack.png resized to 40×40, circular alpha mask applied
-const LOGO_B64 = `data:image/png;base64,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`;
+// Logo is embedded as a CID attachment by nodemailer — reference via cid:backtrack-logo
+const LOGO_SRC = `cid:backtrack-logo`;
 
 export type TsdMetricEvidence = {
   name: string;
@@ -82,30 +82,14 @@ const ALGO_DESCRIPTIONS: Record<string, { label: string; detail: string }> = {
   AUTO:   { label: "Agent Auto-Rollback",             detail: "BackTrack agent automatically detected an anomaly and initiated rollback without operator intervention." },
 };
 
-function severityFor(e: RollbackEvent): { label: string; color: string; bg: string } {
-  if (!e.success)                                                return { label: "CRITICAL", color: "#ef4444", bg: "rgba(239,68,68,0.08)"   };
-  if (e.anomaly_type === "BOTH")                                 return { label: "HIGH",     color: "#f59e0b", bg: "rgba(245,158,11,0.08)"  };
-  if (e.anomaly_type === "TSD" || e.anomaly_type === "LSI")      return { label: "MEDIUM",   color: "#f59e0b", bg: "rgba(245,158,11,0.06)"  };
-  return                                                                { label: "LOW",      color: "#10b981", bg: "rgba(16,185,129,0.07)"  };
+function severityFor(e: RollbackEvent): { label: string; color: string; bg: string; border: string } {
+  if (!e.success)                                                return { label: "CRITICAL", color: "#b91c1c", bg: "#fef2f2",   border: "#fecaca" };
+  if (e.anomaly_type === "BOTH")                                 return { label: "HIGH",     color: "#92400e", bg: "#fffbeb",   border: "#fde68a" };
+  if (e.anomaly_type === "TSD" || e.anomaly_type === "LSI")      return { label: "MEDIUM",   color: "#92400e", bg: "#fffbeb",   border: "#fde68a" };
+  return                                                                { label: "LOW",      color: "#065f46", bg: "#f0fdf4",   border: "#bbf7d0" };
 }
 
-// ── Shared layout primitives ──────────────────────────────────────────────────
-
-// Icon helper: text char in a styled container. Works in ALL email clients including Gmail.
-// All chars chosen from non-emoji Unicode ranges (geometric/math/arrow blocks).
-function ic(char: string, color: string, bg: string, border: string, w: number, h: number, fs: number): string {
-  return `<span style="display:inline-block;width:${w}px;height:${h}px;border-radius:50%;background:${bg};border:1.5px solid ${border};text-align:center;line-height:${h}px;font-family:Arial,sans-serif;font-size:${fs}px;font-weight:700;color:${color};font-style:normal">${char}</span>`;
-}
-function icSq(char: string, color: string): string {
-  return `<span style="display:inline-block;width:20px;height:20px;background:rgba(124,58,237,0.18);border-radius:5px;text-align:center;line-height:20px;font-family:Arial,sans-serif;font-size:11px;font-weight:700;color:${color};vertical-align:middle;margin-right:7px">${char}</span>`;
-}
-function icBadge(char: string, color: string): string {
-  return `<span style="display:inline-block;width:34px;height:34px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.22);border-radius:8px;text-align:center;line-height:34px;font-family:Arial,sans-serif;font-size:15px;font-weight:700;color:${color}">${char}</span>`;
-}
-
-function logoHtml(): string {
-  return `<span style="display:inline-block;width:52px;height:52px;border-radius:50%;border:1.5px solid rgba(124,58,237,0.55);background:#ffffff;vertical-align:middle;margin-right:10px;overflow:hidden"><img src="${LOGO_B64}" alt="BackTrack" width="52" height="52" style="display:block;border-radius:50%"></span><span style="font-family:${F};font-size:15px;font-weight:700;color:#f8fafc;letter-spacing:-0.3px;vertical-align:middle">BackTrack</span>`;
-}
+// ── Shared layout ──────────────────────────────────────────────────────────────
 
 function emailWrapper(preheader: string, cardHtml: string): string {
   return `<!DOCTYPE html>
@@ -113,21 +97,29 @@ function emailWrapper(preheader: string, cardHtml: string): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <meta name="supported-color-schemes" content="dark">
-  <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
   <title>BackTrack</title>
 </head>
-<body style="margin:0;padding:0;background:#09090b;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">
-  <div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#09090b">${preheader} &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
-  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#09090b">
-  <tr><td align="center" style="padding:40px 16px">
+<body style="margin:0;padding:0;background:#0d1117;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">
+  <div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#0d1117">${preheader} &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;</div>
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#0d1117">
+  <tr><td align="center" style="padding:0">
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:580px;margin:0 auto">
-    <tr><td>${cardHtml}</td></tr>
-    <tr><td style="padding:24px 4px 8px;text-align:center">
-      <p style="margin:0;font-family:${F};font-size:11px;color:#374151;line-height:1.7">
-        <strong style="color:#4b5563">BackTrack</strong> &middot; Local-first Kubernetes / Docker Observability<br>
-        Automated self-healing infrastructure monitoring
+
+    <!-- Dark brand header -->
+    <tr><td style="padding:40px 32px 36px;text-align:center;background:#0d1117">
+      <img src="${LOGO_SRC}" alt="BackTrack" width="64" height="64" style="display:block;margin:0 auto 16px">
+      <div style="font-family:${F};font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;margin-bottom:6px">BackTrack</div>
+      <div style="font-family:${F};font-size:12px;color:#5eead4;letter-spacing:0.18em;text-transform:uppercase">Self-Healing Observability</div>
+    </td></tr>
+
+    <!-- Card -->
+    <tr><td style="padding:0 16px">${cardHtml}</td></tr>
+
+    <!-- Footer -->
+    <tr><td style="padding:24px 16px 40px;text-align:center;background:#0d1117">
+      <p style="margin:0;font-family:${F};font-size:11px;color:#374151;line-height:1.8">
+        BackTrack &middot; Local-first Kubernetes / Docker Observability<br>
+        You are receiving this because you connected your email to BackTrack.
       </p>
     </td></tr>
   </table>
@@ -164,157 +156,66 @@ export function formatConnectionSuccessText(email: string, timestamp: string): s
 }
 
 export function formatConnectionSuccessHtml(email: string, timestamp: string): string {
-  type Feature = { char: string; color: string; iconBg: string; iconBorder: string; title: string; desc: string };
-  const features: Feature[] = [
-    { char: "!",  color: "#f59e0b", iconBg: "rgba(245,158,11,0.12)", iconBorder: "rgba(245,158,11,0.28)",  title: "Rollback Alerts",        desc: "Instant notifications with full incident details, affected services, and actions taken." },
-    { char: "↑", color: "#6366f1", iconBg: "rgba(99,102,241,0.12)", iconBorder: "rgba(99,102,241,0.28)",  title: "MTTR Metrics",           desc: "Mean Time to Recovery tracked automatically for every rollback event." },
-    { char: "≡", color: "#10b981", iconBg: "rgba(16,185,129,0.12)", iconBorder: "rgba(16,185,129,0.28)", title: "Anomaly Reports",        desc: "TSD metric drift analysis and LSI log semantic indexing results." },
-    { char: "✓", color: "#f59e0b", iconBg: "rgba(245,158,11,0.12)", iconBorder: "rgba(245,158,11,0.28)", title: "Recovery Confirmations", desc: "Instant alerts when self-healing completes successfully." },
+  const features = [
+    { cid: "icon-bell",   bg: "#f5f3ff", border: "#ddd6fe", title: "Rollback Alerts",        desc: "Instant notifications with full incident details, affected services, and actions taken." },
+    { cid: "icon-timer",  bg: "#ecfeff", border: "#a5f3fc", title: "MTTR Metrics",           desc: "Mean Time to Recovery tracked automatically for every rollback event." },
+    { cid: "icon-chart",  bg: "#fffbeb", border: "#fde68a", title: "Anomaly Reports",        desc: "TSD metric drift analysis and LSI log semantic indexing results." },
+    { cid: "icon-shield", bg: "#f0fdf4", border: "#bbf7d0", title: "Recovery Confirmations", desc: "Instant alerts when self-healing completes successfully." },
   ];
 
-  const featureCols = features.map(f => `
-    <td width="25%" style="vertical-align:top;padding:6px">
-      <table cellpadding="0" cellspacing="0" width="100%" height="190" style="background:#111115;border-radius:10px;border:1px solid #252530">
-      <tr><td style="padding:18px 10px 16px;text-align:center;vertical-align:top">
-        ${ic(f.char, f.color, f.iconBg, f.iconBorder, 46, 46, 20)}
-        <div style="margin-top:11px;font-family:${F};font-size:12px;font-weight:700;color:#f8fafc;line-height:1.3">${f.title}</div>
-        <div style="margin-top:5px;font-family:${F};font-size:11px;color:#6b7280;line-height:1.5">${f.desc}</div>
-      </td></tr>
-      </table>
-    </td>`).join("");
+  const featureRows = features.map((f, i) => `
+    <tr>
+      <td style="padding:16px 20px${i < features.length - 1 ? ";border-bottom:1px solid #f3f4f6" : ""}">
+        <table cellpadding="0" cellspacing="0" width="100%"><tr>
+          <td width="44" style="vertical-align:middle;text-align:center">
+            <img src="cid:${f.cid}" width="32" height="32" alt="" style="display:block;margin:0 auto">
+          </td>
+          <td style="padding-left:14px;vertical-align:middle">
+            <div style="font-family:${F};font-size:13px;font-weight:700;color:#111827;margin-bottom:3px">${f.title}</div>
+            <div style="font-family:${F};font-size:12px;color:#6b7280;line-height:1.65">${f.desc}</div>
+          </td>
+        </tr></table>
+      </td>
+    </tr>`).join("");
 
   const card = `
-  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#111115;border-radius:16px;border:1px solid #1e1e28;overflow:hidden">
-
-    <!-- Nav header: dark navy gradient -->
-    <tr><td style="padding:0 28px;background:linear-gradient(135deg,#0e0920 0%,#180c35 55%,#0b0f20 100%)">
-      <table cellpadding="0" cellspacing="0" width="100%"><tr>
-        <td style="padding:20px 0">${logoHtml()}</td>
-        <td align="right" style="padding:20px 0">
-          <span style="font-family:${F};font-size:11px;font-weight:700;letter-spacing:0.08em;color:#10b981">&#10003;&nbsp; CONNECTED</span>
-        </td>
-      </tr></table>
-    </td></tr>
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.22)">
 
     <!-- Hero -->
-    <tr><td style="padding:44px 32px 40px;text-align:center;border-bottom:1px solid #1e1e28">
-      <!-- Outer glow ring -->
-      <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 26px">
-      <tr><td width="84" height="84" style="background:rgba(16,185,129,0.07);border:2px solid rgba(16,185,129,0.18);border-radius:50%;text-align:center;vertical-align:middle">
-        <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto">
-        <tr><td width="60" height="60" style="background:rgba(16,185,129,0.14);border:2px solid rgba(16,185,129,0.45);border-radius:50%;text-align:center;vertical-align:middle">
-          <span style="font-family:Arial,sans-serif;font-size:28px;font-weight:700;color:#10b981;line-height:60px;display:block">&#10003;</span>
-        </td></tr>
-        </table>
+    <tr><td style="padding:44px 40px 36px;text-align:center;background:#ffffff;border-bottom:1px solid #f0f0f0">
+      <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 22px">
+      <tr><td style="text-align:center">
+        <img src="cid:icon-success" width="68" height="68" alt="Connected" style="display:block">
       </td></tr>
       </table>
-      <h1 style="margin:0 0 12px;font-family:${F};font-size:26px;font-weight:800;color:#f8fafc;letter-spacing:-0.5px">
-        Email Notifications <span style="color:#10b981">Active!</span>
-      </h1>
-      <p style="margin:0 auto;font-family:${F};font-size:14px;color:#6b7280;line-height:1.75;max-width:400px">
-        Great! Your email has been successfully connected to BackTrack.<br>
-        You&rsquo;ll now receive important alerts about rollbacks, anomalies, and system recovery.
+      <h1 style="margin:0 0 12px;font-family:${F};font-size:24px;font-weight:800;color:#111827;letter-spacing:-0.4px">You&rsquo;re all set!</h1>
+      <p style="margin:0 auto;font-family:${F};font-size:14px;color:#6b7280;line-height:1.75;max-width:360px">
+        Email alerts are now active. BackTrack will notify you the moment an anomaly is detected or a rollback fires.
       </p>
     </td></tr>
 
-    <!-- Connection Details -->
-    <tr><td style="padding:24px 28px;border-bottom:1px solid #1e1e28">
-      <table cellpadding="0" cellspacing="0" width="100%" style="background:#0c0c0f;border-radius:12px;border:1px solid #1e1e28">
-        <!-- Header row -->
-        <tr><td colspan="3" style="padding:14px 20px;border-bottom:1px solid #1e1e28">
-          <span style="font-family:${F};font-size:13px;font-weight:700;color:#f8fafc">
-            ${icSq("@", "#a78bfa")}Connection Details
-          </span>
-        </td></tr>
-        <!-- Two info columns -->
+    <!-- Connection details -->
+    <tr><td style="padding:28px 40px;border-bottom:1px solid #f0f0f0;background:#fafafa">
+      <p style="margin:0 0 12px;font-family:${F};font-size:10px;font-weight:700;color:#9ca3af;letter-spacing:0.12em;text-transform:uppercase">Connection Details</p>
+      <table cellpadding="0" cellspacing="0" width="100%" style="background:#ffffff;border-radius:8px;border:1px solid #e5e7eb">
         <tr>
-          <td width="50%" style="padding:18px 20px;vertical-align:top">
-            <table cellpadding="0" cellspacing="0"><tr>
-              <td width="40" style="vertical-align:top;padding-top:3px">
-                ${icBadge("@", "#a78bfa")}
-              </td>
-              <td style="padding-left:10px;vertical-align:top">
-                <div style="font-family:${F};font-size:11px;color:#6b7280;margin-bottom:4px">Connected Email</div>
-                <div style="font-family:${F};font-size:13px;font-weight:700;color:#f8fafc">${email}</div>
-              </td>
-            </tr></table>
+          <td width="50%" style="padding:16px 18px;border-right:1px solid #e5e7eb">
+            <div style="font-family:${F};font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px">Connected email</div>
+            <div style="font-family:${F};font-size:13px;font-weight:600;color:#111827;word-break:break-all">${email}</div>
           </td>
-          <td width="1" style="background:linear-gradient(to bottom,transparent 10%,#252530 10%,#252530 90%,transparent 90%)">&nbsp;</td>
-          <td width="50%" style="padding:18px 20px;vertical-align:top">
-            <table cellpadding="0" cellspacing="0"><tr>
-              <td width="40" style="vertical-align:top;padding-top:3px">
-                ${icBadge("#", "#a78bfa")}
-              </td>
-              <td style="padding-left:10px;vertical-align:top">
-                <div style="font-family:${F};font-size:11px;color:#6b7280;margin-bottom:4px">Connected At</div>
-                <div style="font-family:${F};font-size:13px;font-weight:700;color:#f8fafc">${timestamp}</div>
-              </td>
-            </tr></table>
+          <td width="50%" style="padding:16px 18px">
+            <div style="font-family:${F};font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px">Connected at</div>
+            <div style="font-family:${F};font-size:13px;font-weight:600;color:#111827">${timestamp}</div>
           </td>
         </tr>
       </table>
     </td></tr>
 
-    <!-- What You'll Receive: 4-column cards -->
-    <tr><td style="padding:24px 28px;border-bottom:1px solid #1e1e28">
-      <table cellpadding="0" cellspacing="0" width="100%" style="background:#0c0c0f;border-radius:12px;border:1px solid #1e1e28">
-        <tr><td colspan="4" style="padding:14px 20px;border-bottom:1px solid #1e1e28">
-          <span style="font-family:${F};font-size:13px;font-weight:700;color:#f8fafc">
-            ${icSq("◉", "#a78bfa")}What You&rsquo;ll Receive
-          </span>
-        </td></tr>
-        <tr><td colspan="4" style="padding:14px">
-          <table cellpadding="0" cellspacing="0" width="100%">
-          <tr>${featureCols}</tr>
-          </table>
-        </td></tr>
-      </table>
-    </td></tr>
-
-    <!-- CTA Banner -->
-    <tr><td style="padding:24px 28px;border-bottom:1px solid #1e1e28">
-      <table cellpadding="0" cellspacing="0" width="100%" style="background:linear-gradient(135deg,#1a0e38 0%,#2a1860 100%);border-radius:12px;border:1px solid rgba(124,58,237,0.25)">
-      <tr>
-        <td style="padding:20px 22px;vertical-align:middle">
-          <div style="font-family:${F};font-size:14px;font-weight:700;color:#f8fafc;margin-bottom:5px"><span style="font-family:Arial,sans-serif;color:#a78bfa;font-size:14px">&#9670;</span>&nbsp; We&rsquo;re here to keep your systems healthy.</div>
-          <div style="font-family:${F};font-size:12px;color:#a78bfa;line-height:1.65;max-width:300px">BackTrack monitors your infrastructure 24/7 and will notify you the moment something needs your attention.</div>
-        </td>
-        <td align="right" style="padding:20px 22px;vertical-align:middle;white-space:nowrap">
-          <span style="display:inline-block;background:#7c3aed;padding:11px 20px;border-radius:8px;font-family:${F};font-size:12px;font-weight:700;color:#ffffff;letter-spacing:0.01em">Open Dashboard &nbsp;&#8594;</span>
-        </td>
-      </tr>
-      </table>
-    </td></tr>
-
-    <!-- Footer -->
-    <tr><td style="padding:22px 28px;background:#070709;border-top:1px solid #131318">
-      <table cellpadding="0" cellspacing="0" width="100%">
-      <tr>
-        <td style="vertical-align:top">
-          ${logoHtml()}
-          <div style="margin-top:8px;font-family:${F};font-size:11px;color:#4b5563">Automated self-healing. Real-time reliability.</div>
-        </td>
-        <td style="vertical-align:top;padding-left:20px">
-          <div style="font-family:${F};font-size:11px;font-weight:600;color:#6b7280;margin-bottom:7px">Questions or need help?</div>
-          <div style="font-family:${F};font-size:11px;color:#4b5563;line-height:2">
-            &rsaquo;&nbsp; Visit our docs<br>
-            &rsaquo;&nbsp; Contact support
-          </div>
-        </td>
-        <td align="right" style="vertical-align:top">
-          <div style="font-family:${F};font-size:11px;font-weight:600;color:#6b7280;margin-bottom:7px">Stay Connected</div>
-          <div style="font-family:${F};font-size:11px;color:#4b5563;line-height:2">
-            &rsaquo;&nbsp; GitHub<br>
-            &rsaquo;&nbsp; Website
-          </div>
-        </td>
-      </tr>
-      <tr><td colspan="3" style="padding-top:16px;border-top:1px solid #1a1a22;text-align:center">
-        <p style="margin:0;font-family:${F};font-size:10px;color:#374151;line-height:1.8">
-          &copy; 2026 BackTrack. All rights reserved.<br>
-          You&rsquo;re receiving this email because you connected your email to BackTrack.
-        </p>
-      </td></tr>
+    <!-- What you'll receive -->
+    <tr><td style="padding:28px 40px 32px;background:#ffffff">
+      <p style="margin:0 0 14px;font-family:${F};font-size:10px;font-weight:700;color:#9ca3af;letter-spacing:0.12em;text-transform:uppercase">What You&rsquo;ll Receive</p>
+      <table cellpadding="0" cellspacing="0" width="100%" style="border-radius:8px;border:1px solid #e5e7eb;overflow:hidden">
+        ${featureRows}
       </table>
     </td></tr>
 
@@ -385,200 +286,173 @@ export function formatRollbackText(e: RollbackEvent): string {
 export function formatRollbackHtml(e: RollbackEvent): string {
   const success      = e.success;
   const sev          = severityFor(e);
-  const accentColor  = success ? "#10b981" : "#ef4444";
-  const accentBg     = success ? "rgba(16,185,129,0.08)"   : "rgba(239,68,68,0.08)";
-  const accentBorder = success ? "rgba(16,185,129,0.22)"   : "rgba(239,68,68,0.22)";
-  const barGradient  = success ? "linear-gradient(90deg,#10b981,#34d399)" : "linear-gradient(90deg,#ef4444,#f87171)";
-  const statusIcon   = success ? "&#10003;" : "&#10005;";
-  const statusLabel  = success ? "Rollback Succeeded" : "Rollback Failed";
-  const badgeText    = success ? "RECOVERY CONFIRMED" : "INCIDENT ALERT";
+  const accentColor  = success ? "#16a34a" : "#dc2626";
+  const accentBg     = success ? "#f0fdf4"               : "#fef2f2";
+  const accentBorder = success ? "#86efac"               : "#fecaca";
+  const barColor     = success ? "#16a34a"               : "#dc2626";
+  const statusIcon   = success ? "&#10003;"              : "&#10005;";
+  const statusLabel  = success ? "Rollback Succeeded"    : "Rollback Failed";
   const algo         = e.anomaly_type ? ALGO_DESCRIPTIONS[e.anomaly_type] : null;
   const mttr         = e.mttr_seconds != null ? fmtMttr(e.mttr_seconds) : null;
   const tsdActive    = e.anomaly_type === "TSD"  || e.anomaly_type === "BOTH";
   const lsiActive    = e.anomaly_type === "LSI"  || e.anomaly_type === "BOTH";
 
   const nextSteps = success ? [
-    "Monitor your restored service in the BackTrack dashboard to confirm stability",
-    "Review the anomaly root cause before re-deploying the affected version",
-    "Consider adjusting detection thresholds if the anomaly was a false positive",
+    "Monitor your restored service in the BackTrack dashboard to confirm stability.",
+    "Review the anomaly root cause before re-deploying the affected version.",
+    "Consider adjusting detection thresholds if the anomaly was a false positive.",
   ] : [
-    "Immediate manual intervention may be required — check service status now",
-    "Review rollback logs and the incident details below for root cause clues",
-    "Ensure the target rollback image tag exists and is accessible to the runtime",
-    "Contact your on-call engineer if the service remains degraded",
+    "Immediate manual intervention may be required — check service status now.",
+    "Review rollback logs and the incident details below for root cause clues.",
+    "Ensure the target rollback image tag exists and is accessible to the runtime.",
   ];
 
-  const algoRow = (active: boolean, name: string, desc: string, evidenceHtml = "", last = false) => `
-    <tr>
-      <td width="32" style="padding:13px 0 ${evidenceHtml ? "8px" : "13px"} 18px;vertical-align:top${last && !evidenceHtml ? "" : ";border-bottom:1px solid #1a1a22"}">
-        <span style="display:inline-block;width:18px;height:18px;border-radius:4px;text-align:center;line-height:18px;font-size:10px;font-family:${F};background:${active ? "rgba(94,234,212,0.1)" : "rgba(75,85,99,0.08)"};border:1px solid ${active ? "rgba(94,234,212,0.28)" : "rgba(75,85,99,0.2)"};color:${active ? "#5eead4" : "#4b5563"}">${active ? "&#10003;" : "&mdash;"}</span>
-      </td>
-      <td style="padding:13px 18px ${evidenceHtml ? "0" : "13px"} 10px;vertical-align:top${last && !evidenceHtml ? "" : ";border-bottom:1px solid #1a1a22"}">
-        <div style="font-family:${F};font-size:12px;font-weight:600;color:${active ? "#5eead4" : "#4b5563"};margin-bottom:4px">${name}</div>
-        <div style="font-family:${F};font-size:11px;color:#6b7280;line-height:1.6">${desc}</div>
-        ${evidenceHtml}
-      </td>
-    </tr>`;
+  const serviceRows: [string, string][] = [
+    ["Service",  `${e.service}${e.namespace ? ` <span style="color:#9ca3af">(${e.namespace})</span>` : ""}`],
+    ["Platform", e.platform],
+    ...(e.from_tag ? [["Rolled back from", `<code style="font-family:${MONO};font-size:12px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:3px">${e.from_tag}</code>`] as [string,string]] : []),
+    ...(e.to_tag   ? [["Restored to",      `<code style="font-family:${MONO};font-size:12px;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:3px">${e.to_tag}</code>`]   as [string,string]] : []),
+    ["Triggered by", e.source],
+  ];
 
-  const timelineRow = (dotColor: string, label: string, ts?: string) => !ts ? "" : `
+  const timelineRow = (emoji: string, iconBg: string, label: string, ts?: string) => !ts ? "" : `
     <tr>
-      <td width="24" style="padding:9px 0;text-align:center;vertical-align:top">
-        <span style="display:inline-block;width:10px;height:10px;background:${dotColor};border-radius:50%;margin-top:2px"></span>
+      <td width="36" style="padding:10px 0;text-align:center;vertical-align:middle">
+        <span style="display:inline-block;width:30px;height:30px;background:${iconBg};border-radius:50%;text-align:center;line-height:30px;font-size:15px;vertical-align:middle">${emoji}</span>
       </td>
-      <td style="padding:9px 0 9px 10px;border-bottom:1px solid #1a1a22">
+      <td style="padding:10px 0 10px 12px;border-bottom:1px solid #f3f4f6">
         <table cellpadding="0" cellspacing="0" width="100%"><tr>
-          <td style="font-family:${F};font-size:12px;color:#9ca3af">${label}</td>
-          <td align="right" style="font-family:${F};font-size:12px;color:#d1d5db">${fmtTs(ts)}</td>
+          <td style="font-family:${F};font-size:13px;font-weight:500;color:#374151">${label}</td>
+          <td align="right" style="font-family:${F};font-size:12px;color:#9ca3af">${fmtTs(ts)}</td>
         </tr></table>
       </td>
     </tr>`;
 
-  const serviceRows = [
-    ["Service",         `<span style="font-family:${F};font-size:13px;font-weight:600;color:#f8fafc">${e.service}${e.namespace ? `<span style="color:#6b7280;font-weight:400"> (${e.namespace})</span>` : ""}</span>`],
-    ["Platform",        `<span style="font-family:${F};font-size:13px;color:#e2e8f0;text-transform:capitalize">${e.platform}</span>`],
-    ...(e.from_tag ? [["Rolled back from", `<code style="font-family:${MONO};font-size:12px;background:#1a1a22;padding:2px 8px;border-radius:4px;color:#fbbf24">${e.from_tag}</code>`]] : []),
-    ...(e.to_tag   ? [["Restored to",      `<code style="font-family:${MONO};font-size:12px;background:#1a1a22;padding:2px 8px;border-radius:4px;color:#34d399">${e.to_tag}</code>`]] : []),
-    ["Triggered by",    `<span style="font-family:${F};font-size:13px;color:#e2e8f0;text-transform:capitalize">${e.source}</span>`],
-  ] as [string, string][];
-
   const card = `
-  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#111115;border-radius:14px;border:1px solid #1e1e28;overflow:hidden">
-    <tr><td height="3" style="background:${barGradient};font-size:0;line-height:3px">&nbsp;</td></tr>
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.18)">
 
-    <!-- Header -->
-    <tr><td style="padding:22px 28px;border-bottom:1px solid #1e1e28">
-      <table cellpadding="0" cellspacing="0" width="100%"><tr>
-        <td>${logoHtml()}</td>
-        <td align="right">
-          <span style="display:inline-block;padding:3px 11px;border-radius:999px;font-family:${F};font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${accentColor};background:${accentBg};border:1px solid ${accentBorder}">${badgeText}</span>
-        </td>
-      </tr></table>
-    </td></tr>
-
-    <!-- Status Hero -->
-    <tr><td style="padding:26px 28px;background:${accentBg};border-bottom:1px solid #1e1e28">
+    <!-- Status hero — full-width colored band -->
+    <tr><td style="padding:32px 32px 28px;background:${accentBg};border-bottom:3px solid ${accentBorder}">
       <table cellpadding="0" cellspacing="0" width="100%"><tr>
         <td style="vertical-align:middle">
           <table cellpadding="0" cellspacing="0"><tr>
-            <td width="56" style="vertical-align:middle;padding-right:14px">
-              <span style="display:block;width:48px;height:48px;background:${accentBg};border:2px solid ${accentBorder};border-radius:50%;text-align:center;line-height:48px;font-family:${F};font-size:22px;color:${accentColor}">${statusIcon}</span>
+            <td width="60" style="vertical-align:middle;padding-right:16px">
+              <img src="cid:${success ? "icon-success" : "icon-error"}" width="52" height="52" alt="${statusLabel}" style="display:block">
             </td>
             <td style="vertical-align:middle">
-              <div style="font-family:${F};font-size:20px;font-weight:700;color:#f8fafc;letter-spacing:-0.4px">${statusLabel}</div>
-              <div style="font-family:${F};font-size:12px;color:#6b7280;margin-top:3px">${fmtTs(e.triggered_at)}</div>
+              <div style="font-family:${F};font-size:20px;font-weight:800;color:#111827;letter-spacing:-0.4px">${statusLabel}</div>
+              <div style="font-family:${F};font-size:12px;color:#6b7280;margin-top:4px">${fmtTs(e.triggered_at)}</div>
             </td>
           </tr></table>
         </td>
         <td align="right" style="vertical-align:middle">
-          <span style="display:inline-block;padding:4px 12px;border-radius:6px;font-family:${F};font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${sev.color};background:${sev.bg};border:1px solid ${sev.color}33">${sev.label}</span>
+          <span style="display:inline-block;padding:4px 12px;border-radius:6px;font-family:${F};font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${sev.color};background:${sev.bg};border:1px solid ${sev.border}">${sev.label}</span>
+          ${mttr ? `<div style="margin-top:10px;text-align:right"><div style="font-family:${F};font-size:10px;font-weight:600;color:#9ca3af;letter-spacing:0.1em;text-transform:uppercase">MTTR</div><div style="font-family:${MONO};font-size:26px;font-weight:800;color:${accentColor};letter-spacing:-0.5px;line-height:1.1">${mttr}</div></div>` : ""}
         </td>
       </tr></table>
     </td></tr>
 
-    <!-- Affected Service -->
-    <tr><td style="padding:22px 28px;border-bottom:1px solid #1e1e28">
-      <p style="margin:0 0 13px;font-family:${F};font-size:10px;font-weight:700;color:#4b5563;letter-spacing:0.12em;text-transform:uppercase">Affected Service</p>
-      <table cellpadding="0" cellspacing="0" width="100%" style="background:#0c0c0f;border-radius:10px;border:1px solid #1e1e28">
+    <!-- Affected service -->
+    <tr><td style="padding:20px 28px;border-bottom:1px solid #f3f4f6">
+      <p style="margin:0 0 10px;font-family:${F};font-size:10px;font-weight:600;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase">Affected Service</p>
+      <table cellpadding="0" cellspacing="0" width="100%" style="background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb">
         ${serviceRows.map(([label, value], i, arr) => `
-        <tr><td style="padding:12px 18px${i < arr.length - 1 ? ";border-bottom:1px solid #1a1a22" : ""}">
+        <tr><td style="padding:10px 16px${i < arr.length - 1 ? ";border-bottom:1px solid #f3f4f6" : ""}">
           <table cellpadding="0" cellspacing="0" width="100%"><tr>
-            <td width="145" style="font-family:${F};font-size:12px;color:#6b7280;vertical-align:middle">${label}</td>
-            <td style="vertical-align:middle">${value}</td>
+            <td width="140" style="font-family:${F};font-size:12px;color:#9ca3af">${label}</td>
+            <td style="font-family:${F};font-size:13px;font-weight:500;color:#111827">${value}</td>
           </tr></table>
         </td></tr>`).join("")}
       </table>
     </td></tr>
 
-    <!-- Anomaly Detection -->
-    <tr><td style="padding:22px 28px;border-bottom:1px solid #1e1e28">
-      <p style="margin:0 0 13px;font-family:${F};font-size:10px;font-weight:700;color:#4b5563;letter-spacing:0.12em;text-transform:uppercase">Anomaly Detection</p>
-      <table cellpadding="0" cellspacing="0" width="100%" style="background:#0c0c0f;border-radius:10px;border:1px solid #1e1e28">
+    <!-- Anomaly detection -->
+    <tr><td style="padding:20px 28px;border-bottom:1px solid #f3f4f6">
+      <p style="margin:0 0 10px;font-family:${F};font-size:10px;font-weight:600;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase">Anomaly Detection</p>
+      <table cellpadding="0" cellspacing="0" width="100%" style="background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb">
 
         ${(() => {
           const tev = e.tsd_evidence;
-          const statusColor = tsdActive ? "#f87171" : (tev ? "#6b7280" : "#4b5563");
-          const statusLabel = tsdActive ? "TRIGGERED" : (tev ? "NORMAL" : "NOT CHECKED");
-          const statusBg    = tsdActive ? "rgba(248,113,113,0.1)" : "rgba(75,85,99,0.08)";
-          const statusBdr   = tsdActive ? "rgba(248,113,113,0.3)" : "rgba(75,85,99,0.2)";
+          const triggered = tsdActive;
+          const statusText = triggered ? "TRIGGERED" : (tev ? "NORMAL" : "NO DATA");
+          const badgeColor  = triggered ? "#dc2626" : "#6b7280";
+          const badgeBg     = triggered ? "#fef2f2" : "#f3f4f6";
+          const badgeBorder = triggered ? "#fecaca" : "#e5e7eb";
 
-          const headerRow = `<tr><td colspan="2" style="padding:14px 18px;border-bottom:1px solid #1a1a22">
+          const headerRow = `<tr><td colspan="2" style="padding:12px 16px;border-bottom:1px solid #f3f4f6">
             <table cellpadding="0" cellspacing="0" width="100%"><tr>
-              <td style="font-family:${F};font-size:12px;font-weight:700;color:${tsdActive ? "#f87171" : "#9ca3af"}">
+              <td style="font-family:${F};font-size:12px;font-weight:600;color:${triggered ? "#dc2626" : "#374151"}">
                 TSD &mdash; Time Series Decomposition
               </td>
               <td align="right">
-                <span style="display:inline-block;padding:2px 9px;border-radius:999px;font-family:${F};font-size:10px;font-weight:700;letter-spacing:0.07em;color:${statusColor};background:${statusBg};border:1px solid ${statusBdr}">${statusLabel}</span>
+                <span style="padding:2px 8px;border-radius:3px;font-family:${F};font-size:10px;font-weight:600;color:${badgeColor};background:${badgeBg};border:1px solid ${badgeBorder}">${statusText}</span>
               </td>
             </tr></table>
           </td></tr>`;
 
-          if (!tev) return headerRow + `<tr><td colspan="2" style="padding:12px 18px;border-bottom:1px solid #1a1a22"><span style="font-family:${F};font-size:11px;color:#4b5563">Metric data unavailable</span></td></tr>`;
+          if (!tev) return headerRow + `<tr><td colspan="2" style="padding:10px 16px;border-bottom:1px solid #f3f4f6"><span style="font-family:${F};font-size:12px;color:#9ca3af">Metric data unavailable</span></td></tr>`;
 
           const metricRows = tev.metrics.map((m, i, arr) => {
-            const driftColor = m.drifting ? "#f87171" : "#9ca3af";
-            const valColor   = m.drifting ? "#f87171" : "#e2e8f0";
-            const tag = m.drifting
-              ? `<span style="display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;font-family:${F};font-size:9px;font-weight:700;color:#f87171;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.25)">&#9650; ANOMALOUS</span>`
-              : "";
+            const isLast = i === arr.length - 1;
             const residual = m.residual != null ? `${m.residual > 0 ? "+" : ""}${m.residual.toFixed(3)}` : "—";
             const zScore   = m.z_score  != null ? `${m.z_score  > 0 ? "+" : ""}${m.z_score.toFixed(2)}`  : "—";
-            const isLast = i === arr.length - 1;
             return `<tr>
-              <td width="120" style="padding:10px 18px;font-family:${F};font-size:11px;color:#6b7280;vertical-align:middle${isLast ? "" : ";border-bottom:1px solid #111118"}">${m.name}</td>
-              <td style="padding:10px 18px 10px 0;vertical-align:middle${isLast ? "" : ";border-bottom:1px solid #111118"}">
-                <span style="font-family:${MONO};font-size:12px;font-weight:700;color:${valColor}">${m.value.toFixed(m.unit === "MB" ? 1 : 2)} ${m.unit}</span>
-                <span style="font-family:${MONO};font-size:10px;color:#4b5563;margin-left:10px">residual ${residual}</span>
-                <span style="font-family:${MONO};font-size:10px;color:${driftColor};margin-left:8px">z ${zScore}</span>
-                ${tag}
+              <td width="100" style="padding:9px 16px;font-family:${F};font-size:12px;color:#6b7280;vertical-align:middle${isLast ? "" : ";border-bottom:1px solid #f3f4f6"}">${m.name}</td>
+              <td style="padding:9px 16px 9px 0;vertical-align:middle${isLast ? "" : ";border-bottom:1px solid #f3f4f6"}">
+                <span style="font-family:${MONO};font-size:12px;font-weight:600;color:${m.drifting ? "#dc2626" : "#111827"}">${m.value.toFixed(m.unit === "MB" ? 1 : 2)} ${m.unit}</span>
+                <span style="font-family:${MONO};font-size:11px;color:#9ca3af;margin-left:10px">residual ${residual}</span>
+                <span style="font-family:${MONO};font-size:11px;color:${m.drifting ? "#dc2626" : "#9ca3af"};margin-left:8px">z ${zScore}</span>
+                ${m.drifting ? `<span style="font-family:${F};font-size:10px;font-weight:600;color:#dc2626;margin-left:8px">ANOMALOUS</span>` : ""}
               </td>
             </tr>`;
           }).join("");
 
           const cyclesHtml = tev.has_crashed
-            ? `<span style="font-family:${F};font-size:11px;font-weight:700;color:#f87171">&#9888; Container crash / restart detected</span>`
-            : `<span style="font-family:${F};font-size:11px;color:#6b7280">Consecutive anomaly cycles: </span><span style="font-family:${MONO};font-size:11px;font-weight:700;color:${tev.consecutive_cycles >= 3 ? "#f87171" : "#e2e8f0"}">${tev.consecutive_cycles} / 3</span>${tev.consecutive_cycles >= 3 ? `<span style="font-family:${F};font-size:10px;color:#f87171;margin-left:6px">(threshold reached)</span>` : ""}`;
+            ? `<span style="font-family:${F};font-size:12px;font-weight:600;color:#dc2626">Container crash / restart detected</span>`
+            : `<span style="font-family:${F};font-size:12px;color:#6b7280">Anomaly cycles: </span><span style="font-family:${MONO};font-size:12px;font-weight:700;color:${tev.consecutive_cycles >= 3 ? "#dc2626" : "#111827"}">${tev.consecutive_cycles} / 3</span>`;
 
-          return headerRow + metricRows + `<tr><td colspan="2" style="padding:10px 18px;border-top:1px solid #1a1a22;border-bottom:1px solid #1a1a22;background:rgba(0,0,0,0.2)">${cyclesHtml}</td></tr>`;
+          return headerRow + metricRows + `<tr><td colspan="2" style="padding:9px 16px;border-top:1px solid #f3f4f6;border-bottom:1px solid #f3f4f6;background:#f9fafb">${cyclesHtml}</td></tr>`;
         })()}
 
         ${(() => {
           const lev = e.lsi_evidence;
-          const statusColor = lsiActive ? "#f87171" : (lev ? "#6b7280" : "#4b5563");
-          const statusLabel = lsiActive ? "TRIGGERED" : (lev ? "NORMAL" : "NOT CHECKED");
-          const statusBg    = lsiActive ? "rgba(248,113,113,0.1)" : "rgba(75,85,99,0.08)";
-          const statusBdr   = lsiActive ? "rgba(248,113,113,0.3)" : "rgba(75,85,99,0.2)";
+          const triggered = lsiActive;
+          const statusText = triggered ? "TRIGGERED" : (lev ? "NORMAL" : "NO DATA");
+          const badgeColor  = triggered ? "#dc2626" : "#6b7280";
+          const badgeBg     = triggered ? "#fef2f2" : "#f3f4f6";
+          const badgeBorder = triggered ? "#fecaca" : "#e5e7eb";
 
-          const headerRow = `<tr><td colspan="2" style="padding:14px 18px;border-bottom:1px solid #1a1a22">
+          const headerRow = `<tr><td colspan="2" style="padding:12px 16px;border-bottom:1px solid #f3f4f6">
             <table cellpadding="0" cellspacing="0" width="100%"><tr>
-              <td style="font-family:${F};font-size:12px;font-weight:700;color:${lsiActive ? "#f87171" : "#9ca3af"}">
+              <td style="font-family:${F};font-size:12px;font-weight:600;color:${triggered ? "#dc2626" : "#374151"}">
                 LSI &mdash; Log Semantic Indexing
               </td>
               <td align="right">
-                <span style="display:inline-block;padding:2px 9px;border-radius:999px;font-family:${F};font-size:10px;font-weight:700;letter-spacing:0.07em;color:${statusColor};background:${statusBg};border:1px solid ${statusBdr}">${statusLabel}</span>
+                <span style="padding:2px 8px;border-radius:3px;font-family:${F};font-size:10px;font-weight:600;color:${badgeColor};background:${badgeBg};border:1px solid ${badgeBorder}">${statusText}</span>
               </td>
             </tr></table>
           </td></tr>`;
 
-          if (!lev) return headerRow + `<tr><td colspan="2" style="padding:12px 18px"><span style="font-family:${F};font-size:11px;color:#4b5563">Log data unavailable</span></td></tr>`;
+          if (!lev) return headerRow + `<tr><td colspan="2" style="padding:10px 16px"><span style="font-family:${F};font-size:12px;color:#9ca3af">Log data unavailable</span></td></tr>`;
 
           const scoreAnom = lev.is_anomalous;
           const errAnom   = lev.is_error_anomalous;
           const wc = lev.window_counts ?? {};
           const wcParts = Object.entries(wc).map(([k, v]) => {
-            const isHot = k === "ERROR" || k === "NOVEL";
-            return `<span style="margin-right:14px;font-family:${F};font-size:11px"><span style="color:#6b7280">${k}&nbsp;</span><span style="font-family:${MONO};font-weight:700;color:${isHot && (v as number) > 0 ? "#f87171" : "#e2e8f0"}">${v}</span></span>`;
+            const isHot = (k === "ERROR" || k === "NOVEL") && (v as number) > 0;
+            return `<span style="margin-right:14px;font-family:${F};font-size:12px"><span style="color:#9ca3af">${k} </span><span style="font-family:${MONO};font-weight:700;color:${isHot ? "#dc2626" : "#111827"}">${v}</span></span>`;
           }).join("");
 
           const recentLines = (lev.recent_lines ?? []).slice(0, 3);
           const linesHtml = recentLines.length > 0
-            ? `<tr><td colspan="2" style="padding:10px 18px;border-top:1px solid #1a1a22">
-                <div style="font-family:${F};font-size:10px;font-weight:700;color:#4b5563;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px">Recent anomalous log lines</div>
+            ? `<tr><td colspan="2" style="padding:10px 16px;border-top:1px solid #f3f4f6">
+                <div style="font-family:${F};font-size:10px;font-weight:600;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px">Recent log lines</div>
+                <div style="background:#f9fafb;border-radius:4px;border:1px solid #e5e7eb;padding:8px 10px">
                 ${recentLines.map(l => {
                   const raw = typeof l === "string" ? l : JSON.stringify(l);
                   let display = raw;
                   try {
                     const parsed = JSON.parse(raw);
-                    // MongoDB structured log format: {t, s, c, msg, attr}
                     if (parsed && typeof parsed === "object") {
                       const sev = parsed.s ?? parsed.level ?? parsed.severity ?? "";
                       const comp = parsed.c ?? parsed.component ?? "";
@@ -588,81 +462,67 @@ export function formatRollbackHtml(e: RollbackEvent): string {
                       const prefix = [tsStr, sev, comp].filter(Boolean).join(" | ");
                       display = prefix ? `${prefix}: ${msg}` : (msg || raw);
                     }
-                  } catch { /* not JSON — use raw */ }
-                  return `<div style="font-family:${MONO};font-size:10px;color:#9ca3af;line-height:1.7;word-break:break-all;padding:2px 0">&rsaquo; ${display.replace(/</g,"&lt;").replace(/>/g,"&gt;")}</div>`;
+                  } catch { /* not JSON */ }
+                  return `<div style="font-family:${MONO};font-size:11px;color:#374151;line-height:1.7;word-break:break-all">&rsaquo; ${display.replace(/</g,"&lt;").replace(/>/g,"&gt;")}</div>`;
                 }).join("")}
+                </div>
               </td></tr>` : "";
 
           return headerRow
             + `<tr>
-                <td width="120" style="padding:10px 18px;font-family:${F};font-size:11px;color:#6b7280;border-bottom:1px solid #111118">Anomaly score</td>
-                <td style="padding:10px 18px 10px 0;border-bottom:1px solid #111118">
-                  <span style="font-family:${MONO};font-size:12px;font-weight:700;color:${scoreAnom ? "#f87171" : "#e2e8f0"}">${lev.current_score.toFixed(4)}</span>
-                  <span style="font-family:${MONO};font-size:10px;color:#4b5563;margin-left:8px">baseline ${lev.baseline_mean.toFixed(4)}</span>
-                  <span style="font-family:${MONO};font-size:10px;color:#4b5563;margin-left:6px">threshold ${lev.threshold.toFixed(4)}</span>
-                  ${scoreAnom ? `<span style="display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;font-family:${F};font-size:9px;font-weight:700;color:#f87171;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.25)">&#9650; EXCEEDED</span>` : ""}
+                <td width="100" style="padding:9px 16px;font-family:${F};font-size:12px;color:#6b7280;border-bottom:1px solid #f3f4f6">Anomaly score</td>
+                <td style="padding:9px 16px 9px 0;border-bottom:1px solid #f3f4f6">
+                  <span style="font-family:${MONO};font-size:12px;font-weight:700;color:${scoreAnom ? "#dc2626" : "#111827"}">${lev.current_score.toFixed(4)}</span>
+                  <span style="font-family:${MONO};font-size:11px;color:#9ca3af;margin-left:8px">baseline ${lev.baseline_mean.toFixed(4)}</span>
+                  <span style="font-family:${MONO};font-size:11px;color:#9ca3af;margin-left:6px">threshold ${lev.threshold.toFixed(4)}</span>
+                  ${scoreAnom ? `<span style="font-family:${F};font-size:10px;font-weight:600;color:#dc2626;margin-left:8px">EXCEEDED</span>` : ""}
                 </td>
               </tr>
               <tr>
-                <td style="padding:10px 18px;font-family:${F};font-size:11px;color:#6b7280${wcParts || linesHtml ? ";border-bottom:1px solid #111118" : ""}">Error score</td>
-                <td style="padding:10px 18px 10px 0${wcParts || linesHtml ? ";border-bottom:1px solid #111118" : ""}">
-                  <span style="font-family:${MONO};font-size:12px;font-weight:700;color:${errAnom ? "#f87171" : "#e2e8f0"}">${lev.error_score.toFixed(4)}</span>
-                  <span style="font-family:${MONO};font-size:10px;color:#4b5563;margin-left:8px">threshold ${lev.error_threshold.toFixed(4)}</span>
-                  ${errAnom ? `<span style="display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;font-family:${F};font-size:9px;font-weight:700;color:#f87171;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.25)">&#9650; EXCEEDED</span>` : ""}
+                <td style="padding:9px 16px;font-family:${F};font-size:12px;color:#6b7280${wcParts || linesHtml ? ";border-bottom:1px solid #f3f4f6" : ""}">Error score</td>
+                <td style="padding:9px 16px 9px 0${wcParts || linesHtml ? ";border-bottom:1px solid #f3f4f6" : ""}">
+                  <span style="font-family:${MONO};font-size:12px;font-weight:700;color:${errAnom ? "#dc2626" : "#111827"}">${lev.error_score.toFixed(4)}</span>
+                  <span style="font-family:${MONO};font-size:11px;color:#9ca3af;margin-left:8px">threshold ${lev.error_threshold.toFixed(4)}</span>
+                  ${errAnom ? `<span style="font-family:${F};font-size:10px;font-weight:600;color:#dc2626;margin-left:8px">EXCEEDED</span>` : ""}
                 </td>
               </tr>`
-            + (wcParts ? `<tr><td colspan="2" style="padding:10px 18px;border-top:1px solid #1a1a22${linesHtml ? ";border-bottom:1px solid #111118" : ""}">${wcParts}</td></tr>` : "")
+            + (wcParts ? `<tr><td colspan="2" style="padding:9px 16px;border-top:1px solid #f3f4f6${linesHtml ? ";border-bottom:1px solid #f3f4f6" : ""}">${wcParts}</td></tr>` : "")
             + linesHtml;
         })()}
 
-        ${e.anomaly_type === "MANUAL" || (!e.tsd_evidence && !e.lsi_evidence && e.anomaly_type !== "TSD" && e.anomaly_type !== "LSI" && e.anomaly_type !== "BOTH") ? `
-        <tr><td colspan="2" style="padding:12px 18px;border-top:1px solid #1a1a22;background:rgba(99,102,241,0.04)">
-          <p style="margin:0;font-family:${F};font-size:11px;color:#9ca3af;line-height:1.65;border-left:2px solid rgba(99,102,241,0.35);padding-left:10px">
-            ${e.anomaly_type === "MANUAL" && !e.tsd_evidence
-              ? "Rollback was triggered manually by an operator. The metric data above shows the system state at the time of rollback."
-              : "Rollback was triggered manually by an operator from the BackTrack dashboard."}
-          </p>
-        </td></tr>` : ""}
-
       </table>
     </td></tr>
 
-    <!-- Recovery Timeline -->
-    <tr><td style="padding:22px 28px;border-bottom:1px solid #1e1e28">
-      <p style="margin:0 0 13px;font-family:${F};font-size:10px;font-weight:700;color:#4b5563;letter-spacing:0.12em;text-transform:uppercase">Recovery Timeline</p>
+    <!-- Timeline -->
+    <tr><td style="padding:20px 28px;border-bottom:1px solid #f3f4f6">
+      <p style="margin:0 0 10px;font-family:${F};font-size:10px;font-weight:600;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase">Recovery Timeline</p>
       <table cellpadding="0" cellspacing="0" width="100%">
-        ${timelineRow("#f59e0b", "Anomaly detected",  e.anomaly_detected_at)}
-        ${timelineRow("#6366f1", "Rollback triggered", e.triggered_at)}
-        ${timelineRow(success ? "#10b981" : "#ef4444", success ? "Recovery complete" : "Rollback failed", e.rollback_completed_at)}
+        ${timelineRow(`<span style="font-size:14px;line-height:30px">&#9888;</span>`, "#fffbeb", "Anomaly detected",   e.anomaly_detected_at)}
+        ${timelineRow(`<span style="font-size:14px;line-height:30px">&#8635;</span>`, "#eef2ff", "Rollback triggered", e.triggered_at)}
+        ${timelineRow(`<span style="font-size:14px;line-height:30px;color:${success ? "#16a34a" : "#dc2626"}">${success ? "&#10003;" : "&#10005;"}</span>`, success ? "#f0fdf4" : "#fef2f2", success ? "Recovery complete" : "Rollback failed", e.rollback_completed_at)}
       </table>
-      ${mttr ? `
-      <table cellpadding="0" cellspacing="0" width="100%" style="margin-top:16px;background:${accentBg};border-radius:10px;border:1px solid ${accentBorder}">
-      <tr><td style="padding:16px 20px">
-        <div style="font-family:${F};font-size:10px;font-weight:700;color:#4b5563;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:5px">Mean Time to Recovery</div>
-        <div style="font-family:${MONO};font-size:30px;font-weight:700;color:${accentColor};letter-spacing:-0.5px">${mttr}</div>
-      </td></tr>
-      </table>` : ""}
     </td></tr>
 
-    <!-- Incident Details -->
-    <tr><td style="padding:22px 28px;border-bottom:1px solid #1e1e28">
-      <p style="margin:0 0 10px;font-family:${F};font-size:10px;font-weight:700;color:#4b5563;letter-spacing:0.12em;text-transform:uppercase">Incident Details</p>
-      <p style="margin:0;font-family:${F};font-size:13px;color:#9ca3af;line-height:1.7;background:#0c0c0f;padding:14px 18px;border-radius:8px;border:1px solid #1e1e28">${e.message}</p>
+    <!-- Incident message -->
+    <tr><td style="padding:20px 28px;border-bottom:1px solid #f3f4f6">
+      <p style="margin:0 0 10px;font-family:${F};font-size:10px;font-weight:600;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase">Incident Details</p>
+      <p style="margin:0;font-family:${F};font-size:13px;color:#374151;line-height:1.7;background:#f9fafb;padding:12px 16px;border-radius:6px;border:1px solid #e5e7eb">${e.message}</p>
     </td></tr>
 
-    <!-- Recommended Next Steps -->
-    <tr><td style="padding:22px 28px">
-      <p style="margin:0 0 14px;font-family:${F};font-size:10px;font-weight:700;color:#4b5563;letter-spacing:0.12em;text-transform:uppercase">Recommended Next Steps</p>
+    <!-- Next steps -->
+    <tr><td style="padding:20px 28px">
+      <p style="margin:0 0 12px;font-family:${F};font-size:10px;font-weight:600;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase">Recommended Next Steps</p>
       <table cellpadding="0" cellspacing="0" width="100%">
         ${nextSteps.map((step, i) => `
         <tr>
-          <td width="28" style="padding:8px 0;vertical-align:top">
-            <span style="font-family:${MONO};font-size:11px;font-weight:700;color:#7c3aed">${String(i + 1).padStart(2, "0")}</span>
+          <td width="32" style="padding:6px 0;vertical-align:top">
+            <span style="display:inline-block;width:22px;height:22px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:50%;text-align:center;line-height:22px;font-family:${F};font-size:11px;font-weight:700;color:#7c3aed">${i + 1}</span>
           </td>
-          <td style="padding:8px 0 8px 8px;font-family:${F};font-size:13px;color:#9ca3af;line-height:1.65">${step}</td>
+          <td style="padding:6px 0 6px 8px;font-family:${F};font-size:13px;color:#374151;line-height:1.65;vertical-align:middle">${step}</td>
         </tr>`).join("")}
       </table>
     </td></tr>
+
   </table>`;
 
   const preheader = success

@@ -149,12 +149,25 @@ async function dispatchEmail(
       secure: cfg.port === 465,
       auth: { user: cfg.user, pass: cfg.pass },
     });
+    const pub = (f: string) => path.join(process.cwd(), "public", f);
+    const cid = (filename: string, cname: string) =>
+      fs.existsSync(pub(filename)) ? [{ filename, path: pub(filename), cid: cname }] : [];
+    const logoAttachment = [
+      ...cid("backtrack-logo.png", "backtrack-logo"),
+      ...cid("icon-bell.png",      "icon-bell"),
+      ...cid("icon-timer.png",     "icon-timer"),
+      ...cid("icon-chart.png",     "icon-chart"),
+      ...cid("icon-shield.png",    "icon-shield"),
+      ...cid("icon-success.png",   "icon-success"),
+      ...cid("icon-error.png",     "icon-error"),
+    ];
     await transporter.sendMail({
       from: cfg.from || cfg.user,
       to: to.join(", "),
       subject,
       text,
       html,
+      attachments: logoAttachment,
     });
   }
 }

@@ -382,7 +382,7 @@ export async function GET() {
 	// Fetch agent anomaly signals (LSI + TSD) and per-service metrics
 	const agentUrl = process.env.BACKTRACK_AGENT_URL || "http://127.0.0.1:8847";
 	type AgentService = { name: string; is_drifting: boolean; is_anomalous: boolean; is_error_anomalous: boolean };
-	type AgentMetrics = { current?: { cpu_percent?: number; memory_mb?: number; latency_ms?: number; error_rate_percent?: number } };
+	type AgentMetrics = { current?: { cpu_percent?: number; memory_mb?: number; latency_ms?: number; error_rate_percent?: number; net_rx_mb?: number; net_tx_mb?: number } };
 	let agentServices: AgentService[] = [];
 	const agentMetricsMap = new Map<string, AgentMetrics>();
 
@@ -416,6 +416,8 @@ export async function GET() {
 		if (svc.memoryMiB === 0 && (agentM.current.memory_mb ?? 0) > 0) {
 			svc.memoryMiB = agentM.current.memory_mb ?? 0;
 		}
+		if ((agentM.current.net_rx_mb ?? 0) > 0) svc.netRxMB = agentM.current.net_rx_mb;
+		if ((agentM.current.net_tx_mb ?? 0) > 0) svc.netTxMB = agentM.current.net_tx_mb;
 		// latency_ms > 0 means agent is actively probing the service — use as request signal
 		if (svc.requestRate === 0 && (agentM.current.latency_ms ?? 0) > 0) {
 			// 1 probe per scrape_interval seconds — express as req/s
