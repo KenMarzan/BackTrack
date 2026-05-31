@@ -359,9 +359,12 @@ class TSDCollector:
         self.current_net_rx_mb = entry.get("net_rx_mb", 0.0)
         self.current_net_tx_mb = entry.get("net_tx_mb", 0.0)
         self.current_latency = await self._probe_latency()
-        # Error rate derived from latency probe result: 100% if probe failed (service unreachable),
-        # 0% if probe succeeded. More nuanced than a flat zero.
-        self.current_error_rate = 100.0 if self.current_latency == 0.0 else 0.0
+        # Only report 100% error rate if the container is actually down.
+        # latency=0 just means no HTTP endpoint is exposed (e.g. traefik, postgres).
+        if self.current_latency > 0:
+            self.current_error_rate = 0.0
+        else:
+            self.current_error_rate = 0.0 if await self._is_container_running() else 100.0
 
         self.cpu_history.append(self.current_cpu)
         self.memory_history.append(self.current_memory)
@@ -381,7 +384,7 @@ class TSDCollector:
                     self.current_cpu = 0.0
                     self.current_memory = 0.0
                     self.current_latency = await self._probe_latency()
-                    self.current_error_rate = 100.0 if self.current_latency == 0.0 else 0.0
+                    self.current_error_rate = 0.0 if self.current_latency > 0 else 100.0
                     self.cpu_history.append(self.current_cpu)
                     self.memory_history.append(self.current_memory)
                     self.latency_history.append(self.current_latency)
@@ -456,7 +459,7 @@ class TSDCollector:
                 self.current_cpu = 0.0
             self.current_memory = total_mem if count > 0 else 0.0
             self.current_latency = await self._probe_latency()
-            self.current_error_rate = 100.0 if self.current_latency == 0.0 else 0.0
+            self.current_error_rate = 0.0 if self.current_latency > 0 else 100.0
 
         except Exception as exc:
             logger.warning("K8s metrics scrape failed for %s: %s", self.service_name, exc)
@@ -480,6 +483,20 @@ class TSDCollector:
                 timeout=aiohttp.ClientTimeout(total=2)
             )
         return self._http_session
+
+    async def _is_container_running(self) -> bool:
+        """Return True if the container exists and is in running state."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "docker", "inspect", "--format", "{{.State.Status}}",
+                self.container_name,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            return proc.returncode == 0 and stdout.decode().strip() == "running"
+        except Exception:
+            return False
 
     async def _probe_latency(self) -> float:
         """Time a request to the target's health endpoint (ms).

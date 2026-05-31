@@ -83,8 +83,8 @@ export default function Home() {
       fetch("/api/connections", { cache: "no-store" })
         .then((r) => r.json())
         .then((d) => {
-          const conns: Array<{ githubRepo?: string; githubToken?: string }> = Array.isArray(d.connections) ? d.connections : [];
-          setHasCICD(conns.some((c) => c.githubRepo && c.githubToken));
+          const conns: Array<{ githubRepo?: string; hasGithubToken?: boolean }> = Array.isArray(d.connections) ? d.connections : [];
+          setHasCICD(conns.some((c) => c.githubRepo && c.hasGithubToken));
         })
         .catch(() => {});
     };

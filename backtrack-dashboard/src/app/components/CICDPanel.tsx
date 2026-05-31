@@ -1,6 +1,7 @@
 "use client";
 
-import { ExternalLink, GitBranch, GitCommit, ImageIcon, Package, RefreshCw, RotateCcw, RefreshCcw } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ExternalLink, GitBranch, GitCommit, ImageIcon, Maximize2, Package, RefreshCw, RotateCcw, RefreshCcw, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { CICDData, CICDImageTag, CICDWorkflowRun } from "@/lib/monitoring-types";
 
@@ -36,64 +37,31 @@ function WorkflowBadge({ run }: { run: CICDWorkflowRun }) {
 
 type RollbackState = { tag: string; status: "rolling" | "ok" | "error"; message: string };
 
-export default function CICDPanel() {
-  const [data, setData] = useState<CICDData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"commits" | "workflows" | "images">("commits");
-  const [rollback, setRollback] = useState<RollbackState | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = async (manual = false) => {
-    if (manual) setRefreshing(true);
-    try {
-      const res = await fetch("/api/cicd/github", { cache: "no-store" });
-      if (res.status === 404) { setData(null); setError(null); setLoading(false); return; }
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to load CI/CD data.");
-      setData(await res.json());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
-    } finally {
-      setLoading(false);
-      if (manual) setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-    const timer = window.setInterval(load, 20_000);
-    const refresh = () => load();
-    window.addEventListener("backtrack:connection-updated", refresh);
-    return () => { window.clearInterval(timer); window.removeEventListener("backtrack:connection-updated", refresh); };
-  }, []);
-
-  const triggerRollback = async (img: CICDImageTag) => {
-    if (!window.confirm(`Roll back all services to ${img.tag}?\n\n${img.pullUrl}`)) return;
-    setRollback({ tag: img.tag, status: "rolling", message: `Rolling back to ${img.tag}…` });
-    try {
-      const res = await fetch("/api/cicd/rollback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pullUrl: img.pullUrl, tag: img.tag }),
-      });
-      const d = await res.json();
-      setRollback({
-        tag: img.tag,
-        status: d.ok ? "ok" : "error",
-        message: d.message || (d.ok ? "Rollback complete." : "Rollback failed."),
-      });
-      if (d.ok) window.dispatchEvent(new Event("backtrack:connection-updated"));
-    } catch {
-      setRollback({ tag: img.tag, status: "error", message: "Request failed — is the dashboard server running?" });
-    }
-  };
-
-  // Don't render if no GitHub repo is configured
-  if (!loading && !data && !error) return null;
-
+function CICDContent({
+  data,
+  error,
+  loading,
+  refreshing,
+  tab,
+  setTab,
+  rollback,
+  setRollback,
+  onRefresh,
+  triggerRollback,
+}: {
+  data: CICDData | null;
+  error: string | null;
+  loading: boolean;
+  refreshing: boolean;
+  tab: "commits" | "workflows" | "images";
+  setTab: (t: "commits" | "workflows" | "images") => void;
+  rollback: RollbackState | null;
+  setRollback: (r: RollbackState | null) => void;
+  onRefresh: (e?: React.MouseEvent) => void;
+  triggerRollback: (img: CICDImageTag) => void;
+}) {
   return (
-    <div className="bt-panel h-full flex flex-col overflow-hidden p-5">
+    <>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-3 flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -110,7 +78,7 @@ export default function CICDPanel() {
           {loading && !refreshing && <RefreshCw size={11} className="text-[var(--accent-teal)] animate-spin" />}
           <button
             type="button"
-            onClick={() => load(true)}
+            onClick={onRefresh}
             disabled={refreshing || loading}
             title="Refresh commits"
             className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-40"
@@ -205,7 +173,6 @@ export default function CICDPanel() {
             {/* Images */}
             {tab === "images" && (
               <>
-                {/* Rollback result banner */}
                 {rollback && (
                   <div className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-[11.5px] mb-1 ${
                     rollback.status === "rolling" ? "border-[var(--border-mid)] text-[var(--text-muted)]" :
@@ -265,7 +232,175 @@ export default function CICDPanel() {
           </div>
         </>
       )}
+    </>
+  );
+}
+
+function CICDModal({
+  onClose,
+  data,
+  error,
+  loading,
+  refreshing,
+  tab,
+  setTab,
+  rollback,
+  setRollback,
+  onRefresh,
+  triggerRollback,
+}: {
+  onClose: () => void;
+  data: CICDData | null;
+  error: string | null;
+  loading: boolean;
+  refreshing: boolean;
+  tab: "commits" | "workflows" | "images";
+  setTab: (t: "commits" | "workflows" | "images") => void;
+  rollback: RollbackState | null;
+  setRollback: (r: RollbackState | null) => void;
+  onRefresh: (e?: React.MouseEvent) => void;
+  triggerRollback: (img: CICDImageTag) => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const modal = (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bt-panel w-full max-w-3xl h-[75vh] flex flex-col overflow-hidden p-6 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-4 right-4 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors z-10"
+          title="Close (Esc)"
+        >
+          <X size={16} />
+        </button>
+        <CICDContent
+          data={data}
+          error={error}
+          loading={loading}
+          refreshing={refreshing}
+          tab={tab}
+          setTab={setTab}
+          rollback={rollback}
+          setRollback={setRollback}
+          onRefresh={onRefresh}
+          triggerRollback={triggerRollback}
+        />
+      </div>
     </div>
+  );
+
+  return createPortal(modal, document.body);
+}
+
+export default function CICDPanel() {
+  const [data, setData] = useState<CICDData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"commits" | "workflows" | "images">("commits");
+  const [rollback, setRollback] = useState<RollbackState | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const load = async (manual = false) => {
+    if (manual) setRefreshing(true);
+    try {
+      const res = await fetch("/api/cicd/github", { cache: "no-store" });
+      if (res.status === 404) { setData(null); setError(null); setLoading(false); return; }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to load CI/CD data.");
+      setData(await res.json());
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setLoading(false);
+      if (manual) setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    const timer = window.setInterval(load, 20_000);
+    const refresh = () => load();
+    window.addEventListener("backtrack:connection-updated", refresh);
+    return () => { window.clearInterval(timer); window.removeEventListener("backtrack:connection-updated", refresh); };
+  }, []);
+
+  const triggerRollback = async (img: CICDImageTag) => {
+    if (!window.confirm(`Roll back all services to ${img.tag}?\n\n${img.pullUrl}`)) return;
+    setRollback({ tag: img.tag, status: "rolling", message: `Rolling back to ${img.tag}…` });
+    try {
+      const res = await fetch("/api/cicd/rollback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pullUrl: img.pullUrl, tag: img.tag }),
+      });
+      const d = await res.json();
+      setRollback({
+        tag: img.tag,
+        status: d.ok ? "ok" : "error",
+        message: d.message || (d.ok ? "Rollback complete." : "Rollback failed."),
+      });
+      if (d.ok) window.dispatchEvent(new Event("backtrack:connection-updated"));
+    } catch {
+      setRollback({ tag: img.tag, status: "error", message: "Request failed — is the dashboard server running?" });
+    }
+  };
+
+  if (!loading && !data && !error) return null;
+
+  return (
+    <>
+      <div
+        className="bt-panel h-full flex flex-col overflow-hidden p-5 cursor-pointer group"
+        onClick={() => setModalOpen(true)}
+        title="Click to expand"
+      >
+        {/* Expand hint */}
+        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Maximize2 size={11} className="text-[var(--text-muted)]" />
+        </div>
+        <CICDContent
+          data={data}
+          error={error}
+          loading={loading}
+          refreshing={refreshing}
+          tab={tab}
+          setTab={(t) => { setTab(t); }}
+          rollback={rollback}
+          setRollback={setRollback}
+          onRefresh={(e?: React.MouseEvent) => { e?.stopPropagation(); load(true); }}
+          triggerRollback={triggerRollback}
+        />
+      </div>
+
+      {modalOpen && (
+        <CICDModal
+          onClose={() => setModalOpen(false)}
+          data={data}
+          error={error}
+          loading={loading}
+          refreshing={refreshing}
+          tab={tab}
+          setTab={setTab}
+          rollback={rollback}
+          setRollback={setRollback}
+          onRefresh={() => load(true)}
+          triggerRollback={triggerRollback}
+        />
+      )}
+    </>
   );
 }
 

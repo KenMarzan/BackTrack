@@ -205,7 +205,7 @@ function sanitize(conn: ReturnType<typeof listConnections>[number]) {
 	// Never expose credentials to the browser — authToken is a K8s Bearer token,
 	// githubToken is a PAT. Both live in connections.json and must stay server-side.
 	const { authToken: _a, githubToken: _g, ...safe } = conn;
-	return safe;
+	return { ...safe, hasGithubToken: !!_g };
 }
 
 export async function GET() {

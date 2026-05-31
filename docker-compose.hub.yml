@@ -16,9 +16,9 @@ services:
       # Pre-configured SMTP — works out of the box, override with your own if needed
       - BACKTRACK_SMTP_HOST=${BACKTRACK_SMTP_HOST:-smtp.gmail.com}
       - BACKTRACK_SMTP_PORT=${BACKTRACK_SMTP_PORT:-587}
-      - BACKTRACK_SMTP_USER=${BACKTRACK_SMTP_USER:-marzanken232@gmail.com}
-      - BACKTRACK_SMTP_PASS=${BACKTRACK_SMTP_PASS:-eazb hsmi xnme wmyh}
-      - BACKTRACK_SMTP_FROM=${BACKTRACK_SMTP_FROM:-marzanken232@gmail.com}
+      - BACKTRACK_SMTP_USER=${BACKTRACK_SMTP_USER:-bitbros.backtrack@gmail.com}
+      - BACKTRACK_SMTP_PASS=${BACKTRACK_SMTP_PASS:-jqtr rpms vidw ahmh}
+      - BACKTRACK_SMTP_FROM=${BACKTRACK_SMTP_FROM:-bitbros.backtrack@gmail.com}
       - BACKTRACK_SMTP_TO=${BACKTRACK_SMTP_TO:-}
       # Kubernetes mode: uncomment after enabling the kube volume above.
       - KUBECONFIG=/root/.kube/config
@@ -42,6 +42,9 @@ services:
       - BACKTRACK_MODE=${BACKTRACK_MODE:-docker}
       - BACKTRACK_K8S_NAMESPACE=${BACKTRACK_K8S_NAMESPACE:-default}
       - BACKTRACK_SCRAPE_INTERVAL=${BACKTRACK_SCRAPE_INTERVAL:-10}
+      - BACKTRACK_WINDOW_SECONDS=${BACKTRACK_WINDOW_SECONDS:-10}
+      - BACKTRACK_BASELINE_WINDOWS=${BACKTRACK_BASELINE_WINDOWS:-3}
+      - BACKTRACK_CORPUS_SIZE=${BACKTRACK_CORPUS_SIZE:-50}
       - BACKTRACK_STABLE_SECONDS=${BACKTRACK_STABLE_SECONDS:-120}
       - BACKTRACK_ROLLBACK_ENABLED=${BACKTRACK_ROLLBACK_ENABLED:-true}
       - BACKTRACK_DATA_DIR=/data
