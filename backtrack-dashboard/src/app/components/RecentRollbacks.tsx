@@ -70,7 +70,7 @@ export default function RecentRollbacks() {
             {entries.map((entry) => (
               <div
                 key={entry.id}
-                className="px-5 py-3 hover:bg-white/[0.015] transition-colors"
+                className="px-5 py-3 hover:bg-[var(--surface-glass)] transition-colors"
               >
                 <div className="flex items-start gap-2.5">
                   {/* status icon */}

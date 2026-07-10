@@ -57,7 +57,7 @@ export default function CustomSelect({
 
   const triggerBase =
     variant === "pill"
-      ? "rounded-full border border-[var(--border-soft)] bg-[rgba(148,163,184,0.04)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)] hover:border-[var(--border-mid)]"
+      ? "rounded-full border border-[var(--border-soft)] bg-[var(--surface-muted)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)] hover:border-[var(--border-mid)]"
       : "w-full rounded-lg border border-[var(--border-mid)] bg-[var(--bg-panel-2)] px-3 py-2 text-[13px] text-[var(--text-primary)] hover:border-[var(--border-strong)]";
 
   const dropdown = rect && open && mounted ? createPortal(
@@ -84,7 +84,7 @@ export default function CustomSelect({
             className={`cursor-pointer px-3 py-2 text-[13px] transition-colors ${
               isSel
                 ? "bg-[var(--accent-teal-soft)] text-[var(--accent-teal)]"
-                : "text-[var(--text-secondary)] hover:bg-white/[0.04] hover:text-[var(--text-primary)]"
+                : "text-[var(--text-secondary)] hover:bg-[var(--surface-glass-04)] hover:text-[var(--text-primary)]"
             }`}
           >
             {opt.label}

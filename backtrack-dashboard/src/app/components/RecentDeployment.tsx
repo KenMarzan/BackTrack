@@ -253,16 +253,16 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
       {activeTab === "backtrack" && (
         <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide space-y-2">
           {agentMessage && (
-            <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] px-3 py-2 text-[12px] text-[var(--text-primary)]">
+            <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-glass)] px-3 py-2 text-[12px] text-[var(--text-primary)]">
               {agentMessage}
             </div>
           )}
           {!agentOnline ? (
-            <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-3 text-[12px] text-[var(--text-muted)]">
+            <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-glass)] p-3 text-[12px] text-[var(--text-muted)]">
               Agent offline — start backtrack-agent on port 8847 to see version history.
             </div>
           ) : agentSnapshots.length === 0 ? (
-            <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-3 text-[12px] text-[var(--text-muted)]">
+            <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-glass)] p-3 text-[12px] text-[var(--text-muted)]">
               No version snapshots yet.
             </div>
           ) : agentSnapshots.map((snap) => {
@@ -273,7 +273,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
             return (
               <div
                 key={snap.id}
-                className="rounded-xl border border-[var(--border-mid)] bg-white/[0.02] p-3 hover:bg-white/[0.03] transition-colors"
+                className="rounded-xl border border-[var(--border-mid)] bg-[var(--surface-glass)] p-3 hover:bg-[var(--surface-glass-strong)] transition-colors"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex flex-col gap-1.5 min-w-0">
@@ -320,7 +320,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
       {activeTab === "k8s" && (
         <>
           {message && (
-            <div className="mb-3 shrink-0 rounded-xl border border-[var(--border-soft)] bg-white/[0.02] px-3 py-2 text-[12px] text-[var(--text-primary)]">
+            <div className="mb-3 shrink-0 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-glass)] px-3 py-2 text-[12px] text-[var(--text-primary)]">
               {message}
             </div>
           )}
@@ -332,7 +332,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
             {!isLoading && deployments.length === 0 && (
               platform === "docker" ? (
                 <div className="h-full w-full flex flex-col items-center justify-center gap-4 px-6 text-center">
-                  <div className="h-16 w-16 rounded-2xl border border-[var(--border-soft)] bg-white/[0.03] flex items-center justify-center">
+                  <div className="h-16 w-16 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-glass-strong)] flex items-center justify-center">
                     <Terminal size={26} className="text-[var(--accent-teal)] opacity-60" />
                   </div>
                   <div>
@@ -341,13 +341,13 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
                       History populates automatically as BackTrack monitors your containers over time.
                     </p>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] bt-mono bg-white/[0.02] border border-[var(--border-soft)] rounded-lg px-3 py-1.5">
+                  <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] bt-mono bg-[var(--surface-glass)] border border-[var(--border-soft)] rounded-lg px-3 py-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-teal)] animate-pulse" />
                     Monitoring active
                   </div>
                 </div>
               ) : (
-                <div className="rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-3 text-[12px] text-[var(--text-muted)]">
+                <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-glass)] p-3 text-[12px] text-[var(--text-muted)]">
                   No deployment history yet. Configure a Kubernetes connection and optional GitHub repo.
                 </div>
               )
@@ -365,7 +365,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
                       toggleExpand(index);
                     }
                   }}
-                  className="w-full rounded-xl border border-[var(--border-mid)] bg-white/[0.02] hover:bg-white/[0.035] transition-colors p-3 text-left cursor-pointer"
+                  className="w-full rounded-xl border border-[var(--border-mid)] bg-[var(--surface-glass)] hover:bg-[var(--surface-glass-mid)] transition-colors p-3 text-left cursor-pointer"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex flex-col gap-1.5 min-w-0">
@@ -405,7 +405,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
                 </div>
 
                 {expandedIndex === index && (
-                  <div className="mt-1 rounded-xl border border-[var(--border-soft)] bg-white/[0.01] p-3">
+                  <div className="mt-1 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-glass)] p-3">
                     <div className="flex items-center justify-between mb-2.5">
                       <span className="bt-label text-[9.5px]">Version History</span>
                       <span className="bt-mono text-[10px] text-[var(--text-muted)]">
@@ -423,7 +423,7 @@ const [agentSnapshots, setAgentSnapshots] = useState<AgentSnapshot[]>([]);
                       return (
                         <div
                           key={`${version.version}-${versionIndex}`}
-                          className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-white/[0.03] transition-colors"
+                          className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-[var(--surface-glass-strong)] transition-colors"
                         >
                           <div className="flex flex-col gap-1 min-w-0">
                             <div className="flex items-center gap-2">

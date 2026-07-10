@@ -255,7 +255,7 @@ export default function AnomaliesPage() {
                 <p className="text-[var(--text-primary)] font-semibold text-sm">Agent offline</p>
                 <p className="text-[var(--text-muted)] text-[11px] mt-1">TSD · LSI · auto-rollback unavailable</p>
               </div>
-              <div className="w-full rounded-lg border border-[var(--border-soft)] bg-black/30 px-3 py-2 text-left">
+              <div className="w-full rounded-lg border border-[var(--border-soft)] bg-[var(--surface-code-bg)] px-3 py-2 text-left">
                 <p className="text-[9px] uppercase tracking-widest text-[var(--text-muted)] mb-1">Start agent</p>
                 <code className="bt-mono text-[10px] text-[var(--accent-teal)] whitespace-pre-wrap break-all leading-relaxed">
                   cd backtrack-agent{"\n"}pip install -r requirements.txt{"\n"}python3 -m uvicorn src.main:app --port 8847

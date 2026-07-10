@@ -137,7 +137,7 @@ function overallAvg(scores: EvalScores): number {
 function ScoreBar({ value, color }: { value: number; color: string }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 rounded-full bg-white/[0.06]">
+      <div className="flex-1 h-1.5 rounded-full bg-[var(--surface-glass-06)]">
         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(value / 5) * 100}%`, background: color }} />
       </div>
       <span className="text-[11px] font-semibold text-[var(--text-primary)] w-6 text-right">{value.toFixed(1)}</span>
@@ -231,7 +231,7 @@ export default function EvaluatePage() {
               <div>
                 <label className="bt-label block mb-1">Full Name *</label>
                 <input
-                  className="w-full bg-white/[0.04] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
+                  className="w-full bg-[var(--surface-glass-04)] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
                   value={respondent}
                   onChange={(e) => setRespondent(e.target.value)}
                   placeholder="e.g. Juan dela Cruz"
@@ -240,7 +240,7 @@ export default function EvaluatePage() {
               <div>
                 <label className="bt-label block mb-1">Role / Position</label>
                 <input
-                  className="w-full bg-white/[0.04] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
+                  className="w-full bg-[var(--surface-glass-04)] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
                   placeholder="e.g. DevOps Engineer"
@@ -294,7 +294,7 @@ export default function EvaluatePage() {
             <label className="bt-label block mb-2">Additional Comments</label>
             <textarea
               rows={3}
-              className="w-full bg-white/[0.04] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)] resize-none"
+              className="w-full bg-[var(--surface-glass-04)] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)] resize-none"
               value={comments}
               onChange={(e) => setComments(e.target.value)}
               placeholder="Any additional feedback about the system…"
@@ -385,7 +385,7 @@ export default function EvaluatePage() {
                   </thead>
                   <tbody>
                     {[...results.entries].reverse().map((e) => (
-                      <tr key={e.id} className="border-b border-[var(--border-soft)] last:border-0 hover:bg-white/[0.02]">
+                      <tr key={e.id} className="border-b border-[var(--border-soft)] last:border-0 hover:bg-[var(--surface-glass)]">
                         <td className="px-4 py-3 font-semibold">{e.respondent}</td>
                         <td className="px-4 py-3 text-[var(--text-muted)]">{e.role || "—"}</td>
                         <td className="px-4 py-3 text-[var(--accent-teal)] font-semibold">{overallAvg(e.scores).toFixed(2)}</td>

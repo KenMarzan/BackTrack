@@ -195,7 +195,7 @@ function ContainerHealth({ services }: { services: DashboardService[] }) {
       </div>
 
       {/* Chart */}
-      <div className="flex-1 min-h-0 rounded-xl border border-[var(--border-soft)] bg-[rgba(11,16,26,0.7)] p-3">
+      <div className="flex-1 min-h-0 rounded-xl bt-chart-area p-3">
         <LineChart
           labels={chartConfig.labels}
           datasets={chartConfig.datasets}

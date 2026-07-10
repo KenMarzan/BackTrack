@@ -84,7 +84,7 @@ function MatrixBlock({ label, cell, color }: { label: string; cell: MatrixCell; 
           { k: "FN", v: cell.fn, c: "text-amber-400" },
           { k: "TN", v: cell.tn, c: "text-sky-400" },
         ].map(({ k, v, c }) => (
-          <div key={k} className="rounded-lg bg-white/[0.03] border border-[var(--border-soft)] p-2 text-center">
+          <div key={k} className="rounded-lg bg-[var(--surface-glass-strong)] border border-[var(--border-soft)] p-2 text-center">
             <p className="text-[10px] text-[var(--text-muted)]">{k}</p>
             <p className={`text-[20px] font-bold ${c}`}>{v}</p>
           </div>
@@ -93,7 +93,7 @@ function MatrixBlock({ label, cell, color }: { label: string; cell: MatrixCell; 
       {noEvents ? (
         <div className="rounded-lg bg-emerald-500/[0.07] border border-emerald-500/20 px-3 py-2 text-center">
           <p className="text-[11px] text-emerald-400 font-medium">No anomaly events — system operating nominally</p>
-          <p className="text-[10px] text-white/30 mt-0.5">Precision / Recall / F1 require at least one anomaly event to compute. Accuracy: {fmtPct(cell.accuracy)}</p>
+          <p className="text-[10px] text-[var(--text-white-30)] mt-0.5">Precision / Recall / F1 require at least one anomaly event to compute. Accuracy: {fmtPct(cell.accuracy)}</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2 text-center">
@@ -103,7 +103,7 @@ function MatrixBlock({ label, cell, color }: { label: string; cell: MatrixCell; 
             { k: "F1 Score", v: cell.f1 },
             { k: "Accuracy", v: cell.accuracy },
           ].map(({ k, v }) => (
-            <div key={k} className="rounded-lg bg-white/[0.03] border border-[var(--border-soft)] p-2">
+            <div key={k} className="rounded-lg bg-[var(--surface-glass-strong)] border border-[var(--border-soft)] p-2">
               <p className="text-[10px] text-[var(--text-muted)]">{k}</p>
               <p className="text-[14px] font-semibold text-[var(--text-primary)]">{fmtPct(v)}</p>
             </div>
@@ -239,12 +239,12 @@ export default function MetricsPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setShowMttrForm((v) => !v)}
-              className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.04] transition"
+              className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-glass-04)] transition"
             >
               + Manual Entry
             </button>
             {mttrEntries.length > 0 && (
-              <button onClick={clearMttr} className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] hover:text-rose-400 transition px-2 py-1 rounded-lg hover:bg-white/[0.04]">
+              <button onClick={clearMttr} className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] hover:text-rose-400 transition px-2 py-1 rounded-lg hover:bg-[var(--surface-glass-04)]">
                 <Trash2 size={12} /> Clear
               </button>
             )}
@@ -257,7 +257,7 @@ export default function MetricsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="bt-label block mb-1">Service Name</label>
-                <input className="w-full bg-white/[0.04] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]" value={mttrForm.service} onChange={(e) => setMttrForm((p) => ({ ...p, service: e.target.value }))} placeholder="e.g. memstress" />
+                <input className="w-full bg-[var(--surface-glass-04)] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]" value={mttrForm.service} onChange={(e) => setMttrForm((p) => ({ ...p, service: e.target.value }))} placeholder="e.g. memstress" />
               </div>
               <div>
                 <label className="bt-label block mb-1">Anomaly Type</label>
@@ -274,7 +274,7 @@ export default function MetricsPage() {
               ].map(({ key, label }) => (
                 <div key={key}>
                   <label className="bt-label block mb-1">{label}</label>
-                  <input type="datetime-local" className="w-full bg-white/[0.04] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]" value={(mttrForm as unknown as Record<string, string>)[key]} onChange={(e) => setMttrForm((p) => ({ ...p, [key]: e.target.value }))} />
+                  <input type="datetime-local" className="w-full bg-[var(--surface-glass-04)] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]" value={(mttrForm as unknown as Record<string, string>)[key]} onChange={(e) => setMttrForm((p) => ({ ...p, [key]: e.target.value }))} />
                 </div>
               ))}
             </div>
@@ -311,10 +311,10 @@ export default function MetricsPage() {
               </thead>
               <tbody>
                 {[...mttrEntries].reverse().map((e) => (
-                  <tr key={e.id} className="border-b border-[var(--border-soft)] last:border-0 hover:bg-white/[0.02]">
+                  <tr key={e.id} className="border-b border-[var(--border-soft)] last:border-0 hover:bg-[var(--surface-glass)]">
                     <td className="px-4 py-3 font-mono text-[var(--accent-teal)]">{e.service}</td>
                     <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/[0.06] border border-[var(--border-soft)]">{e.anomaly_type}</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--surface-glass-06)] border border-[var(--border-soft)]">{e.anomaly_type}</span>
                     </td>
                     <td className="px-4 py-3 text-[var(--text-muted)]">{fmtDate(e.anomaly_detected_at)}</td>
                     <td className="px-4 py-3 text-[var(--text-muted)]">{fmtDate(e.rollback_completed_at)}</td>
@@ -346,12 +346,12 @@ export default function MetricsPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setShowTestForm((v) => !v)}
-              className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.04] transition"
+              className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-glass-04)] transition"
             >
               + Add Test Run
             </button>
             {detectionEntries.length > 0 && (
-              <button onClick={clearDetection} className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] hover:text-rose-400 transition px-2 py-1 rounded-lg hover:bg-white/[0.04]">
+              <button onClick={clearDetection} className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] hover:text-rose-400 transition px-2 py-1 rounded-lg hover:bg-[var(--surface-glass-04)]">
                 <Trash2 size={12} /> Clear
               </button>
             )}
@@ -365,7 +365,7 @@ export default function MetricsPage() {
               <div>
                 <label className="bt-label block mb-1">Test Label</label>
                 <input
-                  className="w-full bg-white/[0.04] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
+                  className="w-full bg-[var(--surface-glass-04)] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
                   value={testForm.test_label}
                   onChange={(e) => setTestForm((p) => ({ ...p, test_label: e.target.value }))}
                   placeholder="e.g. Latency spike test 1"
@@ -374,7 +374,7 @@ export default function MetricsPage() {
               <div>
                 <label className="bt-label block mb-1">Service (optional)</label>
                 <input
-                  className="w-full bg-white/[0.04] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
+                  className="w-full bg-[var(--surface-glass-04)] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
                   value={testForm.service}
                   onChange={(e) => setTestForm((p) => ({ ...p, service: e.target.value }))}
                   placeholder="e.g. memstress"
@@ -412,7 +412,7 @@ export default function MetricsPage() {
                 <label className="bt-label block mb-1">Injected At</label>
                 <input
                   type="datetime-local"
-                  className="w-full bg-white/[0.04] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
+                  className="w-full bg-[var(--surface-glass-04)] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
                   value={testForm.injected_at}
                   onChange={(e) => setTestForm((p) => ({ ...p, injected_at: e.target.value }))}
                   disabled={!testForm.fault_injected}
@@ -447,7 +447,7 @@ export default function MetricsPage() {
                 <label className="bt-label block mb-1">Detected At</label>
                 <input
                   type="datetime-local"
-                  className="w-full bg-white/[0.04] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
+                  className="w-full bg-[var(--surface-glass-04)] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
                   value={testForm.detected_at}
                   onChange={(e) => setTestForm((p) => ({ ...p, detected_at: e.target.value }))}
                   disabled={!testForm.tsd_detected && !testForm.lsi_detected}
@@ -458,7 +458,7 @@ export default function MetricsPage() {
             <div>
               <label className="bt-label block mb-1">Notes</label>
               <input
-                className="w-full bg-white/[0.04] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
+                className="w-full bg-[var(--surface-glass-04)] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[12px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-teal)]"
                 value={testForm.notes}
                 onChange={(e) => setTestForm((p) => ({ ...p, notes: e.target.value }))}
                 placeholder="Optional notes"
@@ -520,7 +520,7 @@ export default function MetricsPage() {
               </thead>
               <tbody>
                 {[...detectionEntries].reverse().map((e) => (
-                  <tr key={e.id} className="border-b border-[var(--border-soft)] last:border-0 hover:bg-white/[0.02]">
+                  <tr key={e.id} className="border-b border-[var(--border-soft)] last:border-0 hover:bg-[var(--surface-glass)]">
                     <td className="px-4 py-2 text-[var(--text-primary)]">{e.test_label}</td>
                     <td className="px-4 py-2">{e.fault_injected ? <span className="text-amber-400">Yes</span> : <span className="text-sky-400">No</span>}</td>
                     <td className="px-4 py-2 text-[var(--text-muted)]">{e.fault_type}</td>

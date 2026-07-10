@@ -15,6 +15,33 @@ type LineChartProps = {
   yAxisLabel: string;
 };
 
+function readChartTheme() {
+  const s = getComputedStyle(document.documentElement);
+  return {
+    tick: s.getPropertyValue("--chart-tick").trim() || "#6b7689",
+    grid: s.getPropertyValue("--chart-grid").trim() || "rgba(148, 163, 184, 0.07)",
+    axis: s.getPropertyValue("--chart-axis").trim() || "rgba(148, 163, 184, 0.1)",
+    axisTitle: s.getPropertyValue("--chart-axis-title").trim() || "#a5b0c2",
+  };
+}
+
+function applyChartTheme(chart: Chart, yAxisLabel: string) {
+  const theme = readChartTheme();
+  const x = chart.options.scales?.x as { ticks?: { color?: string }; grid?: { color?: string }; border?: { color?: string } } | undefined;
+  const y = chart.options.scales?.y as { ticks?: { color?: string }; grid?: { color?: string }; border?: { color?: string }; title?: { text?: string; color?: string } } | undefined;
+  if (x?.ticks) x.ticks.color = theme.tick;
+  if (x?.grid) x.grid.color = theme.grid;
+  if (x?.border) x.border.color = theme.axis;
+  if (y?.ticks) y.ticks.color = theme.tick;
+  if (y?.grid) y.grid.color = theme.grid;
+  if (y?.border) y.border.color = theme.axis;
+  if (y?.title) {
+    y.title.text = yAxisLabel;
+    y.title.color = theme.axisTitle;
+  }
+  chart.update("none");
+}
+
 export default function LineChart({ labels, datasets, yAxisLabel }: LineChartProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<Chart | null>(null);
@@ -22,15 +49,12 @@ export default function LineChart({ labels, datasets, yAxisLabel }: LineChartPro
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    if (chartRef.current) {
-      const chart = chartRef.current;
-      chart.data.labels = labels;
-      const ctx2 = canvasRef.current!.getContext("2d");
-      chart.data.datasets = datasets.map((dataset) => {
-        const h = canvasRef.current!.clientHeight || 200;
+    const buildDatasets = (ctx: CanvasRenderingContext2D | null, canvas: HTMLCanvasElement) =>
+      datasets.map((dataset) => {
+        const h = canvas.clientHeight || 200;
         let bg: CanvasGradient | string = "transparent";
-        if (ctx2) {
-          bg = ctx2.createLinearGradient(0, 0, 0, h);
+        if (ctx) {
+          bg = ctx.createLinearGradient(0, 0, 0, h);
           bg.addColorStop(0, dataset.borderColor + "38");
           bg.addColorStop(1, dataset.borderColor + "00");
         }
@@ -48,42 +72,25 @@ export default function LineChart({ labels, datasets, yAxisLabel }: LineChartPro
           fill: true,
         };
       });
-      const yScale = chart.options.scales?.y as { title?: { text?: string } } | undefined;
-      if (yScale?.title) {
-        yScale.title.text = yAxisLabel;
-      }
-      chart.update("none");
+
+    if (chartRef.current) {
+      const chart = chartRef.current;
+      chart.data.labels = labels;
+      const ctx2 = canvasRef.current.getContext("2d");
+      chart.data.datasets = buildDatasets(ctx2, canvasRef.current);
+      applyChartTheme(chart, yAxisLabel);
       return;
     }
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
+    const theme = readChartTheme();
 
     chartRef.current = new Chart(canvas, {
       type: "line",
       data: {
         labels,
-        datasets: datasets.map((dataset) => ({
-          label: dataset.label,
-          data: dataset.data,
-          borderColor: dataset.borderColor,
-          backgroundColor: (() => {
-            if (!ctx) return "transparent";
-            const h = canvas.clientHeight || 200;
-            const grad = ctx.createLinearGradient(0, 0, 0, h);
-            const hex = dataset.borderColor;
-            grad.addColorStop(0, hex + "38");
-            grad.addColorStop(1, hex + "00");
-            return grad;
-          })(),
-          pointBackgroundColor: dataset.borderColor,
-          pointBorderColor: "transparent",
-          pointRadius: 2,
-          pointHoverRadius: 4,
-          borderWidth: 1.5,
-          tension: 0.4,
-          fill: true,
-        })),
+        datasets: buildDatasets(ctx, canvas),
       },
       options: {
         responsive: true,
@@ -95,19 +102,19 @@ export default function LineChart({ labels, datasets, yAxisLabel }: LineChartPro
         },
         scales: {
           x: {
-            ticks: { color: "#6b7689", font: { family: "'IBM Plex Mono', monospace", size: 10 } },
-            grid: { color: "rgba(148, 163, 184, 0.07)" },
-            border: { color: "rgba(148,163,184,0.1)" },
+            ticks: { color: theme.tick, font: { family: "'IBM Plex Mono', monospace", size: 10 } },
+            grid: { color: theme.grid },
+            border: { color: theme.axis },
           },
           y: {
             beginAtZero: true,
-            ticks: { color: "#6b7689", font: { family: "'IBM Plex Mono', monospace", size: 10 } },
-            grid: { color: "rgba(148, 163, 184, 0.07)" },
-            border: { color: "rgba(148,163,184,0.1)" },
+            ticks: { color: theme.tick, font: { family: "'IBM Plex Mono', monospace", size: 10 } },
+            grid: { color: theme.grid },
+            border: { color: theme.axis },
             title: {
               display: true,
               text: yAxisLabel,
-              color: "#a5b0c2",
+              color: theme.axisTitle,
               font: { family: "'IBM Plex Mono', monospace", size: 10 },
             },
           },
@@ -115,7 +122,13 @@ export default function LineChart({ labels, datasets, yAxisLabel }: LineChartPro
       },
     });
 
+    const observer = new MutationObserver(() => {
+      if (chartRef.current) applyChartTheme(chartRef.current, yAxisLabel);
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
     return () => {
+      observer.disconnect();
       chartRef.current?.destroy();
       chartRef.current = null;
     };

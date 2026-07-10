@@ -193,8 +193,8 @@ export default function NotificationsModal({ open, onClose }: NotificationsModal
   const testBtnCls = "inline-flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[var(--text-secondary)] hover:text-[var(--accent-teal)] hover:border-[rgba(94,234,212,0.3)] transition disabled:opacity-40";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4 py-6">
-      <div className="relative w-full max-w-[680px] max-h-[92vh] overflow-y-auto rounded-2xl border border-[var(--border-mid)] bg-[#0b1018] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.6)] scrollbar-hide">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-scrim)] backdrop-blur-sm px-4 py-6">
+      <div className="relative w-full max-w-[680px] max-h-[92vh] overflow-y-auto rounded-2xl border border-[var(--border-mid)] bg-[var(--surface-modal)] shadow-[var(--shadow-modal)] scrollbar-hide">
 
         {/* Decorative header band */}
         <div className="relative h-20 bt-grid border-b border-[var(--border-soft)] overflow-hidden">
@@ -202,7 +202,7 @@ export default function NotificationsModal({ open, onClose }: NotificationsModal
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-3 right-3 h-8 w-8 rounded-full border border-[var(--border-soft)] bg-white/[0.03] hover:bg-white/[0.06] flex items-center justify-center text-[var(--text-secondary)]"
+            className="absolute top-3 right-3 h-8 w-8 rounded-full border border-[var(--border-soft)] bg-[var(--surface-glass-strong)] hover:bg-[var(--surface-glass-hover)] flex items-center justify-center text-[var(--text-secondary)]"
             aria-label="Close"
           >
             <X size={16} />
@@ -212,11 +212,11 @@ export default function NotificationsModal({ open, onClose }: NotificationsModal
         {/* Title area */}
         <div className="px-6 sm:px-8 -mt-10 relative">
           <div className="flex items-start gap-4">
-            <div className="h-14 w-14 rounded-2xl border border-[var(--border-mid)] bg-[#0f1621] flex items-center justify-center flex-shrink-0">
+            <div className="h-14 w-14 rounded-2xl border border-[var(--border-mid)] bg-[var(--surface-dropdown)] flex items-center justify-center flex-shrink-0">
               <Bell size={22} className="text-[var(--accent-teal)]" />
             </div>
             <div className="pt-1.5">
-              <h2 className="bt-display text-[26px] leading-tight text-white">
+              <h2 className="bt-display text-[26px] leading-tight text-[var(--text-brand-white)]">
                 Notification <span className="italic text-[var(--accent-teal)]">settings</span>
               </h2>
               <p className="text-xs text-[var(--text-secondary)] mt-1">
@@ -389,11 +389,11 @@ export default function NotificationsModal({ open, onClose }: NotificationsModal
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 border-t border-[var(--border-soft)] bg-[#0b1018]/95 backdrop-blur px-6 sm:px-8 py-4 flex items-center justify-between gap-3">
+        <div className="sticky bottom-0 border-t border-[var(--border-soft)] bg-[var(--surface-modal-scrim)] backdrop-blur px-6 sm:px-8 py-4 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-[var(--border-soft)] bg-white/[0.02] text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] text-sm transition"
+            className="px-4 py-2 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-glass)] text-[var(--text-secondary)] hover:text-[var(--text-brand-white)] hover:bg-[var(--surface-glass-hover)] text-sm transition"
           >
             Cancel
           </button>

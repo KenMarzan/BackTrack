@@ -156,7 +156,7 @@ function RollbackConfirmModal({
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-[10px] border border-[var(--border-soft)] bg-transparent px-4 py-2 text-[12px] text-[var(--text-secondary)] hover:bg-white/[0.04] transition-colors"
+            className="flex-1 rounded-[10px] border border-[var(--border-soft)] bg-transparent px-4 py-2 text-[12px] text-[var(--text-secondary)] hover:bg-[var(--surface-glass-04)] transition-colors"
           >
             Cancel
           </button>

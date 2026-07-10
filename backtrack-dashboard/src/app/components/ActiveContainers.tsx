@@ -52,7 +52,7 @@ function ActiveContainers({ services }: { services: DashboardService[] }) {
               ) : (
                 services.map((service) => (
                   <tr
-                    className="border-b border-[var(--border-soft)] hover:bg-white/[0.015] transition-colors"
+                    className="border-b border-[var(--border-soft)] hover:bg-[var(--surface-glass)] transition-colors"
                     key={service.id}
                   >
                     <td className="px-3 py-2.5 bt-mono text-[11px] text-[var(--text-muted)]">

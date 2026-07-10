@@ -135,7 +135,7 @@ function CICDContent({
               data.commits.length === 0 ? (
                 <EmptyState icon={<GitCommit size={20} />} text="No commits found on this branch." />
               ) : data.commits.map((c) => (
-                <div key={c.sha} className="flex items-start gap-3 rounded-xl border border-[var(--border-mid)] bg-white/[0.02] px-3 py-2.5 hover:bg-white/[0.035] transition-colors">
+                <div key={c.sha} className="flex items-start gap-3 rounded-xl border border-[var(--border-mid)] bg-[var(--surface-glass)] px-3 py-2.5 hover:bg-[var(--surface-glass-mid)] transition-colors">
                   <span className="bt-mono text-[10.5px] text-[var(--accent-teal)] shrink-0 pt-0.5">{c.shortSha}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-[12px] text-[var(--text-primary)] truncate">{c.message}</p>
@@ -153,7 +153,7 @@ function CICDContent({
               data.workflowRuns.length === 0 ? (
                 <EmptyState icon={<RefreshCw size={20} />} text="No workflow runs found. Make sure your token has actions:read scope." />
               ) : data.workflowRuns.map((r) => (
-                <div key={r.id} className="flex items-start gap-3 rounded-xl border border-[var(--border-mid)] bg-white/[0.02] px-3 py-2.5 hover:bg-white/[0.035] transition-colors">
+                <div key={r.id} className="flex items-start gap-3 rounded-xl border border-[var(--border-mid)] bg-[var(--surface-glass)] px-3 py-2.5 hover:bg-[var(--surface-glass-mid)] transition-colors">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-[12px] text-[var(--text-primary)] truncate">{r.name}</span>
@@ -198,7 +198,7 @@ function CICDContent({
                 ) : data.imageTags.map((img) => {
                   const isRollingThis = rollback?.status === "rolling" && rollback.tag === img.tag;
                   return (
-                    <div key={img.tag + img.pushedAt} className="flex items-center gap-3 rounded-xl border border-[var(--border-mid)] bg-white/[0.02] px-3 py-2.5 hover:bg-white/[0.035] transition-colors">
+                    <div key={img.tag + img.pushedAt} className="flex items-center gap-3 rounded-xl border border-[var(--border-mid)] bg-[var(--surface-glass)] px-3 py-2.5 hover:bg-[var(--surface-glass-mid)] transition-colors">
                       <Package size={11} className="text-[var(--accent-violet)] shrink-0" />
                       <div className="flex-1 min-w-0">
                         <span className="bt-mono text-[12px] text-[var(--text-primary)] truncate block">{img.tag}</span>
@@ -410,7 +410,7 @@ function EmptyState({ icon, text, sub }: { icon: React.ReactNode; text: string; 
       <span className="text-[var(--text-muted)] opacity-40">{icon}</span>
       <p className="text-[12px] text-[var(--text-muted)]">{text}</p>
       {sub && (
-        <code className="bt-mono text-[10.5px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-1.5">{sub}</code>
+        <code className="bt-mono text-[10.5px] text-[var(--accent-teal)] bg-[var(--surface-code-bg)] border border-[var(--border-soft)] rounded-md px-3 py-1.5">{sub}</code>
       )}
     </div>
   );

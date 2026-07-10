@@ -13,7 +13,7 @@ function colorClass(line: string, type: OutputLine["type"]): string {
   if (type === "error")   return "text-rose-400";
   if (type === "info")    return "text-[var(--accent-teal)] opacity-50";
   if (type === "input")   return "text-emerald-400";
-  if (type === "divider") return "text-white/10";
+  if (type === "divider") return "text-[var(--text-white-10)]";
   const l = line.toLowerCase();
   if (l.includes("running"))                           return "text-emerald-400";
   if (l.includes("error") || l.includes("crashloop")) return "text-rose-400";
@@ -128,7 +128,7 @@ export default function AnomalyTerminal({ clusterName }: { clusterName?: string 
   }, [input, execute, history, push]);
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#07090d] rounded-lg overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-[var(--terminal-bg)] rounded-lg overflow-hidden">
       {/* Output area — cursor:text lets the browser show the text cursor for selection */}
       <div className="flex-1 overflow-y-auto p-3 space-y-[2px] scrollbar-hide cursor-text">
         {lines.map(line => (
@@ -137,7 +137,7 @@ export default function AnomalyTerminal({ clusterName }: { clusterName?: string 
             className={`bt-mono text-[11.5px] leading-[1.7] whitespace-pre-wrap break-all select-text ${colorClass(line.text, line.type)}`}
           >
             {line.type === "divider" ? (
-              <span className="text-white/[0.07]">{"─".repeat(52)}</span>
+              <span className="text-[var(--text-white-10)]">{"─".repeat(52)}</span>
             ) : line.text}
           </div>
         ))}
@@ -146,7 +146,7 @@ export default function AnomalyTerminal({ clusterName }: { clusterName?: string 
 
       {/* Input row — clicking anywhere in this row focuses the input */}
       <div
-        className="flex-shrink-0 flex items-center gap-2 border-t border-white/[0.06] px-3 py-2 bg-[#07090d] cursor-text"
+        className="flex-shrink-0 flex items-center gap-2 border-t border-[var(--border-white-06)] px-3 py-2 bg-[var(--terminal-bg)] cursor-text"
         onClick={() => inputRef.current?.focus()}
       >
         <span className="bt-mono text-[11.5px] text-emerald-400 select-none flex-shrink-0">
@@ -165,7 +165,7 @@ export default function AnomalyTerminal({ clusterName }: { clusterName?: string 
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
-          className="flex-1 bg-transparent bt-mono text-[11.5px] text-[var(--text-primary)] outline-none caret-[var(--accent-teal)] placeholder:text-white/20 disabled:opacity-50"
+          className="flex-1 bg-transparent bt-mono text-[11.5px] text-[var(--text-primary)] outline-none caret-[var(--accent-teal)] placeholder:text-[var(--text-white-20)] disabled:opacity-50"
           placeholder={running ? "running…" : "kubectl get pods -n default"}
         />
       </div>

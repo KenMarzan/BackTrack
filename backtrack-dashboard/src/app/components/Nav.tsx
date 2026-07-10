@@ -1,11 +1,13 @@
 "use client";
-import { BellRing, Boxes, Check, Cloud, Copy, Info, Menu, Plug, Settings2, Trash2, X } from "lucide-react";
+import { BellRing, BookOpen, Boxes, Check, Cloud, Copy, Info, Menu, Plug, Settings2, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import CustomSelect from "./CustomSelect";
 import NotificationsModal from "./NotificationsModal";
 import LogFlowAnimation from "./LogFlowAnimation";
+import ThemeToggle from "./ThemeToggle";
+import GuideModal, { type GuideSection } from "./GuideModal";
 
 type ConnectionForm = {
   appName: string;
@@ -35,7 +37,7 @@ function CopyCommand({ cmd }: { cmd: string }) {
   };
   return (
     <div className="relative group">
-      <code className="block bt-mono text-[11px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2 pr-8">
+      <code className="block bt-mono text-[11px] text-[var(--accent-teal)] bg-[var(--surface-code-bg)] border border-[var(--border-soft)] rounded-md px-3 py-2 pr-8">
         {cmd}
       </code>
       <button
@@ -53,6 +55,8 @@ function CopyCommand({ cmd }: { cmd: string }) {
 function Nav({ healthSummary }: NavProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [guideSection, setGuideSection] = useState<GuideSection>("overview");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -88,6 +92,17 @@ function Nav({ healthSummary }: NavProps) {
   };
 
   useEffect(() => {
+    try {
+      if (!localStorage.getItem("backtrack-guide-seen")) {
+        const t = window.setTimeout(() => setIsGuideOpen(true), 1200);
+        return () => clearTimeout(t);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
     const open = (e: Event) => {
       const platform = (e as CustomEvent<{ platform?: string }>).detail?.platform;
       if (platform === "docker" || platform === "kubernetes") {
@@ -98,6 +113,30 @@ function Nav({ healthSummary }: NavProps) {
     };
     window.addEventListener("backtrack:open-configure", open);
     return () => window.removeEventListener("backtrack:open-configure", open);
+  }, []);
+
+  useEffect(() => {
+    const openGuide = (e: Event) => {
+      const section = (e as CustomEvent<{ section?: GuideSection }>).detail?.section;
+      if (section) setGuideSection(section);
+      setIsGuideOpen(true);
+    };
+    window.addEventListener("backtrack:open-guide", openGuide);
+    return () => window.removeEventListener("backtrack:open-guide", openGuide);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        e.preventDefault();
+        setGuideSection("overview");
+        setIsGuideOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   // Close mobile menu on outside click
@@ -228,7 +267,13 @@ function Nav({ healthSummary }: NavProps) {
   return (
     <>
       <NotificationsModal open={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
-      <header className="sticky top-0 z-30 backdrop-blur-xl bg-[rgba(7,9,13,0.65)] border-b border-[var(--border-soft)]">
+      <GuideModal
+        open={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+        section={guideSection}
+        onSectionChange={setGuideSection}
+      />
+      <header className="sticky top-0 z-30 backdrop-blur-xl bg-[var(--header-backdrop)] border-b border-[var(--border-soft)]">
         <div className="px-4 sm:px-6 lg:px-8 xl:px-10 py-3.5 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           {/* Brand — left column */}
           <div className="flex items-center gap-3 min-w-0">
@@ -238,7 +283,7 @@ function Nav({ healthSummary }: NavProps) {
             </div>
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="bt-display text-[20px] leading-none text-white">
+                <h1 className="bt-display text-[20px] leading-none text-[var(--text-brand-white)]">
                   Back<span className="italic text-[var(--accent-teal)]">Track</span>
                 </h1>
                 <span className="hidden sm:inline-flex bt-chip bt-chip-teal">v0.1</span>
@@ -266,9 +311,9 @@ function Nav({ healthSummary }: NavProps) {
                   href={href}
                   className="px-3 py-[5px] rounded-lg border text-[12px] transition-all duration-150"
                   style={{
-                    borderColor: isActive ? "rgba(94,234,212,0.35)" : "transparent",
-                    background: isActive ? "rgba(94,234,212,0.07)" : "transparent",
-                    color: isActive ? "#d7f7ee" : "var(--text-secondary)",
+                    borderColor: isActive ? "var(--accent-border)" : "transparent",
+                    background: isActive ? "var(--accent-bg-soft)" : "transparent",
+                    color: isActive ? "var(--text-accent-light)" : "var(--text-secondary)",
                   }}
                 >
                   {label}
@@ -279,7 +324,7 @@ function Nav({ healthSummary }: NavProps) {
 
           {/* Status cluster — right column */}
           <div className="flex items-center justify-end gap-2">
-            <div className="hidden md:flex items-center gap-2.5 rounded-full border border-[var(--border-soft)] bg-white/[0.02] px-3 py-1.5">
+            <div className="hidden md:flex items-center gap-2.5 rounded-full bt-nav-pill px-3 py-1.5">
               <span className={`bt-pulse-dot ${clusterHealthy ? "" : "bt-red"}`} />
               <span className="text-[11px] text-[var(--text-secondary)]">
                 {clusterHealthy ? "Cluster nominal" : "Degraded cluster"}
@@ -289,16 +334,28 @@ function Nav({ healthSummary }: NavProps) {
                 {up}/{total || "—"} up
               </span>
             </div>
-            <div className="hidden lg:flex items-center gap-2 rounded-full border border-[var(--border-soft)] bg-white/[0.02] px-3 py-1.5 text-[11px] text-[var(--text-secondary)]">
+            <div className="hidden lg:flex items-center gap-2 rounded-full bt-nav-pill px-3 py-1.5 text-[11px] text-[var(--text-secondary)]">
               <Cloud size={12} className="text-[var(--accent-violet)]" />
               <span>{formattedDate}</span>
             </div>
+
+            <ThemeToggle />
+
+            <button
+              type="button"
+              onClick={() => { setGuideSection("overview"); setIsGuideOpen(true); }}
+              className="h-8 w-8 rounded-full border border-[var(--border-soft)] bg-[var(--surface-glass)] hover:bg-[var(--surface-glass-hover)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--accent-teal)] transition"
+              aria-label="Open BackTrack guide"
+              title="Guide (?)"
+            >
+              <BookOpen size={14} />
+            </button>
 
             {/* Notifications button */}
             <button
               type="button"
               onClick={() => setIsNotifOpen(true)}
-              className="h-8 w-8 rounded-full border border-[var(--border-soft)] bg-white/[0.02] hover:bg-white/[0.05] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--accent-teal)] transition"
+              className="h-8 w-8 rounded-full border border-[var(--border-soft)] bg-[var(--surface-glass)] hover:bg-[var(--surface-glass-hover)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--accent-teal)] transition"
               aria-label="Notification settings"
             >
               <BellRing size={14} />
@@ -307,7 +364,7 @@ function Nav({ healthSummary }: NavProps) {
             <button
               type="button"
               onClick={() => { setIsOpen(true); loadConnections(); }}
-              className="group inline-flex items-center gap-2 rounded-full border border-[rgba(94,234,212,0.35)] bg-[rgba(94,234,212,0.06)] px-3.5 py-1.5 text-[12px] text-[#c6f5e8] hover:bg-[rgba(94,234,212,0.12)] transition"
+              className="group inline-flex items-center gap-2 rounded-full border border-[var(--accent-border)] bg-[var(--accent-bg-subtle)] px-3.5 py-1.5 text-[12px] text-[var(--text-accent-mint)] hover:bg-[var(--accent-bg-medium)] transition"
             >
               <Plug size={13} className="text-[var(--accent-teal)]" />
               <span className="hidden sm:inline">Configure Cluster</span>
@@ -319,13 +376,13 @@ function Nav({ healthSummary }: NavProps) {
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(v => !v)}
-                className="h-8 w-8 rounded-full border border-[var(--border-soft)] bg-white/[0.02] hover:bg-white/[0.05] flex items-center justify-center text-[var(--text-secondary)] transition"
+                className="h-8 w-8 rounded-full border border-[var(--border-soft)] bg-[var(--surface-glass)] hover:bg-[var(--surface-glass-hover)] flex items-center justify-center text-[var(--text-secondary)] transition"
                 aria-label="Navigation menu"
               >
                 <Menu size={15} />
               </button>
               {isMobileMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-44 rounded-xl border border-[var(--border-mid)] bg-[#0f1621] shadow-[0_12px_40px_rgba(0,0,0,0.5)] overflow-hidden z-50">
+                <div className="absolute right-0 top-full mt-2 w-44 rounded-xl border border-[var(--border-mid)] bg-[var(--surface-dropdown)] shadow-[var(--shadow-dropdown)] overflow-hidden z-50">
                   {([
                     { href: "/", label: "Dashboard" },
                     { href: "/anomalies", label: "Anomalies" },
@@ -342,8 +399,8 @@ function Nav({ healthSummary }: NavProps) {
                         onClick={() => setIsMobileMenuOpen(false)}
                         className="flex items-center px-4 py-2.5 text-[13px] transition-colors"
                         style={{
-                          background: isActive ? "rgba(94,234,212,0.07)" : "transparent",
-                          color: isActive ? "#d7f7ee" : "var(--text-secondary)",
+                          background: isActive ? "var(--accent-bg-soft)" : "transparent",
+                          color: isActive ? "var(--text-accent-light)" : "var(--text-secondary)",
                         }}
                       >
                         {label}
@@ -358,16 +415,16 @@ function Nav({ healthSummary }: NavProps) {
       </header>
 
       {isOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4 py-6">
-          <div className="relative w-full max-w-[760px] max-h-[92vh] overflow-y-auto rounded-2xl border border-[var(--border-mid)] bg-[#0b1018] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.6)] scrollbar-hide">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-scrim)] backdrop-blur-sm px-4 py-6">
+          <div className="relative w-full max-w-[760px] max-h-[92vh] overflow-y-auto rounded-2xl border border-[var(--border-mid)] bg-[var(--surface-modal)] shadow-[var(--shadow-modal)] scrollbar-hide">
             {/* Full overlay while submitting */}
             {isSubmitting && (
-              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 rounded-2xl bg-[#0b1018]/95 backdrop-blur-sm">
+              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 rounded-2xl bg-[var(--surface-modal-scrim)] backdrop-blur-sm">
                 <LogFlowAnimation width={360} height={126} />
-                <p className="text-[13px] font-mono text-white/50">
+                <p className="text-[13px] font-mono text-[var(--text-white-50)]">
                   {lastAction === "test" ? "Testing connection…" : "Connecting and discovering services…"}
                 </p>
-                <p className="text-[11px] text-white/25 max-w-xs text-center">
+                <p className="text-[11px] text-[var(--text-white-25)] max-w-xs text-center">
                   {lastAction === "test" ? "Probing Docker socket and verifying credentials." : "Discovering services and registering collectors."}
                 </p>
               </div>
@@ -378,7 +435,7 @@ function Nav({ healthSummary }: NavProps) {
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="absolute top-3 right-3 h-8 w-8 rounded-full border border-[var(--border-soft)] bg-white/[0.03] hover:bg-white/[0.06] flex items-center justify-center text-[var(--text-secondary)]"
+                className="absolute top-3 right-3 h-8 w-8 rounded-full border border-[var(--border-soft)] bg-[var(--surface-glass-strong)] hover:bg-[var(--surface-glass-hover)] flex items-center justify-center text-[var(--text-secondary)]"
                 aria-label="Close"
               >
                 <X size={16} />
@@ -387,11 +444,11 @@ function Nav({ healthSummary }: NavProps) {
 
             <div className="px-6 sm:px-8 -mt-10 relative">
               <div className="flex items-start gap-4">
-                <div className="h-14 w-14 rounded-2xl border border-[var(--border-mid)] bg-[#0f1621] flex items-center justify-center">
+                <div className="h-14 w-14 rounded-2xl border border-[var(--border-mid)] bg-[var(--surface-dropdown)] flex items-center justify-center">
                   <Settings2 size={22} className="text-[var(--accent-teal)]" />
                 </div>
                 <div className="pt-1.5">
-                  <h2 className="bt-display text-[26px] leading-tight text-white">
+                  <h2 className="bt-display text-[26px] leading-tight text-[var(--text-brand-white)]">
                     Connect a <span className="italic text-[var(--accent-teal)]">cluster</span>
                   </h2>
                   <p className="text-xs text-[var(--text-secondary)] mt-1">
@@ -410,7 +467,7 @@ function Nav({ healthSummary }: NavProps) {
                     {connections.map((c) => (
                       <div
                         key={c.id}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border-soft)] bg-white/[0.02] px-3 py-2"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-glass)] px-3 py-2"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-teal)] shrink-0" />
@@ -640,7 +697,7 @@ function Nav({ healthSummary }: NavProps) {
                       <p className="mt-1 text-[11px] text-[var(--text-muted)]">
                         Agent not running yet? Start it with:
                       </p>
-                      <code className="block mt-2 bt-mono text-[11px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2 whitespace-pre-wrap break-all">
+                      <code className="block mt-2 bt-mono text-[11px] text-[var(--accent-teal)] bg-[var(--surface-code-bg)] border border-[var(--border-soft)] rounded-md px-3 py-2 whitespace-pre-wrap break-all">
                         docker compose up
                       </code>
                     </div>
@@ -654,7 +711,7 @@ function Nav({ healthSummary }: NavProps) {
                       <div>
                         <div className="flex items-center gap-2 mb-2">
                           <Boxes size={13} className="text-[var(--accent-teal)]" />
-                          <h3 className="text-[12px] font-semibold text-white">Single container</h3>
+                          <h3 className="text-[12px] font-semibold text-[var(--text-brand-white)]">Single container</h3>
                         </div>
                         <p className="text-[11px] text-[var(--text-muted)] mb-2">Find your container name and enter it in <strong>Application name</strong> above.</p>
                         <CopyCommand cmd={`docker ps --format "{{.Names}}"`} />
@@ -666,7 +723,7 @@ function Nav({ healthSummary }: NavProps) {
                       <div>
                         <div className="flex items-center gap-2 mb-2">
                           <Boxes size={13} className="text-[var(--accent-violet)]" />
-                          <h3 className="text-[12px] font-semibold text-white">Microservices (Docker Compose)</h3>
+                          <h3 className="text-[12px] font-semibold text-[var(--text-brand-white)]">Microservices (Docker Compose)</h3>
                         </div>
                         <p className="text-[11px] text-[var(--text-muted)] mb-2">
                           Enter your <strong>Compose project name</strong> — BackTrack will discover and monitor all services in that project at once.
@@ -688,18 +745,18 @@ function Nav({ healthSummary }: NavProps) {
                   <div className="rounded-xl border border-[var(--border-soft)] bg-[rgba(148,163,184,0.03)] p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <Boxes size={14} className="text-[var(--accent-violet)]" />
-                      <h3 className="text-sm text-white">Getting credentials</h3>
+                      <h3 className="text-sm text-[var(--text-brand-white)]">Getting credentials</h3>
                     </div>
                     <ol className="space-y-3 text-xs text-[var(--text-secondary)] list-decimal list-inside">
                       <li>
                         Cluster API endpoint:
-                        <code className="block mt-1.5 bt-mono text-[11.5px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2">
+                        <code className="block mt-1.5 bt-mono text-[11.5px] text-[var(--accent-teal)] bg-[var(--surface-code-bg)] border border-[var(--border-soft)] rounded-md px-3 py-2">
                           kubectl cluster-info
                         </code>
                       </li>
                       <li>
                         Service account token:
-                        <code className="block mt-1.5 bt-mono text-[11.5px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-3 py-2 whitespace-pre-wrap break-all">
+                        <code className="block mt-1.5 bt-mono text-[11.5px] text-[var(--accent-teal)] bg-[var(--surface-code-bg)] border border-[var(--border-soft)] rounded-md px-3 py-2 whitespace-pre-wrap break-all">
                           kubectl create token default --duration=24h
                         </code>
                       </li>
@@ -713,11 +770,11 @@ function Nav({ healthSummary }: NavProps) {
               </div>
             </div>
 
-            <div className="sticky bottom-0 border-t border-[var(--border-soft)] bg-[#0b1018]/95 backdrop-blur px-6 sm:px-8 py-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="sticky bottom-0 border-t border-[var(--border-soft)] bg-[var(--surface-modal-scrim)] backdrop-blur px-6 sm:px-8 py-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="px-4 py-2 rounded-lg border border-[var(--border-soft)] bg-white/[0.02] text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] text-sm"
+                className="px-4 py-2 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-glass)] text-[var(--text-secondary)] hover:text-[var(--text-brand-white)] hover:bg-[var(--surface-glass-hover)] text-sm"
               >
                 Cancel
               </button>
@@ -726,7 +783,7 @@ function Nav({ healthSummary }: NavProps) {
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => submitConnection("test")}
-                  className="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-[var(--border-mid)] bg-white/[0.02] text-[var(--text-primary)] hover:bg-white/[0.05] text-sm disabled:opacity-50"
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-[var(--border-mid)] bg-[var(--surface-glass)] text-[var(--text-primary)] hover:bg-[var(--surface-glass-hover)] text-sm disabled:opacity-50"
                 >
                   {isSubmitting ? "Testing…" : "Test connection"}
                 </button>
@@ -734,7 +791,7 @@ function Nav({ healthSummary }: NavProps) {
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => submitConnection("connect")}
-                  className="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-[rgba(94,234,212,0.45)] bg-[rgba(94,234,212,0.12)] text-[#d7f7ee] hover:bg-[rgba(94,234,212,0.2)] text-sm disabled:opacity-50"
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-[var(--accent-border-strong)] bg-[var(--accent-bg-medium)] text-[var(--text-accent-light)] hover:bg-[var(--accent-bg-strong)] text-sm disabled:opacity-50"
                 >
                   {isSubmitting ? "Connecting…" : "Connect"}
                 </button>
@@ -784,7 +841,7 @@ function Nav({ healthSummary }: NavProps) {
           <div>
             <p className="text-[13px] font-semibold text-[#34d399]">Connected successfully</p>
             <p className="text-[11px] text-[var(--text-secondary)] mt-0.5">
-              <span className="font-mono text-white">{successToast.appName}</span>
+              <span className="font-mono text-[var(--text-brand-white)]">{successToast.appName}</span>
               {" · "}
               {successToast.count} service{successToast.count !== 1 ? "s" : ""} discovered
             </p>

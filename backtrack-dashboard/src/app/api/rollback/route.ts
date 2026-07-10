@@ -13,7 +13,7 @@ type RollbackPayload = {
   namespace?: string;
   revision?: number;
   anomaly_detected_at?: string;
-  anomaly_type?: "TSD" | "LSI" | "BOTH" | "MANUAL";
+  anomaly_type?: "TSD" | "LSI" | "BOTH" | "MANUAL" | "AUTO";
 };
 
 function buildTsdEvidence(snap: Record<string, unknown>): TsdEvidence {

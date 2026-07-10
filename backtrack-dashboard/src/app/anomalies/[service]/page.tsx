@@ -121,10 +121,10 @@ function versionStatusMeta(status: string) {
     default:
       return {
         label: status || "unknown",
-        border: "border-white/10",
-        bg: "bg-white/[0.03]",
-        textColor: "text-white/60",
-        iconColor: "text-white/40",
+        border: "border-[var(--border-white-10)]",
+        bg: "bg-[var(--surface-glass-strong)]",
+        textColor: "text-[var(--text-white-60)]",
+        iconColor: "text-[var(--text-white-40)]",
       };
   }
 }
@@ -251,7 +251,7 @@ function SparkLine({
   if (values.length < 1) {
     return (
       <div
-        className="flex items-center justify-center rounded-xl border border-white/5 bg-[#0b101a] text-[10px] text-white/25"
+        className="flex items-center justify-center rounded-xl border border-[var(--border-white-05)] bg-[var(--surface-chart)] text-[10px] text-[var(--text-white-25)]"
         style={{ height }}
       >
         Waiting for data…
@@ -309,7 +309,7 @@ function SparkLine({
   }) : [];
 
   return (
-    <div className="rounded-xl border border-white/5 bg-[#0b101a] overflow-hidden" style={{ height }}>
+    <div className="rounded-xl border border-[var(--border-white-05)] bg-[var(--surface-chart)] overflow-hidden" style={{ height }}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
@@ -392,7 +392,7 @@ function ResidualSparkline({
   if (values.length < 1) {
     return (
       <div
-        className="flex items-center justify-center rounded-xl border border-white/5 bg-[#0b101a] text-[10px] text-white/25"
+        className="flex items-center justify-center rounded-xl border border-[var(--border-white-05)] bg-[var(--surface-chart)] text-[10px] text-[var(--text-white-25)]"
         style={{ height }}
       >
         Waiting for data…
@@ -450,7 +450,7 @@ function ResidualSparkline({
   }) : [];
 
   return (
-    <div className="rounded-xl border border-white/5 bg-[#0b101a] overflow-hidden" style={{ height }}>
+    <div className="rounded-xl border border-[var(--border-white-05)] bg-[var(--surface-chart)] overflow-hidden" style={{ height }}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
@@ -550,8 +550,8 @@ function ResidualTile({
       title="Click or long-press to expand"
     >
       <div className="mb-1 flex items-center justify-between text-[9px]">
-        <span className="text-white/35">{label}</span>
-        <span className="font-mono text-white/35">{(last > 0 ? "+" : "") + last.toFixed(3)}</span>
+        <span className="text-[var(--text-white-35)]">{label}</span>
+        <span className="font-mono text-[var(--text-white-35)]">{(last > 0 ? "+" : "") + last.toFixed(3)}</span>
       </div>
       <ResidualSparkline values={values} threshold={thr} lineColor={lineColor} id={id} height={80} />
     </div>
@@ -703,16 +703,16 @@ function ServiceDiagnosticsPage() {
   const insight = generateInsight(tsd, lsi);
 
   return (
-    <div className="h-screen w-full overflow-hidden bg-[#0d1117] text-white flex flex-col">
+    <div className="h-screen w-full overflow-hidden bg-[var(--surface-deep)] text-[var(--text-brand-white)] flex flex-col">
       {/* Header */}
-      <header className="flex h-13 shrink-0 items-center justify-between border-b border-white/[0.06] bg-[#161b22] px-5 gap-3">
+      <header className="flex h-13 shrink-0 items-center justify-between border-b border-[var(--border-white-06)] bg-[var(--surface-raised)] px-5 gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href="/anomalies" className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white transition shrink-0">
+          <Link href="/anomalies" className="flex items-center gap-1.5 text-xs text-[var(--text-white-50)] hover:text-[var(--text-brand-white)] transition shrink-0">
             <ArrowLeft size={13} />
             Back
           </Link>
           <div className="h-3.5 w-px bg-white/10 shrink-0" />
-          <span className="text-sm font-semibold text-white/90 truncate">{serviceName}</span>
+          <span className="text-sm font-semibold text-[var(--text-white-90)] truncate">{serviceName}</span>
           <span className={`rounded-full border px-2 py-0.5 text-[10px] shrink-0 ${tones.badge}`}>{severity.toUpperCase()}</span>
           {(tsd?.is_drifting || lsi?.is_anomalous) && (
             <span className="rounded-full bg-red-500/10 border border-red-500/25 px-2 py-0.5 text-[10px] text-red-300 shrink-0 animate-pulse">
@@ -725,7 +725,7 @@ function ServiceDiagnosticsPage() {
             <span className={`h-1.5 w-1.5 rounded-full ${agentOnline ? "bg-green-400" : "bg-red-400"}`} />
             Agent {agentOnline ? "Online" : "Offline"}
           </span>
-          {lastUpdate && <span className="text-white/35">Updated {lastUpdate}</span>}
+          {lastUpdate && <span className="text-[var(--text-white-35)]">Updated {lastUpdate}</span>}
         </div>
       </header>
 
@@ -763,7 +763,7 @@ function ServiceDiagnosticsPage() {
 
           {/* Status + version row */}
           <div className="grid grid-cols-2 gap-2 shrink-0">
-            <div className={`rounded-xl border border-white/[0.06] bg-[#161b22] px-3 py-2.5 flex items-center gap-2`}>
+            <div className={`rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] px-3 py-2.5 flex items-center gap-2`}>
               <span className={`text-[11px] font-bold tracking-wide ${tsd?.is_drifting || lsi?.is_anomalous ? tones.accent : "text-emerald-400"}`}>
                 {tsd?.is_drifting || lsi?.is_anomalous ? "ANOMALY DETECTED" : "SYSTEM NOMINAL"}
               </span>
@@ -772,12 +772,12 @@ function ServiceDiagnosticsPage() {
               {lsi?.is_anomalous && !lsi?.is_error_anomalous && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300">LSI WARN</span>}
             </div>
             <div className="grid grid-cols-2 gap-1.5">
-              <div className="rounded-xl border border-white/[0.06] bg-[#161b22] px-2 py-2">
-                <div className="text-[9px] uppercase tracking-wide text-white/35">Current</div>
+              <div className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] px-2 py-2">
+                <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-35)]">Current</div>
                 <div className={`mt-0.5 text-xs font-bold truncate ${tones.accent}`}>{currentVersion?.image_tag || "N/A"}</div>
               </div>
-              <div className="rounded-xl border border-emerald-500/20 bg-[#161b22] px-2 py-2">
-                <div className="text-[9px] uppercase tracking-wide text-white/35">Stable</div>
+              <div className="rounded-xl border border-emerald-500/20 bg-[var(--surface-raised)] px-2 py-2">
+                <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-35)]">Stable</div>
                 <div className="mt-0.5 text-xs font-bold text-emerald-400 truncate">{stableVersion?.image_tag || "N/A"}</div>
               </div>
             </div>
@@ -795,8 +795,8 @@ function ServiceDiagnosticsPage() {
                 onClick={() => setLeftTab(tab.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] transition border flex-1 justify-center ${
                   leftTab === tab.id
-                    ? "bg-[rgba(94,234,212,0.08)] border-[rgba(94,234,212,0.3)] text-[#5eead4]"
-                    : "bg-[#161b22] border-white/[0.06] text-white/40 hover:text-white/60 hover:border-white/15"
+                    ? "bg-[var(--accent-bg-soft)] border-[var(--accent-border)] text-[var(--accent-teal)]"
+                    : "bg-[var(--surface-raised)] border-[var(--border-white-06)] text-[var(--text-white-40)] hover:text-[var(--text-white-60)] hover:border-[var(--border-white-15)]"
                 }`}
               >
                 {tab.icon}
@@ -825,13 +825,13 @@ function ServiceDiagnosticsPage() {
                       setActiveModal({ kind: "tsd-live" });
                     }
                   }}
-                  className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3 cursor-pointer hover:border-white/15 transition"
+                  className="rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] p-3 cursor-pointer hover:border-[var(--border-white-15)] transition"
                 >
                   <div className="flex items-center justify-between mb-2.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-white/40">Live Metrics</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-white-40)]">Live Metrics</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-white/25">{tsd?.readings_count ?? 0} readings</span>
-                      <Maximize2 size={11} className="text-white/30" />
+                      <span className="text-[10px] text-[var(--text-white-25)]">{tsd?.readings_count ?? 0} readings</span>
+                      <Maximize2 size={11} className="text-[var(--text-white-30)]" />
                     </div>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5">
@@ -841,8 +841,8 @@ function ServiceDiagnosticsPage() {
                       { label: "Latency", value: `${tsd?.current?.latency_ms?.toFixed(0) ?? "—"} ms`, color: "text-violet-400" },
                       { label: "Err Rate", value: `${tsd?.current?.error_rate_percent?.toFixed(2) ?? "—"}%`, color: "text-rose-400" },
                     ].map((s) => (
-                      <div key={s.label} className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2 text-center">
-                        <div className="text-[9px] uppercase tracking-wide text-white/30">{s.label}</div>
+                      <div key={s.label} className="rounded-lg border border-[var(--border-white-05)] bg-[var(--surface-deep)] p-2 text-center">
+                        <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-30)]">{s.label}</div>
                         <div className={`mt-0.5 text-xs font-bold ${s.color}`}>{s.value}</div>
                       </div>
                     ))}
@@ -850,8 +850,8 @@ function ServiceDiagnosticsPage() {
                 </div>
 
                 {/* Residual values */}
-                <div className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3">
-                  <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-white/40">Residuals</div>
+                <div className="rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] p-3">
+                  <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--text-white-40)]">Residuals</div>
                   <div className="grid grid-cols-4 gap-1.5 mb-3">
                     {[
                       { label: "CPU", residuals: cpuResiduals },
@@ -866,8 +866,8 @@ function ServiceDiagnosticsPage() {
                       // Show IQR spread — more informative than last value which STL anchors to ~0
                       const display = iqr > 0 ? `±${iqr.toFixed(3)}` : "—";
                       return (
-                        <div key={r.label} className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2 text-center">
-                          <div className="text-[9px] uppercase tracking-wide text-white/30">{r.label}</div>
+                        <div key={r.label} className="rounded-lg border border-[var(--border-white-05)] bg-[var(--surface-deep)] p-2 text-center">
+                          <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-30)]">{r.label}</div>
                           <div className={`mt-0.5 text-xs font-bold ${hot ? "text-red-400" : "text-emerald-400"}`}>
                             {display}
                           </div>
@@ -910,16 +910,16 @@ function ServiceDiagnosticsPage() {
                       setActiveModal({ kind: "tsd-history", metric: "memory" });
                     }
                   }}
-                  className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3 cursor-pointer hover:border-white/15 transition"
+                  className="rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] p-3 cursor-pointer hover:border-[var(--border-white-15)] transition"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/40">
+                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--text-white-40)]">
                       <HardDrive size={11} className="text-sky-400" />
                       Memory History
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-mono text-sky-400">{tsd?.history?.memory?.at(-1)?.toFixed(1) ?? "—"} MB</span>
-                      <Maximize2 size={11} className="text-white/30" />
+                      <Maximize2 size={11} className="text-[var(--text-white-30)]" />
                     </div>
                   </div>
                   <SparkLine
@@ -942,16 +942,16 @@ function ServiceDiagnosticsPage() {
                       setActiveModal({ kind: "tsd-history", metric: "latency" });
                     }
                   }}
-                  className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3 cursor-pointer hover:border-white/15 transition"
+                  className="rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] p-3 cursor-pointer hover:border-[var(--border-white-15)] transition"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/40">
+                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--text-white-40)]">
                       <Wifi size={11} className="text-violet-400" />
                       Latency History
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-mono text-violet-400">{tsd?.history?.latency?.at(-1)?.toFixed(0) ?? "—"} ms</span>
-                      <Maximize2 size={11} className="text-white/30" />
+                      <Maximize2 size={11} className="text-[var(--text-white-30)]" />
                     </div>
                   </div>
                   <SparkLine
@@ -969,18 +969,18 @@ function ServiceDiagnosticsPage() {
                     <LogFlowAnimation width={220} height={78} />
                     <div className="flex items-center justify-between w-full mt-1">
                       <span className="text-[11px] font-semibold text-cyan-300">Building TSD baseline…</span>
-                      <span className="text-[10px] font-mono text-white/40">{tsd.readings_count} / 12 readings</span>
+                      <span className="text-[10px] font-mono text-[var(--text-white-40)]">{tsd.readings_count} / 12 readings</span>
                     </div>
-                    <div className="h-1.5 w-full rounded-full bg-white/[0.06] overflow-hidden">
+                    <div className="h-1.5 w-full rounded-full bg-[var(--surface-glass-06)] overflow-hidden">
                       <div className="h-full rounded-full bg-cyan-400 transition-all duration-700" style={{ width: `${(tsd.readings_count / 12) * 100}%` }} />
                     </div>
-                    <p className="text-[10px] text-white/35 self-start">STL decomposition activates after 12 readings (~2 min).</p>
+                    <p className="text-[10px] text-[var(--text-white-35)] self-start">STL decomposition activates after 12 readings (~2 min).</p>
                   </div>
                 )}
 
                 {/* TSD Status */}
-                <div className="rounded-xl border border-white/[0.05] bg-[#0d1117] px-3 py-2.5 text-[11px] leading-5 text-white/60">
-                  <span className="font-semibold text-white/80">TSD Status: </span>
+                <div className="rounded-xl border border-[var(--border-white-05)] bg-[var(--surface-deep)] px-3 py-2.5 text-[11px] leading-5 text-[var(--text-white-60)]">
+                  <span className="font-semibold text-[var(--text-white-80)]">TSD Status: </span>
                   {tsd?.is_drifting ? (
                     <span className="text-red-400">Residual drift detected — anomalous readings exceed 3×IQR on {tsd.readings_count} readings.</span>
                   ) : tsd ? (
@@ -994,7 +994,7 @@ function ServiceDiagnosticsPage() {
                         : <span className="text-emerald-400">All residuals within normal bounds.</span>;
                     })()
                   ) : (
-                    <span className="text-white/30">Waiting for agent connection...</span>
+                    <span className="text-[var(--text-white-30)]">Waiting for agent connection...</span>
                   )}
                 </div>
               </>
@@ -1014,56 +1014,56 @@ function ServiceDiagnosticsPage() {
                       setActiveModal({ kind: "lsi-scores" });
                     }
                   }}
-                  className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3 cursor-pointer hover:border-white/15 transition"
+                  className="rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] p-3 cursor-pointer hover:border-[var(--border-white-15)] transition"
                 >
                   <div className="flex items-center justify-between mb-2.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-white/40">LSI Scores</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-white-40)]">LSI Scores</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-white/25">{lsi?.fitted ? "Model Active" : `Corpus ${lsi?.corpus_size ?? 0} lines`}</span>
-                      <Maximize2 size={11} className="text-white/30" />
+                      <span className="text-[10px] text-[var(--text-white-25)]">{lsi?.fitted ? "Model Active" : `Corpus ${lsi?.corpus_size ?? 0} lines`}</span>
+                      <Maximize2 size={11} className="text-[var(--text-white-30)]" />
                     </div>
                   </div>
                   {/* Rollback signal row */}
                   <div className="mb-1.5">
-                    <div className="text-[8px] uppercase tracking-widest text-white/25 mb-1">Rollback Signal (Error Only)</div>
+                    <div className="text-[8px] uppercase tracking-widest text-[var(--text-white-25)] mb-1">Rollback Signal (Error Only)</div>
                     <div className="grid grid-cols-3 gap-1.5">
-                      <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
-                        <div className="text-[9px] uppercase tracking-wide text-white/30">Error Score</div>
+                      <div className="rounded-lg border border-[var(--border-white-05)] bg-[var(--surface-deep)] p-2.5">
+                        <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-30)]">Error Score</div>
                         <div className={`mt-0.5 text-base font-bold ${lsi?.is_error_anomalous ? "text-red-400" : "text-cyan-300"}`}>
                           {lsi?.error_score?.toFixed(4) ?? "—"}
                         </div>
                       </div>
-                      <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
-                        <div className="text-[9px] uppercase tracking-wide text-white/30">Error Baseline</div>
-                        <div className="mt-0.5 text-base font-bold text-white/75">
-                          {lsi?.error_baseline_locked ? lsi.error_baseline_mean.toFixed(4) : <span className="text-[11px] text-white/30">warming up…</span>}
+                      <div className="rounded-lg border border-[var(--border-white-05)] bg-[var(--surface-deep)] p-2.5">
+                        <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-30)]">Error Baseline</div>
+                        <div className="mt-0.5 text-base font-bold text-[var(--text-white-75)]">
+                          {lsi?.error_baseline_locked ? lsi.error_baseline_mean.toFixed(4) : <span className="text-[11px] text-[var(--text-white-30)]">warming up…</span>}
                         </div>
                       </div>
-                      <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
-                        <div className="text-[9px] uppercase tracking-wide text-white/30">Error Threshold</div>
+                      <div className="rounded-lg border border-[var(--border-white-05)] bg-[var(--surface-deep)] p-2.5">
+                        <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-30)]">Error Threshold</div>
                         <div className="mt-0.5 text-base font-bold text-red-300/80">{lsi?.error_threshold?.toFixed(4) ?? "—"}</div>
                       </div>
                     </div>
                   </div>
                   {/* Display score row */}
                   <div className="mb-3">
-                    <div className="text-[8px] uppercase tracking-widest text-white/25 mb-1">Full Score (Display)</div>
+                    <div className="text-[8px] uppercase tracking-widest text-[var(--text-white-25)] mb-1">Full Score (Display)</div>
                     <div className="grid grid-cols-3 gap-1.5">
-                      <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
-                        <div className="text-[9px] uppercase tracking-wide text-white/30">Current Score</div>
-                        <div className={`mt-0.5 text-base font-bold ${lsi?.is_anomalous ? "text-amber-400" : "text-white/50"}`}>
+                      <div className="rounded-lg border border-[var(--border-white-05)] bg-[var(--surface-deep)] p-2.5">
+                        <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-30)]">Current Score</div>
+                        <div className={`mt-0.5 text-base font-bold ${lsi?.is_anomalous ? "text-amber-400" : "text-[var(--text-white-50)]"}`}>
                           {lsi?.current_score?.toFixed(4) ?? "—"}
                         </div>
                       </div>
-                      <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
-                        <div className="text-[9px] uppercase tracking-wide text-white/30">Baseline Mean</div>
-                        <div className="mt-0.5 text-base font-bold text-white/40">
-                          {lsi?.baseline_locked ? lsi.baseline_mean.toFixed(4) : <span className="text-[11px] text-white/30">warming up…</span>}
+                      <div className="rounded-lg border border-[var(--border-white-05)] bg-[var(--surface-deep)] p-2.5">
+                        <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-30)]">Baseline Mean</div>
+                        <div className="mt-0.5 text-base font-bold text-[var(--text-white-40)]">
+                          {lsi?.baseline_locked ? lsi.baseline_mean.toFixed(4) : <span className="text-[11px] text-[var(--text-white-30)]">warming up…</span>}
                         </div>
                       </div>
-                      <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2.5">
-                        <div className="text-[9px] uppercase tracking-wide text-white/30">Threshold</div>
-                        <div className="mt-0.5 text-base font-bold text-white/40">{lsi?.threshold?.toFixed(4) ?? "—"}</div>
+                      <div className="rounded-lg border border-[var(--border-white-05)] bg-[var(--surface-deep)] p-2.5">
+                        <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-30)]">Threshold</div>
+                        <div className="mt-0.5 text-base font-bold text-[var(--text-white-40)]">{lsi?.threshold?.toFixed(4) ?? "—"}</div>
                       </div>
                     </div>
                   </div>
@@ -1073,8 +1073,8 @@ function ServiceDiagnosticsPage() {
                       {(["INFO", "WARN", "ERROR", "NOVEL"] as const).map((label) => {
                         const colors: Record<string, string> = { INFO: "text-emerald-400", WARN: "text-yellow-400", ERROR: "text-red-400", NOVEL: "text-purple-400" };
                         return (
-                          <div key={label} className="rounded-lg border border-white/[0.05] bg-[#0d1117] p-2 text-center">
-                            <div className="text-[9px] uppercase tracking-wide text-white/30">{label}</div>
+                          <div key={label} className="rounded-lg border border-[var(--border-white-05)] bg-[var(--surface-deep)] p-2 text-center">
+                            <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-30)]">{label}</div>
                             <div className={`mt-0.5 text-sm font-bold ${colors[label]}`}>{lsi.window_counts?.[label] ?? 0}</div>
                           </div>
                         );
@@ -1094,18 +1094,18 @@ function ServiceDiagnosticsPage() {
                       setActiveModal({ kind: "lsi-history" });
                     }
                   }}
-                  className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3 cursor-pointer hover:border-white/15 transition"
+                  className="rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] p-3 cursor-pointer hover:border-[var(--border-white-15)] transition"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/40">
+                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--text-white-40)]">
                       <TrendingUp size={11} className="text-cyan-400" />
                       Error Score History
                     </div>
                     <div className="flex items-center gap-2 text-[9px]">
-                      <span className="text-white/30">Baseline</span>
-                      <span className="font-mono text-white/50">{lsi?.error_baseline_mean?.toFixed(3) ?? "—"}</span>
+                      <span className="text-[var(--text-white-30)]">Baseline</span>
+                      <span className="font-mono text-[var(--text-white-50)]">{lsi?.error_baseline_mean?.toFixed(3) ?? "—"}</span>
                       <span className="text-red-400/60">Threshold {lsi?.error_threshold?.toFixed(3) ?? "—"}</span>
-                      <Maximize2 size={11} className="text-white/30" />
+                      <Maximize2 size={11} className="text-[var(--text-white-30)]" />
                     </div>
                   </div>
                   <SparkLine
@@ -1116,7 +1116,7 @@ function ServiceDiagnosticsPage() {
                     id="lsi-error-score"
                     height={90}
                   />
-                  <div className="mt-2 flex items-center gap-4 text-[9px] text-white/30">
+                  <div className="mt-2 flex items-center gap-4 text-[9px] text-[var(--text-white-30)]">
                     <span className="flex items-center gap-1"><span className="inline-block w-4 border-t border-dashed border-red-400/60" /> Threshold</span>
                     <span className="flex items-center gap-1"><span className="inline-block w-4 border-t border-dashed border-white/25" /> Error baseline</span>
                     <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-cyan-400" /> Error score</span>
@@ -1135,19 +1135,19 @@ function ServiceDiagnosticsPage() {
                         setActiveModal({ kind: "lsi-window" });
                       }
                     }}
-                    className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-3 cursor-pointer hover:border-white/15 transition"
+                    className="rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] p-3 cursor-pointer hover:border-[var(--border-white-15)] transition"
                   >
                     <div className="mb-2 flex items-center justify-between">
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-white/40">Recent Window Lines</span>
-                      <Maximize2 size={11} className="text-white/30" />
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-white-40)]">Recent Window Lines</span>
+                      <Maximize2 size={11} className="text-[var(--text-white-30)]" />
                     </div>
                     <div className="space-y-0.5 font-mono text-[10px] max-h-[160px] overflow-y-auto scrollbar-hide">
                       {lsi.recent_lines.slice(-30).map((entry, i) => {
                         const colors: Record<string, string> = { INFO: "text-emerald-400", WARN: "text-yellow-400", ERROR: "text-red-400", NOVEL: "text-purple-400" };
                         return (
                           <div key={i} className="flex gap-2">
-                            <span className={`shrink-0 w-10 text-right font-bold ${colors[entry.label] ?? "text-white/40"}`}>{entry.label}</span>
-                            <span className="text-white/50 truncate">{entry.line}</span>
+                            <span className={`shrink-0 w-10 text-right font-bold ${colors[entry.label] ?? "text-[var(--text-white-40)]"}`}>{entry.label}</span>
+                            <span className="text-[var(--text-white-50)] truncate">{entry.line}</span>
                           </div>
                         );
                       })}
@@ -1160,18 +1160,18 @@ function ServiceDiagnosticsPage() {
                   <div className="rounded-xl border border-violet-500/25 bg-violet-500/[0.05] px-3 py-2.5">
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-[11px] font-semibold text-violet-300">Building log corpus…</span>
-                      <span className="text-[10px] font-mono text-white/40">{lsi.corpus_size} / 200 lines</span>
+                      <span className="text-[10px] font-mono text-[var(--text-white-40)]">{lsi.corpus_size} / 200 lines</span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-[var(--surface-glass-06)] overflow-hidden">
                       <div className="h-full rounded-full bg-violet-400 transition-all duration-700" style={{ width: `${Math.min((lsi.corpus_size / 200) * 100, 100)}%` }} />
                     </div>
-                    <p className="mt-1.5 text-[10px] text-white/35">TF-IDF + SVD model trains after 200 log lines. Log anomaly scoring activates automatically.</p>
+                    <p className="mt-1.5 text-[10px] text-[var(--text-white-35)]">TF-IDF + SVD model trains after 200 log lines. Log anomaly scoring activates automatically.</p>
                   </div>
                 )}
 
                 {/* LSI status */}
-                <div className="rounded-xl border border-white/[0.05] bg-[#0d1117] px-3 py-2.5 text-[11px] leading-5 text-white/60">
-                  <span className="font-semibold text-white/80">LSI Status: </span>
+                <div className="rounded-xl border border-[var(--border-white-05)] bg-[var(--surface-deep)] px-3 py-2.5 text-[11px] leading-5 text-[var(--text-white-60)]">
+                  <span className="font-semibold text-[var(--text-white-80)]">LSI Status: </span>
                   {lsi?.is_error_anomalous ? (
                     <span className="text-red-400">ERROR anomaly — score {lsi.current_score?.toFixed(4) ?? "—"} exceeds threshold. <span className="font-semibold">Rollback will trigger.</span></span>
                   ) : lsi?.is_anomalous ? (
@@ -1179,7 +1179,7 @@ function ServiceDiagnosticsPage() {
                   ) : lsi?.fitted ? (
                     <span className="text-emerald-400">Log patterns within normal baseline.</span>
                   ) : (
-                    <span className="text-white/30">{lsi ? "Waiting for corpus to reach 200 lines…" : "Waiting for agent connection..."}</span>
+                    <span className="text-[var(--text-white-30)]">{lsi ? "Waiting for corpus to reach 200 lines…" : "Waiting for agent connection..."}</span>
                   )}
                 </div>
               </>
@@ -1191,10 +1191,10 @@ function ServiceDiagnosticsPage() {
         <div className="flex-1 min-w-0 flex flex-col min-h-0 gap-3">
 
           {/* ── Log Stream ── */}
-          <div className={`${terminalOpen ? "h-1/2" : "flex-1"} min-h-0 rounded-2xl border border-white/[0.06] bg-[#161b22] overflow-hidden flex flex-col`}>
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] shrink-0">
-              <span className="text-[9px] font-semibold uppercase tracking-widest text-white/40">Classified Log Stream</span>
-              <div className="flex items-center gap-3 text-[9px] text-white/25">
+          <div className={`${terminalOpen ? "h-1/2" : "flex-1"} min-h-0 rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] overflow-hidden flex flex-col`}>
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border-white-06)] shrink-0">
+              <span className="text-[9px] font-semibold uppercase tracking-widest text-[var(--text-white-40)]">Classified Log Stream</span>
+              <div className="flex items-center gap-3 text-[9px] text-[var(--text-white-25)]">
                 {lsi && (
                   <span className="flex items-center gap-1.5">
                     <span className="text-purple-400">{lsi.window_counts?.NOVEL ?? 0} novel</span>
@@ -1206,20 +1206,20 @@ function ServiceDiagnosticsPage() {
                 <span>{recentLines.length} lines (live)</span>
               </div>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto p-3 font-mono text-xs leading-5 bg-[#0d1117] scrollbar-hide">
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 font-mono text-xs leading-5 bg-[var(--surface-deep)] scrollbar-hide">
               {recentLines.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full gap-3">
                   {!agentOnline ? (
-                    <span className="text-white/25 text-[11px]">Connect backtrack-agent to see classified logs.</span>
+                    <span className="text-[var(--text-white-25)] text-[11px]">Connect backtrack-agent to see classified logs.</span>
                   ) : lsi && !lsi.fitted ? (
                     <>
                       <LogFlowAnimation width={300} height={105} />
-                      <span className="text-[11px] font-mono text-white/40">
+                      <span className="text-[11px] font-mono text-[var(--text-white-40)]">
                         Building log corpus — {lsi.corpus_size} / 200 lines collected. Classification starts after corpus is full.
                       </span>
                     </>
                   ) : (
-                    <span className="text-white/25 text-[11px]">Waiting for classified log lines...</span>
+                    <span className="text-[var(--text-white-25)] text-[11px]">Waiting for classified log lines...</span>
                   )}
                 </div>
               ) : (
@@ -1237,9 +1237,9 @@ function ServiceDiagnosticsPage() {
                         </div>
                       ))}
                       {otherLogLines.length > 0 && (
-                        <div className="my-2 flex items-center gap-1.5 text-[9px] uppercase tracking-wide text-white/20">
-                          <span className="h-px flex-1 bg-white/[0.05]" />Classified Lines ({otherLogLines.length})
-                          <span className="h-px flex-1 bg-white/[0.05]" />
+                        <div className="my-2 flex items-center gap-1.5 text-[9px] uppercase tracking-wide text-[var(--text-white-20)]">
+                          <span className="h-px flex-1 bg-[var(--border-white-05)]" />Classified Lines ({otherLogLines.length})
+                          <span className="h-px flex-1 bg-[var(--border-white-05)]" />
                         </div>
                       )}
                     </>
@@ -1248,8 +1248,8 @@ function ServiceDiagnosticsPage() {
                     const labelColors: Record<string, string> = { ERROR: "text-red-400", WARN: "text-yellow-400", INFO: "text-emerald-400" };
                     return (
                       <div key={`line-${i}`} className="flex gap-2 py-0.5">
-                        <span className={`shrink-0 w-12 text-right font-bold ${labelColors[entry.label] ?? "text-white/40"}`}>{entry.label}</span>
-                        <span className="text-white/55 truncate">{entry.line}</span>
+                        <span className={`shrink-0 w-12 text-right font-bold ${labelColors[entry.label] ?? "text-[var(--text-white-40)]"}`}>{entry.label}</span>
+                        <span className="text-[var(--text-white-55)] truncate">{entry.line}</span>
                       </div>
                     );
                   })}
@@ -1260,16 +1260,16 @@ function ServiceDiagnosticsPage() {
 
           {/* ── Terminal pane ── */}
           {terminalOpen && (
-            <div className="h-1/2 min-h-0 rounded-2xl border border-white/[0.06] bg-[#0d1117] overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] shrink-0">
-                <div className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-widest text-white/40">
+            <div className="h-1/2 min-h-0 rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border-white-06)] shrink-0">
+                <div className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-widest text-[var(--text-white-40)]">
                   <TerminalSquare size={12} className="text-[var(--accent-teal)]" />
                   Terminal
                 </div>
                 <button
                   type="button"
                   onClick={() => setTerminalOpen(false)}
-                  className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] text-white/40 hover:bg-white/[0.05] hover:text-white/70 transition"
+                  className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] text-[var(--text-white-40)] hover:bg-[var(--border-white-05)] hover:text-[var(--text-white-70)] transition"
                   aria-label="Close terminal"
                 >
                   <ChevronDown size={12} />
@@ -1287,7 +1287,7 @@ function ServiceDiagnosticsPage() {
             <button
               type="button"
               onClick={() => setTerminalOpen(true)}
-              className="shrink-0 flex items-center justify-center gap-2 rounded-xl border border-white/[0.06] bg-[#161b22] px-3 py-2 text-[11px] text-white/55 hover:border-[rgba(94,234,212,0.35)] hover:bg-[rgba(94,234,212,0.06)] hover:text-[var(--accent-teal)] transition"
+              className="shrink-0 flex items-center justify-center gap-2 rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] px-3 py-2 text-[11px] text-[var(--text-white-55)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--accent-teal)] transition"
             >
               <TerminalSquare size={13} />
               Open Terminal
@@ -1309,27 +1309,27 @@ function ServiceDiagnosticsPage() {
                 setActiveModal({ kind: "root-cause" });
               }
             }}
-            className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-4 cursor-pointer hover:border-white/15 transition"
+            className="rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] p-4 cursor-pointer hover:border-[var(--border-white-15)] transition"
           >
             <div className="flex items-center gap-2 mb-3">
-              <Search size={14} className="text-white/50" />
-              <span className="font-semibold text-sm text-white">Root Cause</span>
+              <Search size={14} className="text-[var(--text-white-50)]" />
+              <span className="font-semibold text-sm text-[var(--text-brand-white)]">Root Cause</span>
               {insight.driver !== "NONE" && (
                 <span className="ml-auto rounded-full border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-[9px] text-orange-300">ACTIVE</span>
               )}
-              <Maximize2 size={12} className={`text-white/30 ${insight.driver !== "NONE" ? "" : "ml-auto"}`} />
+              <Maximize2 size={12} className={`text-[var(--text-white-30)] ${insight.driver !== "NONE" ? "" : "ml-auto"}`} />
             </div>
-            <div className="rounded-xl border border-white/[0.05] bg-[#0d1117] p-2.5 mb-2.5">
-              <div className="text-[9px] uppercase tracking-wide text-white/30 mb-1">Analysis</div>
-              <div className="text-[11px] leading-5 text-white/75">{insight.headline}</div>
+            <div className="rounded-xl border border-[var(--border-white-05)] bg-[var(--surface-deep)] p-2.5 mb-2.5">
+              <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-30)] mb-1">Analysis</div>
+              <div className="text-[11px] leading-5 text-[var(--text-white-75)]">{insight.headline}</div>
             </div>
-            <p className="text-[10px] leading-[1.65] text-white/45 mb-2.5">{insight.explanation}</p>
+            <p className="text-[10px] leading-[1.65] text-[var(--text-white-45)] mb-2.5">{insight.explanation}</p>
             {insight.driftingMetrics.length > 0 && (
               <div className="space-y-1 mb-2.5">
-                <div className="text-[9px] uppercase tracking-wide text-white/30 mb-1">Metric Drift</div>
+                <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-30)] mb-1">Metric Drift</div>
                 {insight.driftingMetrics.map((m) => (
                   <div key={m.name} className="flex items-center justify-between rounded-lg border border-red-500/15 bg-red-500/[0.04] px-2.5 py-1.5">
-                    <span className="text-[10px] text-white/55">{m.name} residual</span>
+                    <span className="text-[10px] text-[var(--text-white-55)]">{m.name} residual</span>
                     <span className="text-[10px] font-bold text-red-400">~{m.ratio.toFixed(1)}×</span>
                   </div>
                 ))}
@@ -1337,14 +1337,14 @@ function ServiceDiagnosticsPage() {
             )}
             {lsi?.is_anomalous && (
               <div className="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-500/[0.04] px-2.5 py-1.5 mb-2.5">
-                <span className="text-[10px] text-white/55">NOVEL log ratio</span>
+                <span className="text-[10px] text-[var(--text-white-55)]">NOVEL log ratio</span>
                 <span className="text-[10px] font-bold text-purple-400">{(insight.novelRatio * 100).toFixed(0)}% of window</span>
               </div>
             )}
             {insight.novelLines.length > 0 && (
               <div>
-                <div className="text-[9px] uppercase tracking-wide text-white/30 mb-1.5">Unknown Patterns</div>
-                <div className="space-y-1 rounded-xl border border-white/[0.05] bg-[#0d1117] p-2 font-mono text-[9px]">
+                <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-30)] mb-1.5">Unknown Patterns</div>
+                <div className="space-y-1 rounded-xl border border-[var(--border-white-05)] bg-[var(--surface-deep)] p-2 font-mono text-[9px]">
                   {insight.novelLines.map((e, i) => (
                     <div key={i} className="flex gap-1.5 text-purple-300/70 leading-4">
                       <span className="shrink-0 text-purple-500/50">▸</span>
@@ -1355,7 +1355,7 @@ function ServiceDiagnosticsPage() {
               </div>
             )}
             {insight.driver === "NONE" && (
-              <div className="text-center text-[10px] text-white/25 py-2">{tsd && lsi ? "No anomaly signals detected." : "Waiting for agent data..."}</div>
+              <div className="text-center text-[10px] text-[var(--text-white-25)] py-2">{tsd && lsi ? "No anomaly signals detected." : "Waiting for agent data..."}</div>
             )}
           </div>
 
@@ -1370,22 +1370,22 @@ function ServiceDiagnosticsPage() {
                 setActiveModal({ kind: "diagnostic" });
               }
             }}
-            className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-4 cursor-pointer hover:border-white/15 transition"
+            className="rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] p-4 cursor-pointer hover:border-[var(--border-white-15)] transition"
           >
             <div className="flex items-center gap-2 mb-3">
-              <Activity size={14} className="text-white/50" />
-              <span className="font-semibold text-sm text-white">Diagnostic Summary</span>
-              <Maximize2 size={12} className="text-white/30 ml-auto" />
+              <Activity size={14} className="text-[var(--text-white-50)]" />
+              <span className="font-semibold text-sm text-[var(--text-brand-white)]">Diagnostic Summary</span>
+              <Maximize2 size={12} className="text-[var(--text-white-30)] ml-auto" />
             </div>
             <div className="space-y-2 text-[11px]">
               {[
                 { label: "Detected Issue", value: message, color: tones.accent },
-                { label: "Current vs Baseline", value: `${current} vs ${baseline}`, color: "text-white/70" },
-                { label: "Metric", value: metric, color: "text-white/70" },
-                { label: "Namespace", value: namespace, color: "text-white/70" },
+                { label: "Current vs Baseline", value: `${current} vs ${baseline}`, color: "text-[var(--text-white-70)]" },
+                { label: "Metric", value: metric, color: "text-[var(--text-white-70)]" },
+                { label: "Namespace", value: namespace, color: "text-[var(--text-white-70)]" },
               ].map((row) => (
-                <div key={row.label} className="rounded-lg border border-white/[0.05] bg-[#0d1117] px-2.5 py-2">
-                  <div className="text-[9px] uppercase tracking-wide text-white/30">{row.label}</div>
+                <div key={row.label} className="rounded-lg border border-[var(--border-white-05)] bg-[var(--surface-deep)] px-2.5 py-2">
+                  <div className="text-[9px] uppercase tracking-wide text-[var(--text-white-30)]">{row.label}</div>
                   <div className={`mt-0.5 text-[11px] font-semibold ${row.color}`}>{row.value}</div>
                 </div>
               ))}
@@ -1403,12 +1403,12 @@ function ServiceDiagnosticsPage() {
                 setActiveModal({ kind: "agent-status" });
               }
             }}
-            className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-4 cursor-pointer hover:border-white/15 transition"
+            className="rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] p-4 cursor-pointer hover:border-[var(--border-white-15)] transition"
           >
             <div className="flex items-center gap-2 mb-3">
-              <ShieldAlert size={14} className="text-white/50" />
-              <span className="font-semibold text-sm text-white">Agent Status</span>
-              <Maximize2 size={12} className="text-white/30 ml-auto" />
+              <ShieldAlert size={14} className="text-[var(--text-white-50)]" />
+              <span className="font-semibold text-sm text-[var(--text-brand-white)]">Agent Status</span>
+              <Maximize2 size={12} className="text-[var(--text-white-30)] ml-auto" />
             </div>
             <div className="space-y-1.5 text-[11px]">
               {[
@@ -1419,7 +1419,7 @@ function ServiceDiagnosticsPage() {
                 { label: "Readings", value: String(tsd?.readings_count ?? 0), color: "text-emerald-400" },
                 { label: "Versions", value: String(versions.length), color: "text-emerald-400" },
               ].map((row) => (
-                <div key={row.label} className="flex justify-between text-white/50">
+                <div key={row.label} className="flex justify-between text-[var(--text-white-50)]">
                   <span>{row.label}</span>
                   <span className={row.color}>{row.value}</span>
                 </div>
@@ -1439,13 +1439,13 @@ function ServiceDiagnosticsPage() {
                 setActiveModal({ kind: "version-history" });
               }
             }}
-            className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-4 cursor-pointer hover:border-white/15 transition"
+            className="rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] p-4 cursor-pointer hover:border-[var(--border-white-15)] transition"
           >
             <div className="flex items-center gap-2 mb-3">
-              <History size={14} className="text-white/50" />
-              <span className="font-semibold text-sm text-white">Version History</span>
-              <span className="ml-auto text-[10px] text-white/35">{versions.length} total</span>
-              <Maximize2 size={12} className="text-white/30" />
+              <History size={14} className="text-[var(--text-white-50)]" />
+              <span className="font-semibold text-sm text-[var(--text-brand-white)]">Version History</span>
+              <span className="ml-auto text-[10px] text-[var(--text-white-35)]">{versions.length} total</span>
+              <Maximize2 size={12} className="text-[var(--text-white-30)]" />
             </div>
             <div className="space-y-1.5">
               {rollingBack && (
@@ -1453,12 +1453,12 @@ function ServiceDiagnosticsPage() {
                   <RefreshCw size={11} className="text-amber-300 animate-spin" />
                   <div className="flex-1 min-w-0">
                     <div className="text-[11px] font-semibold text-amber-200">Reverting…</div>
-                    <div className="text-[9px] text-white/40 truncate">Awaiting agent confirmation</div>
+                    <div className="text-[9px] text-[var(--text-white-40)] truncate">Awaiting agent confirmation</div>
                   </div>
                 </div>
               )}
               {versions.length === 0 && !rollingBack && (
-                <div className="text-[10px] text-white/30 px-1">No version snapshots yet.</div>
+                <div className="text-[10px] text-[var(--text-white-30)] px-1">No version snapshots yet.</div>
               )}
               {versions.slice(0, 4).map((v) => {
                 const meta = versionStatusMeta(v.status);
@@ -1466,22 +1466,22 @@ function ServiceDiagnosticsPage() {
                   <div key={v.id} className={`flex items-center gap-2 rounded-lg border ${meta.border} ${meta.bg} px-2.5 py-1.5`}>
                     <CircleDot size={9} className={meta.iconColor} />
                     <div className="flex-1 min-w-0">
-                      <div className="text-[11px] font-mono text-white/80 truncate">{v.image_tag}</div>
-                      <div className="text-[9px] text-white/35">{formatRelTimestamp(v.created_at)}</div>
+                      <div className="text-[11px] font-mono text-[var(--text-white-80)] truncate">{v.image_tag}</div>
+                      <div className="text-[9px] text-[var(--text-white-35)]">{formatRelTimestamp(v.created_at)}</div>
                     </div>
                     <span className={`text-[9px] font-semibold uppercase tracking-wide ${meta.textColor}`}>{meta.label}</span>
                   </div>
                 );
               })}
               {versions.length > 4 && (
-                <div className="text-[9.5px] text-white/35 px-1">+{versions.length - 4} more · click to expand</div>
+                <div className="text-[9.5px] text-[var(--text-white-35)] px-1">+{versions.length - 4} more · click to expand</div>
               )}
             </div>
           </div>
 
           {/* Actions */}
-          <div className="rounded-2xl border border-white/[0.06] bg-[#161b22] p-4">
-            <h3 className="text-sm font-semibold text-white mb-3">Actions</h3>
+          <div className="rounded-2xl border border-[var(--border-white-06)] bg-[var(--surface-raised)] p-4">
+            <h3 className="text-sm font-semibold text-[var(--text-brand-white)] mb-3">Actions</h3>
             <div className="space-y-2">
               <button
                 type="button"
@@ -1512,7 +1512,7 @@ function ServiceDiagnosticsPage() {
               )}
               <Link
                 href="/anomalies"
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/70 hover:bg-white/[0.08] transition"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border-white-10)] bg-[var(--surface-glass-04)] px-3 py-2 text-xs text-[var(--text-white-70)] hover:bg-[var(--surface-glass-08)] transition"
               >
                 <ArrowLeft size={12} />
                 Back to Terminal
@@ -1523,7 +1523,7 @@ function ServiceDiagnosticsPage() {
                     <CheckCircle2 size={12} />
                     Rollback Available
                   </div>
-                  <div className="mt-1 text-[10px] text-white/40">Stable version {stableVersion.image_tag} ready.</div>
+                  <div className="mt-1 text-[10px] text-[var(--text-white-40)]">Stable version {stableVersion.image_tag} ready.</div>
                 </div>
               )}
             </div>
@@ -1547,8 +1547,8 @@ function ServiceDiagnosticsPage() {
             { label: "Latency", value: `${tsd?.current?.latency_ms?.toFixed(0) ?? "—"} ms`, color: "text-violet-400" },
             { label: "Error Rate", value: `${tsd?.current?.error_rate_percent?.toFixed(2) ?? "—"}%`, color: "text-rose-400" },
           ].map((s) => (
-            <div key={s.label} className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
-              <div className="text-[11px] uppercase tracking-wide text-white/40">{s.label}</div>
+            <div key={s.label} className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-4">
+              <div className="text-[11px] uppercase tracking-wide text-[var(--text-white-40)]">{s.label}</div>
               <div className={`mt-1 text-2xl font-bold ${s.color}`}>{s.value}</div>
             </div>
           ))}
@@ -1560,10 +1560,10 @@ function ServiceDiagnosticsPage() {
             { label: "Latency history", values: tsd?.history?.latency ?? [], color: "#c4b5fd", id: "m-lat" },
             { label: "Error rate history", values: tsd?.history?.error_rate ?? [], color: "#fca5a5", id: "m-err" },
           ].map((h) => (
-            <div key={h.id} className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
+            <div key={h.id} className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-3">
               <div className="mb-2 flex items-center justify-between text-[11px]">
-                <span className="text-white/55">{h.label}</span>
-                <span className="font-mono text-white/40">{h.values.at(-1)?.toFixed(2) ?? "—"}</span>
+                <span className="text-[var(--text-white-55)]">{h.label}</span>
+                <span className="font-mono text-[var(--text-white-40)]">{h.values.at(-1)?.toFixed(2) ?? "—"}</span>
               </div>
               <SparkLine values={h.values} lineColor={h.color} id={h.id} height={140} showAxes={true} />
             </div>
@@ -1596,44 +1596,44 @@ function ServiceDiagnosticsPage() {
           return (
             <>
               <div className="grid grid-cols-4 gap-2 mb-4">
-                <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
-                  <div className="text-[10px] uppercase tracking-wide text-white/40">Last</div>
+                <div className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-[var(--text-white-40)]">Last</div>
                   <div className={`mt-1 text-lg font-bold ${hot ? "text-red-400" : "text-emerald-400"}`}>
                     {(last > 0 ? "+" : "") + last.toFixed(3)}
                   </div>
                 </div>
-                <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
-                  <div className="text-[10px] uppercase tracking-wide text-white/40">3×IQR threshold</div>
-                  <div className="mt-1 text-lg font-bold text-white/75">±{thr.toFixed(3)}</div>
+                <div className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-[var(--text-white-40)]">3×IQR threshold</div>
+                  <div className="mt-1 text-lg font-bold text-[var(--text-white-75)]">±{thr.toFixed(3)}</div>
                 </div>
-                <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
-                  <div className="text-[10px] uppercase tracking-wide text-white/40">Drift ratio</div>
+                <div className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-[var(--text-white-40)]">Drift ratio</div>
                   <div className={`mt-1 text-lg font-bold ${hot ? "text-red-400" : "text-emerald-400"}`}>
                     {ratio.toFixed(2)}×
                   </div>
                 </div>
-                <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
-                  <div className="text-[10px] uppercase tracking-wide text-white/40">Verdict</div>
+                <div className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-[var(--text-white-40)]">Verdict</div>
                   <div className={`mt-1 text-sm font-bold ${hot ? "text-red-400" : "text-emerald-400"}`}>
                     {hot ? "DRIFTING" : "NORMAL"}
                   </div>
                 </div>
               </div>
-              <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3 mb-4">
+              <div className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-3 mb-4">
                 <ResidualSparkline values={values} threshold={thr} lineColor={meta.color} id={`big-${m}`} height={320} showAxes={true} />
               </div>
               <div className="grid grid-cols-3 gap-2 text-[11px]">
-                <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] px-3 py-2">
-                  <span className="text-white/40">Min</span>{" "}
-                  <span className="font-mono text-white/80">{stats.min.toFixed(3)}</span>
+                <div className="rounded-lg border border-[var(--border-white-05)] bg-[var(--surface-deep)] px-3 py-2">
+                  <span className="text-[var(--text-white-40)]">Min</span>{" "}
+                  <span className="font-mono text-[var(--text-white-80)]">{stats.min.toFixed(3)}</span>
                 </div>
-                <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] px-3 py-2">
-                  <span className="text-white/40">Avg</span>{" "}
-                  <span className="font-mono text-white/80">{stats.avg.toFixed(3)}</span>
+                <div className="rounded-lg border border-[var(--border-white-05)] bg-[var(--surface-deep)] px-3 py-2">
+                  <span className="text-[var(--text-white-40)]">Avg</span>{" "}
+                  <span className="font-mono text-[var(--text-white-80)]">{stats.avg.toFixed(3)}</span>
                 </div>
-                <div className="rounded-lg border border-white/[0.05] bg-[#0d1117] px-3 py-2">
-                  <span className="text-white/40">Max</span>{" "}
-                  <span className="font-mono text-white/80">{stats.max.toFixed(3)}</span>
+                <div className="rounded-lg border border-[var(--border-white-05)] bg-[var(--surface-deep)] px-3 py-2">
+                  <span className="text-[var(--text-white-40)]">Max</span>{" "}
+                  <span className="font-mono text-[var(--text-white-80)]">{stats.max.toFixed(3)}</span>
                 </div>
               </div>
             </>
@@ -1669,15 +1669,15 @@ function ServiceDiagnosticsPage() {
                   { l: "Avg", v: stats.avg },
                   { l: "Max", v: stats.max },
                 ].map((s) => (
-                  <div key={s.l} className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
-                    <div className="text-[10px] uppercase tracking-wide text-white/40">{s.l}</div>
+                  <div key={s.l} className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-3">
+                    <div className="text-[10px] uppercase tracking-wide text-[var(--text-white-40)]">{s.l}</div>
                     <div className="mt-1 text-lg font-bold" style={{ color }}>
                       {s.v.toFixed(m === "memory" ? 1 : 0)} {unit}
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
+              <div className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-3">
                 <SparkLine values={values} lineColor={color} id={`big-${m}-hist`} height={300} unit={unit} showAxes={true} />
               </div>
             </>
@@ -1693,20 +1693,20 @@ function ServiceDiagnosticsPage() {
         size="lg"
       >
         <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
-            <div className="text-[11px] uppercase tracking-wide text-white/40">Current Score</div>
+          <div className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-4">
+            <div className="text-[11px] uppercase tracking-wide text-[var(--text-white-40)]">Current Score</div>
             <div className={`mt-1 text-2xl font-bold ${lsi?.is_error_anomalous ? "text-red-400" : lsi?.is_anomalous ? "text-amber-400" : "text-cyan-300"}`}>
               {lsi?.current_score?.toFixed(4) ?? "—"}
             </div>
           </div>
-          <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
-            <div className="text-[11px] uppercase tracking-wide text-white/40">Baseline Mean</div>
-            <div className="mt-1 text-2xl font-bold text-white/80">
-              {lsi?.baseline_locked ? lsi.baseline_mean.toFixed(4) : <span className="text-sm text-white/30">warming up…</span>}
+          <div className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-4">
+            <div className="text-[11px] uppercase tracking-wide text-[var(--text-white-40)]">Baseline Mean</div>
+            <div className="mt-1 text-2xl font-bold text-[var(--text-white-80)]">
+              {lsi?.baseline_locked ? lsi.baseline_mean.toFixed(4) : <span className="text-sm text-[var(--text-white-30)]">warming up…</span>}
             </div>
           </div>
-          <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-4">
-            <div className="text-[11px] uppercase tracking-wide text-white/40">Threshold</div>
+          <div className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-4">
+            <div className="text-[11px] uppercase tracking-wide text-[var(--text-white-40)]">Threshold</div>
             <div className="mt-1 text-2xl font-bold text-red-300/80">{lsi?.threshold?.toFixed(4) ?? "—"}</div>
           </div>
         </div>
@@ -1714,8 +1714,8 @@ function ServiceDiagnosticsPage() {
           {(["INFO", "WARN", "ERROR", "NOVEL"] as const).map((label) => {
             const colors: Record<string, string> = { INFO: "text-emerald-400", WARN: "text-yellow-400", ERROR: "text-red-400", NOVEL: "text-purple-400" };
             return (
-              <div key={label} className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3 text-center">
-                <div className="text-[10px] uppercase tracking-wide text-white/40">{label}</div>
+              <div key={label} className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-3 text-center">
+                <div className="text-[10px] uppercase tracking-wide text-[var(--text-white-40)]">{label}</div>
                 <div className={`mt-1 text-2xl font-bold ${colors[label]}`}>{lsi?.window_counts?.[label] ?? 0}</div>
               </div>
             );
@@ -1730,10 +1730,10 @@ function ServiceDiagnosticsPage() {
         subtitle="Cosine-similarity score per window · baseline + threshold overlaid"
         size="lg"
       >
-        <div className="rounded-xl border border-white/[0.06] bg-[#0d1117] p-3">
+        <div className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] p-3">
           <SparkLine values={scoreHistory} threshold={lsi?.threshold} baseline={lsi?.baseline_mean} lineColor="#67e8f9" id="big-lsi-score" height={300} showAxes={true} />
         </div>
-        <div className="mt-3 flex items-center gap-4 text-[11px] text-white/40">
+        <div className="mt-3 flex items-center gap-4 text-[11px] text-[var(--text-white-40)]">
           <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t border-dashed border-red-400/60" /> Threshold {lsi?.threshold?.toFixed(4) ?? "—"}</span>
           <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t border-dashed border-white/25" /> Baseline mean {lsi?.baseline_mean?.toFixed(4) ?? "—"}</span>
           <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-cyan-400" /> Current {lsi?.current_score?.toFixed(4) ?? "—"}</span>
@@ -1751,9 +1751,9 @@ function ServiceDiagnosticsPage() {
           {(lsi?.recent_lines ?? []).map((entry, i) => {
             const colors: Record<string, string> = { INFO: "text-emerald-400", WARN: "text-yellow-400", ERROR: "text-red-400", NOVEL: "text-purple-400" };
             return (
-              <div key={i} className="flex gap-3 px-2 py-1 rounded hover:bg-white/[0.03]">
-                <span className={`shrink-0 w-14 text-right font-bold ${colors[entry.label] ?? "text-white/40"}`}>{entry.label}</span>
-                <span className="text-white/70 break-all">{entry.line}</span>
+              <div key={i} className="flex gap-3 px-2 py-1 rounded hover:bg-[var(--surface-glass-strong)]">
+                <span className={`shrink-0 w-14 text-right font-bold ${colors[entry.label] ?? "text-[var(--text-white-40)]"}`}>{entry.label}</span>
+                <span className="text-[var(--text-white-70)] break-all">{entry.line}</span>
               </div>
             );
           })}
@@ -1767,20 +1767,20 @@ function ServiceDiagnosticsPage() {
         subtitle={insight.headline}
         size="lg"
       >
-        <p className="text-[13px] leading-7 text-white/70 mb-4">{insight.explanation}</p>
+        <p className="text-[13px] leading-7 text-[var(--text-white-70)] mb-4">{insight.explanation}</p>
         {insight.driftingMetrics.length > 0 && (
           <div className="mb-4">
-            <div className="text-[11px] uppercase tracking-wide text-white/40 mb-2">Drifting Metrics</div>
+            <div className="text-[11px] uppercase tracking-wide text-[var(--text-white-40)] mb-2">Drifting Metrics</div>
             <div className="space-y-1.5">
               {insight.driftingMetrics.map((m) => (
                 <div key={m.name} className="flex items-center justify-between rounded-xl border border-red-500/20 bg-red-500/[0.05] px-3 py-2.5">
                   <div>
-                    <div className="text-[12px] text-white/80">{m.name}</div>
-                    <div className="text-[10px] text-white/40 font-mono">last residual {(m.lastResidual > 0 ? "+" : "") + m.lastResidual.toFixed(3)} · 3×IQR ±{m.iqrThreshold.toFixed(3)}</div>
+                    <div className="text-[12px] text-[var(--text-white-80)]">{m.name}</div>
+                    <div className="text-[10px] text-[var(--text-white-40)] font-mono">last residual {(m.lastResidual > 0 ? "+" : "") + m.lastResidual.toFixed(3)} · 3×IQR ±{m.iqrThreshold.toFixed(3)}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-[16px] font-bold text-red-400">{m.ratio.toFixed(1)}×</div>
-                    <div className="text-[10px] text-white/35">over threshold</div>
+                    <div className="text-[10px] text-[var(--text-white-35)]">over threshold</div>
                   </div>
                 </div>
               ))}
@@ -1789,8 +1789,8 @@ function ServiceDiagnosticsPage() {
         )}
         {lsi?.is_error_anomalous && (
           <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/[0.05] px-3 py-2.5">
-            <div className="text-[11px] uppercase tracking-wide text-white/40 mb-1">LSI Error Anomaly — Rollback will trigger</div>
-            <div className="text-[12px] text-white/80">
+            <div className="text-[11px] uppercase tracking-wide text-[var(--text-white-40)] mb-1">LSI Error Anomaly — Rollback will trigger</div>
+            <div className="text-[12px] text-[var(--text-white-80)]">
               LSI score {lsi.current_score?.toFixed(4) ?? "—"} is {(insight.scoreRatio).toFixed(2)}× the threshold ({lsi.threshold?.toFixed(4) ?? "—"}).
               ERROR ratio {(insight.errorRatio * 100).toFixed(0)}% of window.
             </div>
@@ -1798,8 +1798,8 @@ function ServiceDiagnosticsPage() {
         )}
         {lsi?.is_anomalous && !lsi?.is_error_anomalous && (
           <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-3 py-2.5">
-            <div className="text-[11px] uppercase tracking-wide text-white/40 mb-1">LSI Warn/Novel Anomaly — Informational only</div>
-            <div className="text-[12px] text-white/80">
+            <div className="text-[11px] uppercase tracking-wide text-[var(--text-white-40)] mb-1">LSI Warn/Novel Anomaly — Informational only</div>
+            <div className="text-[12px] text-[var(--text-white-80)]">
               LSI score {lsi.current_score?.toFixed(4) ?? "—"} is {(insight.scoreRatio).toFixed(2)}× the threshold ({lsi.threshold?.toFixed(4) ?? "—"}).
               NOVEL ratio {(insight.novelRatio * 100).toFixed(0)}% · No rollback will fire.
             </div>
@@ -1807,8 +1807,8 @@ function ServiceDiagnosticsPage() {
         )}
         {insight.novelLines.length > 0 && (
           <div>
-            <div className="text-[11px] uppercase tracking-wide text-white/40 mb-2">Unknown Patterns</div>
-            <div className="space-y-1 rounded-xl border border-white/[0.05] bg-[#0d1117] p-3 font-mono text-[12px]">
+            <div className="text-[11px] uppercase tracking-wide text-[var(--text-white-40)] mb-2">Unknown Patterns</div>
+            <div className="space-y-1 rounded-xl border border-[var(--border-white-05)] bg-[var(--surface-deep)] p-3 font-mono text-[12px]">
               {insight.novelLines.map((e, i) => (
                 <div key={i} className="flex gap-2 text-purple-300/80 leading-6">
                   <span className="shrink-0 text-purple-500/60">▸</span>
@@ -1829,14 +1829,14 @@ function ServiceDiagnosticsPage() {
         <div className="space-y-2">
           {[
             { label: "Detected Issue", value: message, color: tones.accent },
-            { label: "Current vs Baseline", value: `${current} vs ${baseline}`, color: "text-white/80" },
-            { label: "Metric", value: metric, color: "text-white/80" },
-            { label: "Namespace", value: namespace, color: "text-white/80" },
-            { label: "Service", value: serviceName, color: "text-white/80" },
+            { label: "Current vs Baseline", value: `${current} vs ${baseline}`, color: "text-[var(--text-white-80)]" },
+            { label: "Metric", value: metric, color: "text-[var(--text-white-80)]" },
+            { label: "Namespace", value: namespace, color: "text-[var(--text-white-80)]" },
+            { label: "Service", value: serviceName, color: "text-[var(--text-white-80)]" },
             { label: "Severity", value: severity, color: tones.accent },
           ].map((row) => (
-            <div key={row.label} className="rounded-xl border border-white/[0.06] bg-[#0d1117] px-4 py-3">
-              <div className="text-[11px] uppercase tracking-wide text-white/40">{row.label}</div>
+            <div key={row.label} className="rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] px-4 py-3">
+              <div className="text-[11px] uppercase tracking-wide text-[var(--text-white-40)]">{row.label}</div>
               <div className={`mt-1 text-[14px] font-semibold ${row.color}`}>{row.value}</div>
             </div>
           ))}
@@ -1861,8 +1861,8 @@ function ServiceDiagnosticsPage() {
             { label: "Versions", value: String(versions.length), color: "text-emerald-400" },
             { label: "Last Update", value: lastUpdate || "—", color: "text-emerald-400" },
           ].map((row) => (
-            <div key={row.label} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-[#0d1117] px-4 py-3">
-              <span className="text-[12px] text-white/55">{row.label}</span>
+            <div key={row.label} className="flex items-center justify-between rounded-xl border border-[var(--border-white-06)] bg-[var(--surface-deep)] px-4 py-3">
+              <span className="text-[12px] text-[var(--text-white-55)]">{row.label}</span>
               <span className={`text-[13px] font-semibold ${row.color}`}>{row.value}</span>
             </div>
           ))}
@@ -1881,7 +1881,7 @@ function ServiceDiagnosticsPage() {
             <RefreshCw size={16} className="text-amber-300 animate-spin shrink-0" />
             <div>
               <div className="text-[13px] font-semibold text-amber-200">Reverting…</div>
-              <div className="text-[11px] text-white/50">
+              <div className="text-[11px] text-[var(--text-white-50)]">
                 Rolling back{" "}
                 <span className="font-mono">{currentVersion?.image_tag ?? serviceName}</span>
                 {stableVersion && <> to <span className="font-mono">{stableVersion.image_tag}</span></>}
@@ -1891,7 +1891,7 @@ function ServiceDiagnosticsPage() {
           </div>
         )}
         {versions.length === 0 && !rollingBack && (
-          <div className="text-center text-[12px] text-white/40 py-6">No version snapshots yet.</div>
+          <div className="text-center text-[12px] text-[var(--text-white-40)] py-6">No version snapshots yet.</div>
         )}
         <div className="space-y-2">
           {versions.map((v, idx) => {
@@ -1902,12 +1902,12 @@ function ServiceDiagnosticsPage() {
                 <CircleDot size={12} className={meta.iconColor} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-mono text-white/90 truncate">{v.image_tag}</span>
+                    <span className="text-[13px] font-mono text-[var(--text-white-90)] truncate">{v.image_tag}</span>
                     {isLatest && (
                       <span className="rounded-full border border-cyan-500/30 bg-cyan-500/[0.08] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-cyan-300">Latest</span>
                     )}
                   </div>
-                  <div className="text-[10px] text-white/40 font-mono mt-0.5">
+                  <div className="text-[10px] text-[var(--text-white-40)] font-mono mt-0.5">
                     {formatRelTimestamp(v.created_at)} · {v.id.slice(0, 8)}
                   </div>
                 </div>

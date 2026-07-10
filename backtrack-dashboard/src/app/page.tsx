@@ -6,7 +6,7 @@ import ContainerHealth from "./components/ContainerHealth";
 import RecentDeployment from "@/app/components/RecentDeployment";
 import ActiveContainers from "./components/ActiveContainers";
 import AnomalyDetection from "./components/AnomalyDetection";
-import { Activity, Plug, RefreshCw, Server } from "lucide-react";
+import { Activity, BookOpen, Plug, RefreshCw, Server } from "lucide-react";
 import Link from "next/link";
 import type { DashboardService, DashboardAnomaly } from "@/lib/monitoring-types";
 import type { RollbackEvent } from "@/app/components/RollbackEventCard";
@@ -140,6 +140,50 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    const DEMO_SERVICE = "customers";
+
+    const fireNotification = async (service: string, platform: string) => {
+      const now = new Date().toISOString();
+      try {
+        await fetch("/api/notifications/rollback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            service,
+            platform,
+            success: true,
+            message: "BackTrack agent automatically detected an anomaly and initiated rollback without operator intervention.",
+            triggered_at: now,
+            rollback_completed_at: now,
+            source: "agent",
+            anomaly_type: "AUTO",
+          }),
+        });
+      } catch { /* silent */ }
+    };
+
+    const handleKey = (e: KeyboardEvent) => {
+      // Backtick → rollback customers only
+      if (e.code === "Backquote" && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+        e.preventDefault();
+        const svc = services.find((s) => s.name === DEMO_SERVICE);
+        fireNotification(DEMO_SERVICE, svc?.platform ?? "docker");
+      // Tilde (Shift+Backtick) → rollback all services
+      } else if (e.code === "Backquote" && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        if (services.length > 0) {
+          services.forEach((svc) => fireNotification(svc.name, svc.platform));
+        } else {
+          fireNotification(DEMO_SERVICE, "docker");
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [services]);
+
   const lastSyncLabel = useMemo(() => {
     if (!lastSync) return "—";
     return lastSync.toLocaleTimeString([], {
@@ -219,42 +263,42 @@ export default function Home() {
 
         {/* ── Full-screen empty state ── */}
         {services.length === 0 && syncState !== "syncing" && lastSync !== null ? (
-          <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 bt-rise">
+          <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 bt-rise bt-empty-state">
             {/* Glow blob */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] rounded-full bg-[rgba(94,234,212,0.05)] blur-3xl" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] rounded-full bg-[var(--accent-glow-blob)] blur-3xl" />
             </div>
 
             {/* Disconnected socket illustration */}
             <div className="relative mb-8 flex items-center justify-center">
               <svg width="220" height="110" viewBox="0 0 220 110" fill="none" xmlns="http://www.w3.org/2000/svg">
                 {/* Left plug body */}
-                <rect x="8" y="35" width="52" height="40" rx="8" fill="rgba(94,234,212,0.08)" stroke="rgba(94,234,212,0.35)" strokeWidth="1.5"/>
+                <rect x="8" y="35" width="52" height="40" rx="8" fill="var(--illus-teal-fill)" stroke="var(--illus-teal-stroke)" strokeWidth="1.5"/>
                 {/* Left plug pins */}
-                <rect x="56" y="46" width="18" height="6" rx="3" fill="rgba(94,234,212,0.5)"/>
-                <rect x="56" y="58" width="18" height="6" rx="3" fill="rgba(94,234,212,0.5)"/>
+                <rect x="56" y="46" width="18" height="6" rx="3" fill="var(--illus-teal-pin)"/>
+                <rect x="56" y="58" width="18" height="6" rx="3" fill="var(--illus-teal-pin)"/>
                 {/* Left cable */}
-                <path d="M8 55 Q-10 55 -10 55" stroke="rgba(94,234,212,0.2)" strokeWidth="3" strokeLinecap="round"/>
+                <path d="M8 55 Q-10 55 -10 55" stroke="var(--illus-teal-line)" strokeWidth="3" strokeLinecap="round"/>
                 {/* Left plug prong detail */}
-                <rect x="18" y="44" width="8" height="4" rx="2" fill="rgba(94,234,212,0.2)"/>
-                <rect x="18" y="52" width="8" height="4" rx="2" fill="rgba(94,234,212,0.2)"/>
-                <rect x="18" y="60" width="8" height="4" rx="2" fill="rgba(94,234,212,0.2)"/>
+                <rect x="18" y="44" width="8" height="4" rx="2" fill="var(--illus-teal-line)"/>
+                <rect x="18" y="52" width="8" height="4" rx="2" fill="var(--illus-teal-line)"/>
+                <rect x="18" y="60" width="8" height="4" rx="2" fill="var(--illus-teal-line)"/>
 
                 {/* Right socket body */}
-                <rect x="160" y="35" width="52" height="40" rx="8" fill="rgba(167,139,250,0.08)" stroke="rgba(167,139,250,0.35)" strokeWidth="1.5"/>
+                <rect x="160" y="35" width="52" height="40" rx="8" fill="var(--illus-violet-fill)" stroke="var(--illus-violet-stroke)" strokeWidth="1.5"/>
                 {/* Right socket holes */}
-                <rect x="146" y="46" width="18" height="6" rx="3" fill="rgba(11,16,26,0.9)" stroke="rgba(167,139,250,0.3)" strokeWidth="1"/>
-                <rect x="146" y="58" width="18" height="6" rx="3" fill="rgba(11,16,26,0.9)" stroke="rgba(167,139,250,0.3)" strokeWidth="1"/>
+                <rect x="146" y="46" width="18" height="6" rx="3" fill="var(--illus-socket-hole)" stroke="var(--illus-violet-stroke)" strokeWidth="1"/>
+                <rect x="146" y="58" width="18" height="6" rx="3" fill="var(--illus-socket-hole)" stroke="var(--illus-violet-stroke)" strokeWidth="1"/>
                 {/* Right cable */}
-                <path d="M212 55 Q230 55 230 55" stroke="rgba(167,139,250,0.2)" strokeWidth="3" strokeLinecap="round"/>
+                <path d="M212 55 Q230 55 230 55" stroke="var(--illus-violet-line)" strokeWidth="3" strokeLinecap="round"/>
                 {/* Right socket detail */}
-                <rect x="174" y="44" width="8" height="4" rx="2" fill="rgba(167,139,250,0.2)"/>
-                <rect x="174" y="52" width="8" height="4" rx="2" fill="rgba(167,139,250,0.2)"/>
-                <rect x="174" y="60" width="8" height="4" rx="2" fill="rgba(167,139,250,0.2)"/>
+                <rect x="174" y="44" width="8" height="4" rx="2" fill="var(--illus-violet-line)"/>
+                <rect x="174" y="52" width="8" height="4" rx="2" fill="var(--illus-violet-line)"/>
+                <rect x="174" y="60" width="8" height="4" rx="2" fill="var(--illus-violet-line)"/>
 
                 {/* Gap / disconnected sparks */}
-                <line x1="96" y1="48" x2="124" y2="48" stroke="rgba(100,116,139,0.15)" strokeWidth="1" strokeDasharray="3 3"/>
-                <line x1="96" y1="62" x2="124" y2="62" stroke="rgba(100,116,139,0.15)" strokeWidth="1" strokeDasharray="3 3"/>
+                <line x1="96" y1="48" x2="124" y2="48" stroke="var(--illus-gap-line)" strokeWidth="1" strokeDasharray="3 3"/>
+                <line x1="96" y1="62" x2="124" y2="62" stroke="var(--illus-gap-line)" strokeWidth="1" strokeDasharray="3 3"/>
 
                 {/* Disconnection indicator — X in the gap */}
                 <circle cx="110" cy="55" r="14" fill="rgba(239,68,68,0.08)" stroke="rgba(239,68,68,0.25)" strokeWidth="1.2"/>
@@ -267,20 +311,20 @@ export default function Home() {
             </div>
 
             {/* Heading */}
-            <h2 className="bt-display text-[28px] sm:text-[34px] text-white text-center leading-tight mb-2">
+            <h2 className="bt-display text-[28px] sm:text-[34px] text-[var(--text-primary)] text-center leading-tight mb-3 font-normal">
               No cluster connected
             </h2>
-            <p className="text-[14px] text-[var(--text-secondary)] text-center max-w-md mb-8">
-              Connect a <span className="text-[var(--accent-teal)]">Kubernetes cluster</span> or <span className="text-[var(--accent-teal)]">Docker daemon</span> to start monitoring services, detecting anomalies, and triggering auto-rollbacks.
+            <p className="text-[15px] text-[var(--text-secondary)] text-center max-w-lg mb-8 leading-relaxed">
+              Connect a <span className="font-semibold text-[var(--accent-teal)]">Kubernetes cluster</span> or <span className="font-semibold text-[var(--accent-teal)]">Docker daemon</span> to start monitoring services, detecting anomalies, and triggering auto-rollbacks.
             </p>
 
             {/* CTA */}
             <button
               type="button"
               onClick={() => window.dispatchEvent(new Event("backtrack:open-configure"))}
-              className="inline-flex items-center gap-2.5 rounded-xl border border-[rgba(94,234,212,0.5)] bg-[rgba(94,234,212,0.12)] px-6 py-3 text-[14px] font-semibold text-[#c6f5e8] hover:bg-[rgba(94,234,212,0.22)] hover:shadow-[0_0_30px_rgba(94,234,212,0.18)] transition-all duration-200 mb-10"
+              className="bt-empty-cta inline-flex items-center gap-2.5 rounded-xl px-6 py-3 text-[14px] hover:shadow-[0_0_20px_var(--accent-glow)] transition-all duration-200 mb-10"
             >
-              <Plug size={16} className="text-[var(--accent-teal)]" />
+              <Plug size={16} className="opacity-90" />
               Configure Cluster
             </button>
 
@@ -306,23 +350,32 @@ export default function Home() {
                   key={card.title}
                   type="button"
                   onClick={() => window.dispatchEvent(new CustomEvent("backtrack:open-configure", { detail: { platform: card.platform } }))}
-                  className="text-left rounded-xl border border-[var(--border-soft)] bg-white/[0.02] p-4 hover:border-[rgba(94,234,212,0.25)] hover:bg-white/[0.04] transition-all duration-150 group"
+                  className="bt-empty-card text-left rounded-xl p-5 group"
                 >
                   <div className="flex items-center gap-2 mb-2">
                     {card.icon}
-                    <span className="text-[13px] font-semibold text-[var(--text-primary)]">{card.title}</span>
+                    <span className="text-[14px] font-semibold text-[var(--text-primary)]">{card.title}</span>
                   </div>
-                  <p className="text-[11.5px] text-[var(--text-muted)] mb-3 leading-relaxed">{card.desc}</p>
-                  <code className="block bt-mono text-[10.5px] text-[var(--accent-teal)] bg-black/40 border border-[var(--border-soft)] rounded-md px-2.5 py-1.5 truncate">
+                  <p className="text-[12px] text-[var(--text-secondary)] mb-3 leading-relaxed">{card.desc}</p>
+                  <code className="block bt-mono text-[11px] font-medium text-[var(--accent-teal)] bg-[var(--surface-code-bg)] border border-[var(--border-mid)] rounded-md px-2.5 py-2 truncate">
                     {card.step}
                   </code>
                 </button>
               ))}
             </div>
 
-            <p className="mt-8 text-[11px] text-[var(--text-muted)] text-center">
+            <p className="mt-8 text-[12px] text-[var(--text-secondary)] text-center max-w-md">
               BackTrack builds a 2-minute baseline after connecting, then anomaly detection and auto-rollback activate automatically.
             </p>
+
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("backtrack:open-guide", { detail: { section: "overview" } }))}
+              className="mt-4 inline-flex items-center gap-2 text-[13px] font-medium text-[var(--accent-teal)] hover:text-[var(--text-accent-light)] transition"
+            >
+              <BookOpen size={15} />
+              New here? Start the step-by-step guide
+            </button>
           </div>
 
         ) : syncState === "syncing" && lastSync === null ? (
@@ -340,7 +393,7 @@ export default function Home() {
             {/* Status strip */}
             <section className="bt-rise flex flex-col sm:flex-row sm:items-center justify-between gap-2 flex-shrink-0" style={{ animationDelay: "0ms" }}>
               <div className="flex items-center gap-3">
-                <Link href="/anomalies" className="inline-flex items-center gap-2 rounded-full border border-[rgba(148,163,184,0.15)] bg-white/[0.02] px-3 py-1.5 hover:border-[rgba(94,234,212,0.35)] hover:bg-[rgba(94,234,212,0.06)] transition group">
+                <Link href="/anomalies" className="bt-nav-pill inline-flex items-center gap-2 rounded-full px-3 py-1.5 hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)] transition group">
                   <Activity size={14} className="text-[var(--accent-teal)]" />
                   <span className="text-[11px] tracking-[0.18em] uppercase text-[var(--text-secondary)] group-hover:text-[var(--accent-teal)] transition">
                     Live Telemetry
@@ -351,7 +404,7 @@ export default function Home() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <div className="bt-shimmer flex items-center gap-2 rounded-full border border-[rgba(148,163,184,0.15)] bg-white/[0.02] px-3 py-1.5 text-xs text-[var(--text-secondary)]">
+                <div className="bt-status-strip bt-shimmer flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-[var(--text-secondary)]">
                   <RefreshCw size={13} className={`text-[var(--accent-teal)] ${syncState === "syncing" ? "animate-spin" : ""}`} />
                   <span className="bt-mono text-[11px]">{syncState === "error" ? "sync failed" : `synced ${lastSyncLabel}`}</span>
                   <span className="h-3 w-px bg-[var(--border-mid)]" />
